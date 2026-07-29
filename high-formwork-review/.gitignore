@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+.venv/
+*.py[cod]
+data/output/*
+data/web/jobs/*
+.pytest_tmp/

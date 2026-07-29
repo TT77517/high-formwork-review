@@ -1,0 +1,172 @@
+[
+  {
+    "rule_id": "HF-COMP-001",
+    "name": "工程概况",
+    "section_aliases": ["工程概况", "项目概况", "工程简介", "高大支模概况"],
+    "text_terms": ["工程名称", "建设地点", "建筑面积", "结构形式", "高支模", "支模高度", "支模范围"],
+    "accepted_block_types": ["paragraph", "table"],
+    "accepted_page_types": ["text", "table", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 3,
+    "mandatory_subitems": ["high_formwork_scope_parameters"],
+    "required_subitems": [
+      {"id": "project_name", "name": "工程名称", "terms": ["工程名称", "项目名称"]},
+      {"id": "location_scope", "name": "工程位置或范围", "terms": ["建设地点", "工程地点", "项目地点", "工程范围"]},
+      {"id": "structure_overview", "name": "结构概况", "terms": ["结构形式", "结构体系", "框架结构", "建筑面积", "层高"]},
+      {"id": "high_formwork_scope_parameters", "name": "高支模部位或主要参数", "terms": ["高大支模", "高支模", "支模高度", "搭设高度", "支模部位", "超限梁", "厚板"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-002",
+    "name": "编制依据",
+    "section_aliases": ["编制依据", "编制说明", "规范依据"],
+    "text_terms": ["法律法规", "规范", "规程", "标准", "图纸", "施工组织设计"],
+    "accepted_block_types": ["paragraph", "table"],
+    "accepted_page_types": ["text", "table", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 2,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "drawings_organization", "name": "图纸或施工组织设计", "terms": ["设计图纸", "施工图纸", "施工组织设计"]},
+      {"id": "standards", "name": "规范标准", "terms": ["规范", "规程", "标准", "GB", "JGJ"]},
+      {"id": "laws", "name": "法律法规", "terms": ["法律法规", "管理条例", "住建部令", "管理规定"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-003",
+    "name": "施工计划",
+    "section_aliases": ["施工计划", "施工部署", "进度计划", "材料与设备计划"],
+    "text_terms": ["施工进度", "材料计划", "设备计划", "劳动力", "工期", "进场"],
+    "accepted_block_types": ["paragraph", "table"],
+    "accepted_page_types": ["text", "table", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 2,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "progress", "name": "施工进度", "terms": ["施工进度", "进度计划", "工期"]},
+      {"id": "materials", "name": "材料计划", "terms": ["材料计划", "材料需用", "钢材", "模板材料"]},
+      {"id": "equipment", "name": "设备计划", "terms": ["设备计划", "设备需用", "机械设备", "施工机具", "机具"]},
+      {"id": "labor", "name": "劳动力计划", "terms": ["劳动力", "人员计划", "作业人员计划"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-004",
+    "name": "施工工艺技术",
+    "section_aliases": ["施工工艺技术", "施工工艺", "施工方法", "技术参数"],
+    "text_terms": ["技术参数", "搭设", "模板安装", "支架", "构造要求", "拆除", "施工方法"],
+    "accepted_block_types": ["paragraph", "table", "image"],
+    "accepted_page_types": ["text", "table", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 2,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "technical_parameters", "name": "技术参数", "terms": ["技术参数", "立杆", "步距", "间距", "荷载"]},
+      {"id": "process", "name": "工艺流程", "terms": ["工艺流程", "施工流程", "流程"]},
+      {"id": "erection_installation", "name": "搭设或安装", "terms": ["搭设", "模板安装", "支架安装", "施工方法"]},
+      {"id": "removal", "name": "拆除", "terms": ["拆除", "拆模"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-005",
+    "name": "施工安全保证措施",
+    "section_aliases": ["施工安全保证措施", "安全保证措施", "安全技术措施"],
+    "text_terms": ["安全组织", "安全技术", "监测监控", "危险源", "防护措施", "检查"],
+    "accepted_block_types": ["paragraph", "table", "chart"],
+    "accepted_page_types": ["text", "table", "organization_chart", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 2,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "organization", "name": "组织保障", "terms": ["组织保障", "安全组织", "安全管理机构"]},
+      {"id": "technical", "name": "技术保障", "terms": ["技术保障", "安全技术", "技术措施"]},
+      {"id": "monitoring", "name": "监测监控", "terms": ["监测监控", "监测项目", "监测频率", "监测点"]},
+      {"id": "risk_protection", "name": "危险源或防护", "terms": ["危险源", "防护措施", "安全检查", "检查要求"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-006",
+    "name": "施工管理及作业人员配备",
+    "section_aliases": ["施工管理及作业人员配备", "施工管理人员", "作业人员配备", "劳动力计划"],
+    "text_terms": ["项目负责人", "技术负责人", "专职安全员", "特种作业人员", "架子工", "人员职责", "人员配备"],
+    "accepted_block_types": ["paragraph", "table", "chart"],
+    "accepted_page_types": ["text", "table", "organization_chart", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 2,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "management_staff", "name": "施工管理人员", "terms": ["施工管理人员", "项目负责人", "技术负责人"]},
+      {"id": "safety_staff", "name": "安全生产管理人员", "terms": ["安全生产管理人员", "专职安全员", "安全员"]},
+      {"id": "special_workers", "name": "特种作业人员", "terms": ["特种作业人员", "架子工", "特种作业"]},
+      {"id": "duties", "name": "岗位职责", "terms": ["岗位职责", "人员职责", "职责分工"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-007",
+    "name": "验收要求",
+    "section_aliases": ["验收要求", "检查验收", "支架验收", "模板验收", "搭设验收"],
+    "text_terms": ["支架验收", "模板验收", "搭设验收", "验收程序", "验收标准", "验收人员", "验收内容"],
+    "accepted_block_types": ["paragraph", "table"],
+    "accepted_page_types": ["text", "table", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 2,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "support_acceptance", "name": "支架验收", "terms": ["支架验收", "支撑架检查与验收", "支撑架应进行检查与验收", "架体验收"]},
+      {"id": "formwork_acceptance", "name": "模板验收", "terms": ["模板验收"]},
+      {"id": "erection_acceptance", "name": "搭设验收", "terms": ["搭设验收", "搭设和组装完毕", "架子搭设", "搭设的架体"]},
+      {"id": "procedure", "name": "验收程序", "terms": ["验收程序", "程序内容", "班组检查", "质量员专检", "业主、监理验收"]},
+      {"id": "standard", "name": "验收标准", "terms": ["验收标准", "应符合下列规定", "符合本标准"]},
+      {"id": "content", "name": "验收内容", "terms": ["验收内容", "验收项目", "检查与验收应符合", "程序内容"]},
+      {"id": "personnel", "name": "验收人员", "terms": ["验收人员", "验收负责人", "验收小组", "项目安全负责人"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-008",
+    "name": "应急处置措施",
+    "section_aliases": ["应急处置措施", "应急预案", "应急救援", "应急措施"],
+    "text_terms": ["应急组织", "应急职责", "抢险领导小组", "应急响应", "事故报告", "救援措施"],
+    "accepted_block_types": ["paragraph", "table", "chart"],
+    "accepted_page_types": ["text", "table", "organization_chart", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 3,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "organization", "name": "应急组织", "terms": ["应急组织", "应急救援组织", "领导小组"]},
+      {"id": "duties", "name": "应急职责", "terms": ["应急职责", "领导小组职责", "职责分工"]},
+      {"id": "response", "name": "应急响应", "terms": ["应急响应", "应急反应", "应急预案", "现场事故应急处理"]},
+      {"id": "reporting", "name": "事故报告", "terms": ["事故报告", "信息报告", "报告程序", "上报"]},
+      {"id": "rescue", "name": "抢险救援", "terms": ["抢险救援", "救援措施", "救援方法", "应急救援"]},
+      {"id": "supplies", "name": "应急物资", "terms": ["应急物资", "应急资源", "救援物资", "应急设备"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-009",
+    "name": "计算书",
+    "section_aliases": ["计算书", "设计计算", "验算书", "支撑体系计算"],
+    "text_terms": ["计算书", "计算参数", "荷载计算", "承载力", "稳定性", "挠度", "验算"],
+    "accepted_block_types": ["paragraph", "table", "formula", "equation"],
+    "accepted_page_types": ["text", "table", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 1,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "formula", "name": "计算公式", "terms": [], "block_types": ["formula", "equation"]},
+      {"id": "calculation_table", "name": "计算表格", "terms": ["计算", "验算", "荷载", "承载力", "稳定性"], "block_types": ["table"]},
+      {"id": "explicit_calculation", "name": "明确计算内容", "terms": ["计算书", "计算参数", "荷载计算", "承载力", "稳定性", "挠度", "验算"]}
+    ]
+  },
+  {
+    "rule_id": "HF-COMP-010",
+    "name": "相关施工图纸",
+    "section_aliases": ["相关施工图纸", "相关图纸", "施工图纸", "附图"],
+    "text_terms": ["平面布置图", "立面图", "剖面图", "节点图", "支架布置图", "模板支撑图"],
+    "accepted_block_types": ["image", "chart"],
+    "accepted_page_types": ["drawing", "mixed"],
+    "minimum_matches": 1,
+    "minimum_subitems": 1,
+    "mandatory_subitems": [],
+    "required_subitems": [
+      {"id": "associated_drawing_image", "name": "可关联施工图图片", "terms": [], "block_types": ["image", "chart"]}
+    ]
+  }
+]

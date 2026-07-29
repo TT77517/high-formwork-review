@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>高支模专项施工方案智能审查系统</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">比赛演示 · 本地单机版</p>
+      <h1>高支模专项施工方案智能审查系统</h1>
+      <p class="subtitle">从 MinerU 多模态解析，到文档结构化，再到 10 条完整性规则审查，全程保留可追溯证据。</p>
+    </div>
+    <div class="pipeline" aria-label="处理流程">
+      <span>MinerU<small>底层多模态解析工具</small></span>
+      <b>→</b>
+      <span>文档解析 Agent<small>章节、页面与风险</small></span>
+      <b>→</b>
+      <span>完整性审查 Agent<small>规则判断与证据组织</small></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel upload-panel">
+      <div class="section-heading">
+        <div><span class="step">01</span><h2>上传与任务</h2></div>
+        <span id="statusBadge" class="badge neutral">等待上传</span>
+      </div>
+      <form id="uploadForm">
+        <label class="file-picker">
+          <input id="pdfFile" type="file" accept=".pdf,application/pdf" required>
+          <span id="fileLabel">选择不超过 50MB 的 PDF 文件</span>
+        </label>
+        <button id="submitButton" type="submit">开始解析并审查</button>
+      </form>
+      <p id="uploadError" class="error" role="alert"></p>
+      <div class="task-grid">
+        <div><small>文件名</small><strong id="taskFile">—</strong></div>
+        <div><small>上传时间</small><strong id="taskTime">—</strong></div>
+        <div><small>任务编号</small><strong id="taskId">—</strong></div>
+        <div><small>当前阶段</small><strong id="taskStage">waiting</strong></div>
+      </div>
+      <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+      <p id="taskMessage" class="task-message">请选择 PDF，系统将依次执行解析和审查。</p>
+    </section>
+
+    <section id="documentPanel" class="panel hidden">
+      <div class="section-heading">
+        <div><span class="step">02</span><h2>文档解析 Agent</h2></div>
+        <span class="agent-tag">结构化与风险识别</span>
+      </div>
+      <div class="explain">
+        <strong>职责边界：</strong>MinerU 提供底层多模态解析结果；文档解析 Agent 负责校验结果、构建章节、分类页面并标记解析风险。
+      </div>
+      <div id="documentStats" class="stats"></div>
+      <div class="split-view">
+        <div>
+          <h3>章节列表</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>标题</th><th>层级</th><th>页码</th><th>section path</th></tr></thead>
+            <tbody id="sectionRows"></tbody>
+          </table></div>
+        </div>
+        <div>
+          <h3>页面列表 <small>点击查看 block 证据</small></h3>
+          <div class="table-wrap page-table"><table>
+            <thead><tr><th>页</th><th>印刷页</th><th>类型</th><th>状态</th><th>文本</th><th>图/表/公式</th><th>复核</th></tr></thead>
+            <tbody id="pageRows"></tbody>
+          </table></div>
+        </div>
+      </div>
+      <div id="pageDetail" class="detail-box empty">点击页面列表中的任意一页查看文本、block、bbox 和来源指针。</div>
+    </section>
+
+    <section id="reviewPanel" class="panel hidden">
+      <div class="section-heading">
+        <div><span class="step">03</span><h2>完整性审查 Agent</h2></div>
+        <span class="agent-tag">10 条规则与证据链</span>
+      </div>
+      <div class="explain">
+        <strong>职责边界：</strong>完整性审查 Agent 不重新解析 PDF，而是在结构化文档上执行固定的 10 条规则，并组织章节、页码、原文引用和来源指针。
+      </div>
+      <div id="reviewStats" class="stats"></div>
+      <div id="ruleList" class="rule-list"></div>
+    </section>
+
+    <section id="decisionPanel" class="panel hidden">
+      <div class="section-heading">
+        <div><span class="step">04</span><h2>人工复核</h2></div>
+        <span class="agent-tag warning">本地 JSON 记录</span>
+      </div>
+      <p class="section-note">重点检查 UNCERTAIN、解析不完整页面和标记为“需要人工复核”的证据。选择决定并填写备注后统一保存。</p>
+      <div id="decisionList" class="decision-list"></div>
+      <div class="save-row">
+        <button id="saveDecisions" type="button">保存人工复核结果</button>
+        <span id="decisionMessage"></span>
+      </div>
+    </section>
+  </main>
+
+  <footer>数据仅保存在本机 <code>data/web/jobs/{job_id}</code>，页面不会获取 MinerU Token。</footer>
+  <script src="{{ url_for('static', path='/app.js') }}" defer></script>
+</body>
+</html>
