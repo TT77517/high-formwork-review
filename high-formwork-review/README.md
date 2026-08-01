@@ -279,6 +279,108 @@ http://127.0.0.1:8000
 4. 展开 UNCERTAIN 规则，说明系统不会把不完整证据误判为 MISSING。
 5. 在人工复核区填写备注并保存，展示 `decisions.json` 是演示版的人机协同闭环。
 
+## Dify 完整性审查工作流
+
+Dify 集成是现有命令行流程的可选追加步骤。默认不启用，也不会读取或检查任何
+Dify 环境变量。现有本地 10 条规则、解析输出和 Web 页面均不受影响。
+
+### 配置
+
+在 `.env` 中增加：
+
+```text
+DIFY_BASE_URL=https://your-dify-host.example/v1
+DIFY_API_KEY=你的 Dify Workflow API Key
+DIFY_TIMEOUT_SECONDS=180
+```
+
+- `DIFY_BASE_URL` 应包含 Dify Service API 的基础路径，程序会调用
+  `{DIFY_BASE_URL}/workflows/run`。
+- `DIFY_API_KEY` 只用于服务端 `Authorization: Bearer ...` 请求头，不会写入
+  请求审计、原始响应或错误文件。
+- `DIFY_TIMEOUT_SECONDS` 可选，默认 180 秒。
+
+### 命令
+
+PDF 输入：
+
+```powershell
+python -m app.main `
+  --pdf "D:\path\input.pdf" `
+  --output-dir "D:\path\output" `
+  --dify
+```
+
+已有 MinerU raw 结果：
+
+```powershell
+python -m app.main `
+  --raw-dir "D:\path\mineru\raw" `
+  --output-dir "D:\path\output" `
+  --dify
+```
+
+不传 `--dify` 时，命令行为、日志、返回码和原有四个输出文件保持不变。
+
+### 转换与规则驱动分批
+
+程序读取已生成的 `mineru_document.json`，使用
+`build_dify_scheme_text(parse_result)` 按物理页生成文本：
+
+```text
+【第5页】
+章节：1. 工程概况 / 1.1 工程简介
+
+正文和表格转写文本
+```
+
+转换过程会排除目录页、页码 block、重复页眉页脚和空白内容。图片或图纸无法形成
+有效文字时标记：
+
+```text
+[本页包含图片或图纸，需人工复核]
+```
+
+每条规则使用现有 `section_aliases` 作为候选章节，经过去序号、全角半角统一、
+空格归一和忽略大小写后进行包含匹配。程序先收集每条规则的完整相关章节，生成独立
+证据包，再把多个规则证据包组合为不超过 50000 字符的请求批次：
+
+- 每条正常规则只进入一个批次；
+- 每批只发送本批对应的 `review_rules`；
+- `expected_rule_count` 等于本批规则数量；
+- 正常分批不会永久省略章节；
+- 缺少 `section_aliases` 的规则不会匹配全篇，而会进入 UNCERTAIN 人工复核兜底。
+
+若单条规则证据本身超过 50000 字符，才启用分片兜底：依次按完整子章节、物理页和
+完整段落拆分。分片顶部明确标注 `rule_id`、`part_index`、`part_count` 以及
+“本分片只是完整证据的一部分”。分片结果本地保守汇总，不会因为某一片缺少内容就把
+整条规则判为 MISSING。
+
+### Dify 输入
+
+每个批次发送四个工作流输入变量：
+
+- `task_id`
+- `scheme_text`
+- `review_rules`，为实际发送的 JSON 字符串
+- `expected_rule_count`
+
+请求采用 blocking 模式。长度、章节和批次元数据只保存在本地审计文件，不传入
+Dify 的 `inputs`。
+
+### 输出与失败行为
+
+启用 `--dify` 后，在现有 `--output-dir` 中追加：
+
+- `dify_request.json`：所有批次的实际 inputs、规则证据包和长度元数据；
+- `dify_raw_response.json`：各批次未经修改的 Dify 原始响应；
+- `dify_review_result.json`：按 `rule_id` 汇总后的完整性审查结果；
+- `dify_error.json`：仅失败时生成，状态为 `DIFY_FAILED`。
+
+Dify 配置缺失、网络失败、超时或输出 JSON 无效时，命令返回 `1` 并打印简短错误。
+已经生成的 `mineru_document.json`、`completeness_results.json`、
+`completeness_summary.json` 和 `completeness_evidence_check.md` 会完整保留。
+
 ## 审查结果质量核验规格
 
 以下内容记录解析与审查核心的质量核验规格；Web 演示层只复用这些结果，不改变规则逻辑。

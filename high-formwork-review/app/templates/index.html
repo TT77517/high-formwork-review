@@ -3,37 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>高支模专项施工方案智能审查系统</title>
+  <title>高支模方案审查工作台</title>
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 </head>
 <body>
-  <header class="hero">
-    <div>
-      <p class="eyebrow">比赛演示 · 本地单机版</p>
-      <h1>高支模专项施工方案智能审查系统</h1>
-      <p class="subtitle">从 MinerU 多模态解析，到文档结构化，再到 10 条完整性规则审查，全程保留可追溯证据。</p>
+  <nav class="top-nav">
+    <div class="nav-brand">高支模方案审查工作台</div>
+    <div class="nav-tabs" id="navTabs">
+      <button class="nav-tab active" data-tab="overview">任务概览</button>
+      <button class="nav-tab" data-tab="document">文档解析</button>
+      <button class="nav-tab" data-tab="review">完整性检查</button>
+      <button class="nav-tab" data-tab="manual">人工复核</button>
+      <button class="nav-tab" data-tab="records">审查记录</button>
     </div>
-    <div class="pipeline" aria-label="处理流程">
-      <span>MinerU<small>底层多模态解析工具</small></span>
-      <b>→</b>
-      <span>文档解析 Agent<small>章节、页面与风险</small></span>
-      <b>→</b>
-      <span>完整性审查 Agent<small>规则判断与证据组织</small></span>
+    <div class="nav-status">
+      <span id="statusBadge" class="badge neutral">等待上传</span>
+      <span id="jobIdBadge" class="job-id-text">—</span>
     </div>
-  </header>
+  </nav>
 
   <main>
-    <section class="panel upload-panel">
+    <!-- ====== 上传区 ====== -->
+    <section class="panel upload-panel" id="uploadPanel">
       <div class="section-heading">
-        <div><span class="step">01</span><h2>上传与任务</h2></div>
-        <span id="statusBadge" class="badge neutral">等待上传</span>
+        <h2>上传方案文件</h2>
+        <span id="uploadStage" class="stage-tag">等待上传</span>
       </div>
       <form id="uploadForm">
         <label class="file-picker">
           <input id="pdfFile" type="file" accept=".pdf,application/pdf" required>
           <span id="fileLabel">选择不超过 50MB 的 PDF 文件</span>
         </label>
-        <button id="submitButton" type="submit">开始解析并审查</button>
+        <button id="submitButton" type="submit">开始审查</button>
       </form>
       <p id="uploadError" class="error" role="alert"></p>
       <div class="task-grid">
@@ -43,64 +44,111 @@
         <div><small>当前阶段</small><strong id="taskStage">waiting</strong></div>
       </div>
       <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
-      <p id="taskMessage" class="task-message">请选择 PDF，系统将依次执行解析和审查。</p>
+      <p id="taskMessage" class="task-message">请选择 PDF 文件，系统将依次执行解析和审查。</p>
     </section>
 
-    <section id="documentPanel" class="panel hidden">
+    <!-- ====== Tab 1: 任务概览 ====== -->
+    <section class="panel tab-panel hidden" id="tab-overview">
       <div class="section-heading">
-        <div><span class="step">02</span><h2>文档解析 Agent</h2></div>
-        <span class="agent-tag">结构化与风险识别</span>
+        <h2>任务概览</h2>
+        <span class="disclaimer">系统辅助检查结果，仅供参考，需人工确认。</span>
       </div>
-      <div class="explain">
-        <strong>职责边界：</strong>MinerU 提供底层多模态解析结果；文档解析 Agent 负责校验结果、构建章节、分类页面并标记解析风险。
+      <div class="card-grid" id="overviewCards"></div>
+      <div id="priorityItems" class="priority-box hidden">
+        <h3>⚠ 优先处理事项</h3>
+        <ul id="priorityList"></ul>
       </div>
+    </section>
+
+    <!-- ====== Tab 2: 文档解析 ====== -->
+    <section class="panel tab-panel hidden" id="tab-document">
+      <div class="section-heading">
+        <h2>文档解析</h2>
+        <span class="disclaimer">系统辅助检查结果，仅供参考，需人工确认。</span>
+      </div>
+      <div class="explain">MinerU 提供底层多模态解析结果，文档解析 Agent 负责校验结果、构建章节、分类页面并标记解析风险。</div>
       <div id="documentStats" class="stats"></div>
-      <div class="split-view">
-        <div>
-          <h3>章节列表</h3>
-          <div class="table-wrap"><table>
-            <thead><tr><th>标题</th><th>层级</th><th>页码</th><th>section path</th></tr></thead>
-            <tbody id="sectionRows"></tbody>
-          </table></div>
-        </div>
-        <div>
-          <h3>页面列表 <small>点击查看 block 证据</small></h3>
-          <div class="table-wrap page-table"><table>
-            <thead><tr><th>页</th><th>印刷页</th><th>类型</th><th>状态</th><th>文本</th><th>图/表/公式</th><th>复核</th></tr></thead>
+      <details class="fold-box" id="techStats">
+        <summary>技术统计（Block 明细）</summary>
+        <div id="techStatsContent" class="fold-content"></div>
+      </details>
+      <div class="doc-split">
+        <div class="doc-left">
+          <div class="filter-bar">
+            <label>页面筛选：</label>
+            <select id="pageFilter"><option value="all">全部</option><option value="unreadable">不可读</option><option value="partial">部分解析</option><option value="human-review">需人工复核</option></select>
+          </div>
+          <div class="table-wrap doc-table-wrap"><table>
+            <thead><tr><th>页</th><th>印刷页</th><th>类型</th><th>状态</th><th>文本量</th><th>图/表/公式</th><th>复核</th></tr></thead>
             <tbody id="pageRows"></tbody>
           </table></div>
         </div>
+        <div class="doc-right">
+          <h3>章节目录</h3>
+          <div class="toc-list" id="sectionList"></div>
+        </div>
       </div>
-      <div id="pageDetail" class="detail-box empty">点击页面列表中的任意一页查看文本、block、bbox 和来源指针。</div>
+      <div id="pageDetailPanel" class="drawer-overlay hidden">
+        <div class="drawer"><div class="drawer-head"><h3 id="drawerTitle">页面详情</h3><button id="drawerClose" class="drawer-close">✕</button></div><div id="drawerBody" class="drawer-body"></div></div>
+      </div>
     </section>
 
-    <section id="reviewPanel" class="panel hidden">
+    <!-- ====== Tab 3: 完整性检查 ====== -->
+    <section class="panel tab-panel hidden" id="tab-review">
       <div class="section-heading">
-        <div><span class="step">03</span><h2>完整性审查 Agent</h2></div>
-        <span class="agent-tag">10 条规则与证据链</span>
+        <h2>完整性检查（10 条规则）</h2>
+        <span class="disclaimer">系统辅助检查结果，仅供参考，需人工确认。</span>
       </div>
-      <div class="explain">
-        <strong>职责边界：</strong>完整性审查 Agent 不重新解析 PDF，而是在结构化文档上执行固定的 10 条规则，并组织章节、页码、原文引用和来源指针。
+      <div class="explain">完整性审查 Agent 在结构化文档上执行固定的 10 条规则，对比本地预审与 Dify 审查结果，组织章节、页码、原文引用作为可追溯证据。</div>
+      <div class="filter-bar">
+        <label>筛选：</label>
+        <select id="reviewFilter">
+          <option value="all">全部规则</option>
+          <option value="manual-review">待复核</option>
+          <option value="disagree">结果不一致</option>
+          <option value="MISSING">疑似缺失</option>
+          <option value="UNCERTAIN">无法核验</option>
+        </select>
+        <span id="difyWarning" class="dify-warning hidden"></span>
       </div>
-      <div id="reviewStats" class="stats"></div>
-      <div id="ruleList" class="rule-list"></div>
+      <div class="table-wrap review-table-wrap"><table id="reviewTable">
+        <thead><tr><th>规则</th><th>检查事项</th><th>本地预审</th><th>Dify审查</th><th>一致性</th><th>人工状态</th><th>操作</th></tr></thead>
+        <tbody id="reviewRows"></tbody>
+      </table></div>
+      <div id="reviewDetailPanel" class="drawer-overlay hidden">
+        <div class="drawer"><div class="drawer-head"><h3 id="reviewDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="review">✕</button></div><div id="reviewDrawerBody" class="drawer-body"></div></div>
+      </div>
     </section>
 
-    <section id="decisionPanel" class="panel hidden">
+    <!-- ====== Tab 4: 人工复核 ====== -->
+    <section class="panel tab-panel hidden" id="tab-manual">
       <div class="section-heading">
-        <div><span class="step">04</span><h2>人工复核</h2></div>
-        <span class="agent-tag warning">本地 JSON 记录</span>
+        <h2>人工复核</h2>
+        <span class="disclaimer">所有自动结果仅供参考，请依据方案原文和规范要求逐项确认。</span>
       </div>
-      <p class="section-note">重点检查 UNCERTAIN、解析不完整页面和标记为“需要人工复核”的证据。选择决定并填写备注后统一保存。</p>
-      <div id="decisionList" class="decision-list"></div>
+      <div class="manual-toolbar">
+        <label><input type="checkbox" id="showAllDecisions"> 显示全部规则（含已确认项）</label>
+        <span id="manualProgress" class="manual-progress"></span>
+      </div>
+      <div id="manualList" class="manual-list"></div>
       <div class="save-row">
-        <button id="saveDecisions" type="button">保存人工复核结果</button>
+        <button id="saveDecisions" type="button">保存复核结果</button>
+        <button id="saveAndNext" type="button" class="btn-secondary">保存并查看下一项</button>
         <span id="decisionMessage"></span>
       </div>
     </section>
+
+    <!-- ====== Tab 5: 审查记录 ====== -->
+    <section class="panel tab-panel hidden" id="tab-records">
+      <div class="section-heading"><h2>审查记录</h2></div>
+      <h3>任务处理时间线</h3>
+      <div id="timeline" class="timeline"></div>
+      <h3>输出文件</h3>
+      <div id="outputFiles" class="output-files"></div>
+    </section>
   </main>
 
-  <footer>数据仅保存在本机 <code>data/web/jobs/{job_id}</code>，页面不会获取 MinerU Token。</footer>
+  <footer>系统辅助审查结果仅供参考，需人工确认。数据仅保存在本机。</footer>
   <script src="{{ url_for('static', path='/app.js') }}" defer></script>
 </body>
 </html>

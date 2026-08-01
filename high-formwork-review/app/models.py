@@ -91,6 +91,9 @@ class CompletenessResult:
     reason: str
     evidence: list[ReviewEvidence] = field(default_factory=list)
     requires_human_review: bool = False
+    confidence: float | None = None
+    needs_semantic_review: bool = False
+    semantic_review_reason: str | None = None
 
 
 @dataclass

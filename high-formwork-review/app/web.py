@@ -15,6 +15,7 @@ from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, Uplo
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from .completeness_review import (
@@ -22,6 +23,7 @@ from .completeness_review import (
     load_rules,
     review_completeness_with_details,
 )
+from .dify_config import resolve_dify_completeness_mode
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
 
@@ -32,7 +34,16 @@ RULES_PATH = PROJECT_ROOT / "config" / "completeness_rules.json"
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 JOB_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
-HUMAN_DECISIONS = {"confirmed", "rejected", "pending"}
+HUMAN_DECISIONS = {
+    "pending",
+    "confirmed",
+    "rejected",
+    "confirmed_pass",
+    "confirmed_missing",
+    "unable_to_verify",
+    "false_positive",
+    "need_supplement",
+}
 AUTOMATIC_STATUSES = {"PASS", "MISSING", "UNCERTAIN"}
 ASSET_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 
@@ -43,8 +54,10 @@ STAGE_PROGRESS = {
     "document_parsing": 60,
     "completeness_review": 80,
     "completed": 100,
+    "completed_with_warning": 100,
     "failed": 100,
 }
+COMPLETED_STATUSES = {"completed", "completed_with_warning"}
 
 app = FastAPI(title="高支模专项施工方案智能审查系统")
 templates = Jinja2Templates(directory=str(PROJECT_ROOT / "app" / "templates"))
@@ -59,6 +72,7 @@ class DecisionInput(BaseModel):
     rule_id: str = Field(min_length=1, max_length=64)
     automatic_status: str
     human_decision: str
+    human_decision_label: str = Field(default="")
     note: str = Field(default="", max_length=2000)
 
 
@@ -215,6 +229,12 @@ def get_review(job_id: str) -> dict[str, Any]:
     }
 
 
+@app.get("/api/jobs/{job_id}/comparison")
+def get_comparison(job_id: str) -> dict[str, Any]:
+    job_dir = _completed_job_dir(job_id)
+    return _read_json(job_dir / "review_comparison.json", "对比结果不存在")
+
+
 @app.post("/api/jobs/{job_id}/decisions")
 def save_decisions(job_id: str, payload: DecisionsPayload) -> dict[str, Any]:
     job_dir = _completed_job_dir(job_id)
@@ -248,6 +268,7 @@ def save_decisions(job_id: str, payload: DecisionsPayload) -> dict[str, Any]:
             "rule_id": decision.rule_id,
             "automatic_status": decision.automatic_status,
             "human_decision": decision.human_decision,
+            "human_decision_label": decision.human_decision_label.strip() or decision.human_decision,
             "note": decision.note.strip(),
             "decided_at": _utc_now(),
         }
@@ -271,6 +292,157 @@ def get_asset(job_id: str, path: str) -> FileResponse:
     if not target.is_file():
         raise HTTPException(status_code=404, detail="资源不存在")
     return FileResponse(target)
+
+
+@app.get("/api/jobs/{job_id}/dify-error")
+def get_dify_error(job_id: str) -> dict[str, Any]:
+    """读取 Dify 错误文件（如果存在）。"""
+    job_dir = _completed_job_dir(job_id)
+    error_path = job_dir / "dify_error.json"
+    if not error_path.exists():
+        raise HTTPException(status_code=404, detail="无 Dify 错误记录")
+    return _read_json(error_path, "Dify 错误记录不存在")
+
+
+@app.get("/api/jobs/{job_id}/timeline")
+def get_timeline(job_id: str) -> dict[str, Any]:
+    """构建任务处理时间线。"""
+    job_dir = _completed_job_dir(job_id)
+    status = _read_json(job_dir / "status.json", "任务状态不存在")
+    events: list[dict[str, Any]] = []
+
+    # 上传事件
+    events.append({
+        "time": status.get("uploaded_at", ""),
+        "stage": "uploaded",
+        "description": f"上传文件：{status.get('file_name', '未知')}",
+    })
+
+    # 解析开始
+    events.append({
+        "time": status.get("updated_at", ""),
+        "stage": "mineru_parsing",
+        "description": "MinerU 多模态解析",
+    })
+
+    # 文档解析
+    events.append({
+        "time": status.get("updated_at", ""),
+        "stage": "document_parsing",
+        "description": "文档解析 Agent：章节构建与风险标记",
+    })
+
+    # 完整性审查
+    events.append({
+        "time": status.get("updated_at", ""),
+        "stage": "completeness_review",
+        "description": "完整性审查 Agent：执行 10 条规则",
+    })
+
+    # Dify 审查
+    dify_result = None
+    try:
+        dify_result = _read_json(job_dir / "dify_review_result.json", "")
+    except HTTPException:
+        pass
+    dify_error = None
+    try:
+        dify_error = _read_json(job_dir / "dify_error.json", "")
+    except HTTPException:
+        pass
+
+    if dify_result:
+        events.append({
+            "time": status.get("updated_at", ""),
+            "stage": "dify_review",
+            "description": f"Dify 审查完成（{dify_result.get('total_rules', '?')} 条规则）",
+        })
+    elif dify_error:
+        events.append({
+            "time": status.get("updated_at", ""),
+            "stage": "dify_failed",
+            "error": True,
+            "description": f"Dify 审查失败：{dify_error.get('message', '未知错误')}",
+        })
+    else:
+        events.append({
+            "time": status.get("updated_at", ""),
+            "stage": "dify_disabled",
+            "description": "Dify 未启用，跳过 AI 审查",
+        })
+
+    # 人工复核
+    decisions_path = job_dir / "decisions.json"
+    if decisions_path.exists():
+        decisions = _read_json(decisions_path, "")
+        if decisions:
+            reviewed = sum(1 for d in decisions if d.get("human_decision") != "pending")
+            events.append({
+                "time": decisions[-1].get("decided_at", status.get("updated_at", "")),
+                "stage": "human_review",
+                "description": f"人工复核：{reviewed}/{len(decisions)} 条已处理",
+            })
+
+    # 完成
+    events.append({
+        "time": status.get("updated_at", ""),
+        "stage": status.get("status", "completed"),
+        "description": status.get("message", "任务完成"),
+    })
+
+    return {"job_id": job_id, "events": events}
+
+
+@app.get("/api/jobs/{job_id}/files")
+def get_output_files(job_id: str) -> dict[str, Any]:
+    """列出任务输出文件（不含敏感信息）。"""
+    job_dir = _completed_job_dir(job_id)
+    files: list[dict[str, str]] = []
+
+    file_descriptions = {
+        "mineru_document.json": "MinerU 解析结构化文档",
+        "completeness_results.json": "完整性检查结果（10 条规则）",
+        "completeness_summary.json": "完整性检查汇总",
+        "completeness_evidence_check.md": "证据核对报告（Markdown）",
+        "decisions.json": "人工复核记录",
+        "review_comparison.json": "本地与 Dify 审查对比",
+        "dify_review_result.json": "Dify AI 审查结果",
+        "dify_request.json": "Dify 请求审计日志",
+        "dify_raw_response.json": "Dify 原始响应",
+        "dify_error.json": "Dify 错误记录",
+        "status.json": "任务状态",
+    }
+
+    for file_name, desc in file_descriptions.items():
+        file_path = job_dir / file_name
+        if file_path.is_file():
+            size_bytes = file_path.stat().st_size
+            size_str = f"{size_bytes / 1024:.1f} KB" if size_bytes < 1024 * 1024 else f"{size_bytes / 1048576:.1f} MB"
+            files.append({
+                "name": file_name,
+                "description": desc,
+                "size": size_str,
+                "downloadable": True,
+            })
+
+    return {"job_id": job_id, "files": files}
+
+
+@app.get("/api/jobs/{job_id}/download/{filename:path}")
+def download_output_file(job_id: str, filename: str) -> FileResponse:
+    """下载任务输出文件（排除含敏感信息的文件）。"""
+    job_dir = _completed_job_dir(job_id)
+    # 不允许下载含 API Key 的文件
+    sensitive_names = {"dify_request.json", "dify_raw_response.json"}
+    safe_name = Path(filename).name
+    if safe_name in sensitive_names:
+        raise HTTPException(status_code=403, detail="此文件可能包含敏感信息，不支持直接下载")
+    if ".." in safe_name or Path(safe_name).is_absolute():
+        raise HTTPException(status_code=400, detail="文件名无效")
+    target = job_dir / safe_name
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return FileResponse(target, filename=safe_name)
 
 
 def _process_job(job_id: str) -> None:
@@ -326,7 +498,41 @@ def _process_job(job_id: str) -> None:
             job_dir / "completeness_evidence_check.md",
             build_evidence_check_markdown(document, summary, details),
         )
-        _update_status(job_dir, "completed", "解析与完整性审查已完成")
+        try:
+            mode = _web_dify_mode()
+            from .main import _write_dify_selection
+
+            _write_dify_selection(job_dir, summary.results, mode)
+        except ValueError as exc:
+            _atomic_write_json(
+                job_dir / "dify_error.json",
+                {
+                    "status": "DIFY_FAILED",
+                    "message": str(exc),
+                    "failed_batch_index": None,
+                },
+            )
+            _update_status(
+                job_dir,
+                "completed_with_warning",
+                "Dify配置无效，本地结果可用",
+                error_stage="dify_review",
+            )
+            return
+
+        if mode != "off":
+            try:
+                _run_optional_dify_review(job_dir, rules)
+                _update_status(job_dir, "completed", "解析、本地审查与 Dify 审查已完成")
+            except (OSError, RuntimeError, ValueError):
+                _update_status(
+                    job_dir,
+                    "completed_with_warning",
+                    "Dify审查失败，本地结果可用",
+                    error_stage="dify_review",
+                )
+        else:
+            _update_status(job_dir, "completed", "解析与完整性审查已完成")
     except Exception:
         _update_status(
             job_dir,
@@ -365,6 +571,21 @@ def _failure_message(stage: str) -> str:
     }.get(stage, "任务处理失败，请稍后重试")
 
 
+def _web_dify_mode() -> str:
+    load_dotenv()
+    return resolve_dify_completeness_mode(
+        explicit_mode=os.getenv("DIFY_COMPLETENESS_MODE"),
+        web_enable_dify=os.getenv("WEB_ENABLE_DIFY", "false"),
+        load_environment=False,
+    )
+
+
+def _run_optional_dify_review(job_dir: Path, rules: list[dict[str, Any]]) -> None:
+    from .main import _run_dify_review
+
+    _run_dify_review(job_dir, rules)
+
+
 def _job_dir(job_id: str) -> Path:
     if not JOB_ID_PATTERN.fullmatch(job_id):
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -377,7 +598,7 @@ def _job_dir(job_id: str) -> Path:
 def _completed_job_dir(job_id: str) -> Path:
     job_dir = _job_dir(job_id)
     status = _read_json(job_dir / "status.json", "任务状态不存在")
-    if status.get("status") != "completed":
+    if status.get("status") not in COMPLETED_STATUSES:
         raise HTTPException(status_code=409, detail="任务尚未完成")
     return job_dir
 

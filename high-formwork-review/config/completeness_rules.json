@@ -2,7 +2,7 @@
   {
     "rule_id": "HF-COMP-001",
     "name": "工程概况",
-    "section_aliases": ["工程概况", "项目概况", "工程简介", "高大支模概况"],
+    "section_aliases": ["工程概况", "项目概况", "工程简介", "高大支模概况", "高支模工程概况", "危大工程概况"],
     "text_terms": ["工程名称", "建设地点", "建筑面积", "结构形式", "高支模", "支模高度", "支模范围"],
     "accepted_block_types": ["paragraph", "table"],
     "accepted_page_types": ["text", "table", "mixed"],
@@ -19,7 +19,7 @@
   {
     "rule_id": "HF-COMP-002",
     "name": "编制依据",
-    "section_aliases": ["编制依据", "编制说明", "规范依据"],
+    "section_aliases": ["编制依据", "编制说明", "规范依据", "设计图纸及施工组织设计", "国家行业地方规范规程", "安全管理法律法规"],
     "text_terms": ["法律法规", "规范", "规程", "标准", "图纸", "施工组织设计"],
     "accepted_block_types": ["paragraph", "table"],
     "accepted_page_types": ["text", "table", "mixed"],
@@ -35,7 +35,8 @@
   {
     "rule_id": "HF-COMP-003",
     "name": "施工计划",
-    "section_aliases": ["施工计划", "施工部署", "进度计划", "材料与设备计划"],
+    "section_aliases": ["施工计划", "施工部署", "进度计划", "施工进度计划", "材料与设备计划", "材料需用计划", "设备需用计划", "机械设备计划", "劳动力计划", "劳动力投入计划", "施工管理及作业人员配备", "施工管理及作业人员配备和分工", "作业人员配备和分工", "其他作业人员配备及分工"],
+    "required_elements": ["施工进度计划", "材料计划", "设备计划", "劳动力计划"],
     "text_terms": ["施工进度", "材料计划", "设备计划", "劳动力", "工期", "进场"],
     "accepted_block_types": ["paragraph", "table"],
     "accepted_page_types": ["text", "table", "mixed"],
@@ -52,7 +53,7 @@
   {
     "rule_id": "HF-COMP-004",
     "name": "施工工艺技术",
-    "section_aliases": ["施工工艺技术", "施工工艺", "施工方法", "技术参数"],
+    "section_aliases": ["施工工艺技术", "施工工艺", "施工方法", "技术参数", "工艺流程", "操作要求", "模板安装", "模板拆除", "支架搭设"],
     "text_terms": ["技术参数", "搭设", "模板安装", "支架", "构造要求", "拆除", "施工方法"],
     "accepted_block_types": ["paragraph", "table", "image"],
     "accepted_page_types": ["text", "table", "mixed"],
@@ -69,7 +70,7 @@
   {
     "rule_id": "HF-COMP-005",
     "name": "施工安全保证措施",
-    "section_aliases": ["施工安全保证措施", "安全保证措施", "安全技术措施"],
+    "section_aliases": ["施工安全保证措施", "安全保证措施", "安全技术措施", "组织保障措施", "技术保障措施", "监测监控措施", "危险源辨识", "安全防护措施"],
     "text_terms": ["安全组织", "安全技术", "监测监控", "危险源", "防护措施", "检查"],
     "accepted_block_types": ["paragraph", "table", "chart"],
     "accepted_page_types": ["text", "table", "organization_chart", "mixed"],
@@ -86,7 +87,7 @@
   {
     "rule_id": "HF-COMP-006",
     "name": "施工管理及作业人员配备",
-    "section_aliases": ["施工管理及作业人员配备", "施工管理人员", "作业人员配备", "劳动力计划"],
+    "section_aliases": ["施工管理及作业人员配备", "施工管理及作业人员配备和分工", "施工管理人员", "安全生产管理人员", "特种作业人员", "作业人员配备", "作业人员配备和分工", "其他作业人员配备及分工", "岗位职责", "劳动力计划"],
     "text_terms": ["项目负责人", "技术负责人", "专职安全员", "特种作业人员", "架子工", "人员职责", "人员配备"],
     "accepted_block_types": ["paragraph", "table", "chart"],
     "accepted_page_types": ["text", "table", "organization_chart", "mixed"],
@@ -103,7 +104,7 @@
   {
     "rule_id": "HF-COMP-007",
     "name": "验收要求",
-    "section_aliases": ["验收要求", "检查验收", "支架验收", "模板验收", "搭设验收"],
+    "section_aliases": ["验收要求", "检查验收", "支架验收", "模板验收", "搭设验收", "验收程序", "验收标准", "验收内容", "验收人员"],
     "text_terms": ["支架验收", "模板验收", "搭设验收", "验收程序", "验收标准", "验收人员", "验收内容"],
     "accepted_block_types": ["paragraph", "table"],
     "accepted_page_types": ["text", "table", "mixed"],
@@ -123,7 +124,7 @@
   {
     "rule_id": "HF-COMP-008",
     "name": "应急处置措施",
-    "section_aliases": ["应急处置措施", "应急预案", "应急救援", "应急措施"],
+    "section_aliases": ["应急处置措施", "应急预案", "应急救援", "应急措施", "应急组织机构", "应急救援组织机构及职责", "应急响应", "事故报告", "救援方法", "应急资源"],
     "text_terms": ["应急组织", "应急职责", "抢险领导小组", "应急响应", "事故报告", "救援措施"],
     "accepted_block_types": ["paragraph", "table", "chart"],
     "accepted_page_types": ["text", "table", "organization_chart", "mixed"],
@@ -142,7 +143,7 @@
   {
     "rule_id": "HF-COMP-009",
     "name": "计算书",
-    "section_aliases": ["计算书", "设计计算", "验算书", "支撑体系计算"],
+    "section_aliases": ["计算书", "设计计算", "验算书", "支撑体系计算", "模板支架计算", "荷载计算", "承载力验算", "稳定性验算", "挠度验算"],
     "text_terms": ["计算书", "计算参数", "荷载计算", "承载力", "稳定性", "挠度", "验算"],
     "accepted_block_types": ["paragraph", "table", "formula", "equation"],
     "accepted_page_types": ["text", "table", "mixed"],
@@ -158,7 +159,7 @@
   {
     "rule_id": "HF-COMP-010",
     "name": "相关施工图纸",
-    "section_aliases": ["相关施工图纸", "相关图纸", "施工图纸", "附图"],
+    "section_aliases": ["相关施工图纸", "相关图纸", "施工图纸", "附图", "平面布置图", "支架布置图", "模板支撑图", "立面图", "剖面图", "节点图"],
     "text_terms": ["平面布置图", "立面图", "剖面图", "节点图", "支架布置图", "模板支撑图"],
     "accepted_block_types": ["image", "chart"],
     "accepted_page_types": ["drawing", "mixed"],

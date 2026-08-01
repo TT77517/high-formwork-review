@@ -1,10 +1,61 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets
 .env
 .env.*
 !.env.example
-__pycache__/
-.pytest_cache/
-.venv/
-*.py[cod]
-data/output/*
-data/web/jobs/*
-.pytest_tmp/
+*.key
+*.pem
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime and temporary files
+logs/
+tmp/
+temp/
+uploads/
+
+# Web jobs and generated task data
+data/jobs/
+data/web/jobs/
+data/output/
+data/output*/
+data/dify-test/
+data/input/
+data/.pytest_tmp*/
+
+# Uploaded PDFs and MinerU raw outputs
+*.pdf
+**/source.pdf
+**/mineru_api/
+**/raw/
+
+# Generated review artifacts
+**/mineru_document.json
+**/completeness_results.json
+**/completeness_summary.json
+**/completeness_evidence_check.md
+**/dify_selection.json
+**/dify_request.json
+**/dify_raw_response.json
+**/dify_review_result.json
+**/dify_error.json
+**/review_comparison.json

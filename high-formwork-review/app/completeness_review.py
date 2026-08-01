@@ -38,6 +38,10 @@ _DRAWING_REFERENCE_TERMS = ("附图", "见图", "详见图纸")
 _DRAWING_EVIDENCE_PAGE_LIMIT = 8
 
 
+_SEMANTIC_CONFIDENCE_THRESHOLD = 0.70
+_HIGH_CONFIDENCE = 0.80
+
+
 def load_rules(path: str | Path) -> list[dict[str, Any]]:
     """读取规则并做最小结构校验。"""
     rule_path = Path(path)
@@ -457,6 +461,7 @@ def _evaluate_rule(
         document,
         all_relevant_terms,
     )
+    _attach_semantic_metadata(result, detail, document)
     return result, detail
 
 
@@ -705,6 +710,7 @@ def _evaluate_drawing_rule(
         document,
         relevant_terms,
     )
+    _attach_semantic_metadata(result, detail, document)
     return result, detail
 
 
@@ -761,6 +767,174 @@ def _allow_partial_drawing(
         and bool(block.image_path)
         and not page.warnings
     )
+
+
+def calculate_completeness_confidence(
+    result: CompletenessResult,
+    detail: dict[str, Any],
+    document: MinerUDocument,
+) -> float:
+    """Calculate a small, explainable confidence score for the local verdict."""
+    evidence = list(result.evidence)
+    evidence_pages = {item.physical_page for item in evidence}
+    pages_by_number = {page.physical_page: page for page in document.pages}
+    incomplete_pages = [
+        pages_by_number[page]
+        for page in evidence_pages
+        if page in pages_by_number and pages_by_number[page].parse_status != "complete"
+    ]
+    toc_only = _evidence_is_toc_only(evidence, pages_by_number)
+    title_only = _evidence_is_title_only(evidence)
+    satisfied_count = sum(
+        1 for item in detail.get("matched_subitems", []) if item.get("satisfied")
+    )
+    subitem_count = len(detail.get("matched_subitems", []))
+    section_count = len(detail.get("matched_sections", []))
+
+    if result.status == "PASS":
+        score = _HIGH_CONFIDENCE
+        if satisfied_count >= 2:
+            score += 0.08
+        if evidence and not incomplete_pages and not toc_only:
+            score += 0.05
+        if section_count:
+            score += 0.03
+        if title_only:
+            score -= 0.25
+    elif result.status == "MISSING":
+        score = 0.74
+        if document.requires_human_review:
+            score -= 0.30
+        if evidence:
+            score -= 0.18
+    else:
+        score = 0.48
+        if toc_only:
+            score -= 0.22
+        if title_only:
+            score -= 0.12
+        if incomplete_pages:
+            score -= 0.16
+        if section_count and satisfied_count:
+            score += 0.10
+        elif section_count:
+            score += 0.04
+
+    if subitem_count and 0 < satisfied_count < subitem_count:
+        score -= 0.08
+    if _evidence_spans_many_sections(evidence):
+        score -= 0.08
+    if not evidence and document.requires_human_review:
+        score = min(score, 0.35)
+    return max(0.0, min(1.0, round(score, 2)))
+
+
+def _attach_semantic_metadata(
+    result: CompletenessResult,
+    detail: dict[str, Any],
+    document: MinerUDocument,
+) -> None:
+    confidence = calculate_completeness_confidence(result, detail, document)
+    needs_review, reason = _semantic_review_decision(result, detail, document, confidence)
+    result.confidence = confidence
+    result.needs_semantic_review = needs_review
+    result.semantic_review_reason = reason
+    detail["confidence"] = confidence
+    detail["needs_semantic_review"] = needs_review
+    detail["semantic_review_reason"] = reason
+
+
+def _semantic_review_decision(
+    result: CompletenessResult,
+    detail: dict[str, Any],
+    document: MinerUDocument,
+    confidence: float,
+) -> tuple[bool, str]:
+    pages_by_number = {page.physical_page: page for page in document.pages}
+    toc_only = _evidence_is_toc_only(result.evidence, pages_by_number)
+    title_only = _evidence_is_title_only(result.evidence)
+    incomplete_evidence = any(
+        pages_by_number[item.physical_page].parse_status != "complete"
+        for item in result.evidence
+        if item.physical_page in pages_by_number
+    )
+    partial_subitems = _has_partial_subitem_match(detail)
+    weak_keyword_signal = _has_weak_keyword_signal(result, detail)
+    reason_text = result.reason
+    if result.status == "UNCERTAIN":
+        return True, "本地结果为 UNCERTAIN，需进行完整性语义复核"
+    if confidence < _SEMANTIC_CONFIDENCE_THRESHOLD:
+        return True, f"本地规则置信度为 {confidence:.2f}，低于语义复核阈值"
+    if toc_only:
+        return True, "仅在目录中识别到相关章节，正文证据不足"
+    if title_only:
+        return True, "仅识别到标题线索，正文证据不足"
+    if "附件" in reason_text and not result.evidence:
+        return True, "仅发现附件名称或线索，附件正文未形成可靠证据"
+    if _evidence_spans_many_sections(result.evidence):
+        return True, "证据分散在多个章节，建议进行完整性语义复核"
+    if partial_subitems:
+        return True, "识别到部分必备要素，但无法确认整体是否满足"
+    if weak_keyword_signal:
+        return True, "仅命中弱关键词或同义线索，缺少明确必备要素证据"
+    if "无法确认" in reason_text or "不能确认" in reason_text:
+        return True, "本地原因中已说明无法确认，需要语义复核"
+    if incomplete_evidence:
+        return True, "证据页面解析状态不完整，需人工或语义复核辅助判断"
+    if result.status == "PASS":
+        return False, "正文证据较充分，本地规则置信度较高，暂无需语义复核"
+    if result.status == "MISSING" and not result.evidence and not document.requires_human_review:
+        return False, "文档解析完整且未发现相关证据，本地 MISSING 判断置信度较高"
+    return False, "本地规则置信度达到阈值，暂无需语义复核"
+
+
+def _evidence_is_toc_only(
+    evidence: list[ReviewEvidence],
+    pages_by_number: dict[int, MinerUPage],
+) -> bool:
+    if not evidence:
+        return False
+    pages = [pages_by_number.get(item.physical_page) for item in evidence]
+    if any(page is None for page in pages):
+        return False
+    return all(
+        any("目录页" in warning for warning in page.warnings)
+        for page in pages
+        if page is not None
+    )
+
+
+def _evidence_is_title_only(evidence: list[ReviewEvidence]) -> bool:
+    return bool(evidence) and all(item.block_type == "title" for item in evidence)
+
+
+def _evidence_spans_many_sections(evidence: list[ReviewEvidence]) -> bool:
+    section_roots = {
+        item.section_path[0]
+        for item in evidence
+        if item.section_path and item.block_type != "title"
+    }
+    return len(section_roots) >= 3
+
+
+def _has_partial_subitem_match(detail: dict[str, Any]) -> bool:
+    subitems = detail.get("matched_subitems", [])
+    if not subitems:
+        return False
+    satisfied = sum(1 for item in subitems if item.get("satisfied"))
+    return 0 < satisfied < len(subitems)
+
+
+def _has_weak_keyword_signal(
+    result: CompletenessResult,
+    detail: dict[str, Any],
+) -> bool:
+    if not result.evidence:
+        return False
+    has_satisfied_subitem = any(
+        item.get("satisfied") for item in detail.get("matched_subitems", [])
+    )
+    return not has_satisfied_subitem and not detail.get("matched_terms", [])
 
 
 def _build_detail(
