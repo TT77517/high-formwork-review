@@ -27,6 +27,7 @@ from app.services.dify_client import (
     extract_review_result,
     merge_batch_review_results,
     validate_review_result,
+    validate_review_result_with_warnings,
 )
 
 
@@ -202,6 +203,56 @@ def test_missing_section_aliases_do_not_match_all_sections() -> None:
     assert warnings[0]["code"] == "RULE_CONFIG_WARNING"
     assert fallback[0]["status"] == "UNCERTAIN"
     assert fallback[0]["manual_review"] is True
+
+
+def test_selected_rule_ids_filter_packages_in_config_order() -> None:
+    packages, warnings, fallback = build_rule_evidence_packages(
+        _document_dict(),
+        _rules(),
+        selected_rule_ids=["HF-COMP-007"],
+    )
+
+    assert warnings == []
+    assert fallback == []
+    assert [item["rule_id"] for item in packages] == ["HF-COMP-007"]
+    assert build_rule_evidence_packages(
+        _document_dict(), _rules(), selected_rule_ids=[]
+    ) == ([], [], [])
+
+
+def test_selected_rule_ids_reject_unknown_rule() -> None:
+    with pytest.raises(ValueError, match="unknown rule_id"):
+        build_rule_evidence_packages(
+            _document_dict(), _rules(), selected_rule_ids=["HF-COMP-404"]
+        )
+
+
+def test_rule_evidence_is_deduplicated_and_capped_without_tail_cut() -> None:
+    document = _document_dict()
+    repeated = "正文命中内容-完整片段。" * 200
+    document["pages"][2]["blocks"] = [
+        {
+            "block_type": "paragraph",
+            "text": repeated,
+            "bbox": {"x0": 10, "y0": 50, "x1": 250, "y1": 90},
+        },
+        {
+            "block_type": "paragraph",
+            "text": repeated,
+            "bbox": {"x0": 10, "y0": 100, "x1": 250, "y1": 140},
+        },
+    ]
+    packages, _, _ = build_rule_evidence_packages(
+        document,
+        _rules(),
+        selected_rule_ids=["HF-COMP-007"],
+        character_limit=800,
+    )
+
+    evidence = packages[0]["evidence_text"]
+    assert len(evidence) <= 800
+    assert evidence.count("正文命中内容-完整片段。") <= 1
+    assert not evidence.endswith("正文命中内容-")
 
 
 def test_construction_plan_rule_collects_cross_section_labor_evidence() -> None:
@@ -405,6 +456,22 @@ def test_batch_result_validation_rejects_wrong_rule_or_status() -> None:
             {"results": [{"rule_id": "HF-COMP-001", "status": "UNKNOWN"}]},
             ["HF-COMP-001"],
         )
+
+
+def test_partial_result_validation_ignores_unrequested_rules_with_warning() -> None:
+    result, warnings = validate_review_result_with_warnings(
+        {
+            "results": [
+                {"rule_id": "HF-COMP-001", "status": "PASS"},
+                {"rule_id": "HF-COMP-999", "status": "PASS"},
+            ]
+        },
+        ["HF-COMP-001"],
+        allow_unrequested=True,
+    )
+
+    assert [item["rule_id"] for item in result["results"]] == ["HF-COMP-001"]
+    assert warnings[0]["code"] == "UNREQUESTED_RULE_IGNORED"
 
 
 def test_oversized_fragment_results_are_conservatively_merged() -> None:
@@ -657,6 +724,124 @@ def test_dify_orchestration_saves_request_raw_and_review_result(
     assert comparison["agreement_count"] == 1
     assert comparison["manual_review_count"] == 0
     assert not (output_dir / "dify_error.json").exists()
+
+
+def test_on_demand_orchestration_requests_only_selected_rules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    document = _document_dict()
+    (output_dir / "mineru_document.json").write_text(
+        json.dumps(document, ensure_ascii=False), encoding="utf-8"
+    )
+    (output_dir / "dify_selection.json").write_text(
+        json.dumps(
+            {
+                "mode": "on_demand",
+                "selected_count": 1,
+                "selected_rule_ids": ["HF-COMP-007"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    captured: dict = {}
+
+    async def fake_execute(batches, task_id, target_dir):
+        captured["batches"] = batches
+        raw = {
+            "data": {
+                "status": "succeeded",
+                "outputs": {"result_json": "{}"},
+            }
+        }
+        parsed = {
+            "results": [
+                {
+                    "rule_id": "HF-COMP-007",
+                    "name": "验收要求",
+                    "status": "PASS",
+                    "reason": "证据完整",
+                    "evidence": [],
+                }
+            ]
+        }
+        return (
+            [{"batch_index": 1, "rule_ids": ["HF-COMP-007"], "response": raw}],
+            [
+                {
+                    "batch_index": 1,
+                    "rule_ids": ["HF-COMP-007"],
+                    "result": parsed,
+                    "warnings": [],
+                }
+            ],
+        )
+
+    monkeypatch.setattr(main_module, "_execute_dify_batches", fake_execute)
+    main_module._run_dify_review(output_dir, _rules())
+
+    assert captured["batches"][0]["rule_ids"] == ["HF-COMP-007"]
+    request = json.loads((output_dir / "dify_request.json").read_text(encoding="utf-8"))
+    assert request["mode"] == "on_demand"
+    assert request["selected_rule_ids"] == ["HF-COMP-007"]
+    assert request["selected_count"] == 1
+    assert request["requested_rule_ids"] == ["HF-COMP-007"]
+    assert request["actual_requested_rule_count"] == 1
+    assert request["actual_requested_rule_count"] == len(request["requested_rule_ids"])
+
+
+def test_on_demand_empty_selection_skips_without_dify_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    (output_dir / "mineru_document.json").write_text(
+        json.dumps(_document_dict(), ensure_ascii=False), encoding="utf-8"
+    )
+    (output_dir / "dify_selection.json").write_text(
+        json.dumps(
+            {"mode": "on_demand", "selected_count": 0, "selected_rule_ids": []},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    async def fail_execute(*args, **kwargs):
+        pytest.fail("selected_count=0 时不应调用 Dify")
+
+    monkeypatch.setattr(main_module, "_execute_dify_batches", fail_execute)
+    main_module._run_dify_review(output_dir, _rules())
+
+    request = json.loads((output_dir / "dify_request.json").read_text(encoding="utf-8"))
+    assert request["status"] == "skipped"
+    assert request["requested_rule_ids"] == []
+    assert not (output_dir / "dify_review_result.json").exists()
+
+
+def test_full_orchestration_keeps_all_rules_when_selection_is_full(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    (output_dir / "mineru_document.json").write_text(
+        json.dumps(_document_dict(), ensure_ascii=False), encoding="utf-8"
+    )
+    (output_dir / "dify_selection.json").write_text(
+        json.dumps({"mode": "full"}, ensure_ascii=False), encoding="utf-8"
+    )
+    captured: dict = {}
+
+    async def fake_execute(batches, task_id, target_dir):
+        captured["rule_ids"] = [rule_id for batch in batches for rule_id in batch["rule_ids"]]
+        return [], []
+
+    monkeypatch.setattr(main_module, "_execute_dify_batches", fake_execute)
+    with pytest.raises(RuntimeError, match="缺少规则"):
+        main_module._run_dify_review(output_dir, _rules())
+
+    assert captured["rule_ids"] == ["HF-COMP-001", "HF-COMP-007"]
 
 
 def test_dify_orchestration_failure_writes_error_without_deleting_parse_result(

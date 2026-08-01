@@ -10,6 +10,7 @@ from typing import Any
 
 
 DEFAULT_CHARACTER_LIMIT = 50_000
+DEFAULT_RULE_EVIDENCE_LIMIT = 8_000
 IMAGE_REVIEW_MARKER = "[本页包含图片或图纸，需人工复核]"
 _TOC_WARNING = "目录页"
 _IMAGE_BLOCK_TYPES = {"image", "chart"}
@@ -77,12 +78,31 @@ def normalize_section_title(title: str) -> str:
 def build_rule_evidence_packages(
     parse_result: Any,
     rules: list[dict[str, Any]],
+    selected_rule_ids: list[str] | None = None,
+    character_limit: int = DEFAULT_RULE_EVIDENCE_LIMIT,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """为每条有效规则收集完整相关章节。
 
     返回 ``(packages, warnings, fallback_results)``。缺少章节别名的规则不会
     匹配全篇，而是生成需要人工复核的本地兜底结果。
     """
+    if character_limit <= 0:
+        raise ValueError("single-rule evidence character limit must be greater than 0")
+    rule_ids = [str(rule.get("rule_id", "")).strip() for rule in rules]
+    if selected_rule_ids is not None:
+        requested_ids = list(
+            dict.fromkeys(str(value).strip() for value in selected_rule_ids)
+        )
+        unknown_ids = [value for value in requested_ids if value not in rule_ids]
+        if unknown_ids:
+            raise ValueError(
+                "selected_rule_ids contains unknown rule_id: "
+                + ", ".join(unknown_ids)
+            )
+        selected_set = set(requested_ids)
+    else:
+        selected_set = None
+
     document = _document_dict(parse_result)
     sections = list(document.get("sections", []))
     repeated_margins = _repeated_margin_texts(document)
@@ -92,6 +112,8 @@ def build_rule_evidence_packages(
 
     for rule in rules:
         rule_id = str(rule.get("rule_id", "")).strip()
+        if selected_set is not None and rule_id not in selected_set:
+            continue
         item_name = str(rule.get("name", "")).strip()
         aliases = [
             str(value).strip()
@@ -136,22 +158,40 @@ def build_rule_evidence_packages(
             for page_range in page_ranges
             for page_number in range(page_range["start_page"], page_range["end_page"] + 1)
         }
-        page_chunks = [
-            _render_page(document, page, repeated_margins, matched_sections)
-            for page in document.get("pages", [])
-            if page.get("physical_page") in page_numbers and not _is_toc_page(page)
-        ]
-        evidence_body = "\n\n".join(chunk for chunk in page_chunks if chunk).strip()
-        if not evidence_body:
-            evidence_body = "[未匹配到可用的正文章节内容，需人工复核]"
-        evidence_text = (
+        evidence_header = (
             f"【规则证据包】\n"
             f"rule_id: {rule_id}\n"
             f"item_name: {item_name}\n"
             f"matched_sections: "
             f"{'、'.join(section.get('title', '') for section in matched_sections) or '无'}\n\n"
-            f"{evidence_body}"
         )
+        full_page_chunks = [
+            _render_page(document, page, repeated_margins, matched_sections)
+            for page in document.get("pages", [])
+            if page.get("physical_page") in page_numbers and not _is_toc_page(page)
+        ]
+        full_page_chunks = [chunk for chunk in full_page_chunks if chunk]
+        full_body = "\n\n".join(full_page_chunks).strip()
+        if len(evidence_header) + len(full_body) <= character_limit:
+            page_chunks = _group_complete_chunks(full_page_chunks, max_fragments=3)
+            evidence_body = full_body
+        else:
+            fragments = _build_evidence_fragments(
+                document,
+                page_numbers,
+                matched_sections,
+                repeated_margins,
+                rule,
+            )
+            selected_fragments = _select_evidence_fragments(
+                fragments,
+                character_limit=max(character_limit - len(evidence_header), 1),
+            )
+            page_chunks = [item["text"] for item in selected_fragments]
+            evidence_body = "\n\n".join(page_chunks).strip()
+        if not evidence_body:
+            evidence_body = "[未匹配到可用的正文章节内容，需人工复核]"
+        evidence_text = evidence_header + evidence_body
         packages.append(
             {
                 "rule_id": rule_id,
@@ -175,6 +215,244 @@ def build_rule_evidence_packages(
             }
         )
     return packages, warnings, fallback_results
+
+
+def _group_complete_chunks(
+    chunks: list[str],
+    *,
+    max_fragments: int,
+) -> list[str]:
+    if not chunks:
+        return []
+    group_count = min(max_fragments, len(chunks))
+    groups: list[list[str]] = [[] for _ in range(group_count)]
+    for index, chunk in enumerate(chunks):
+        bucket = min(index * group_count // len(chunks), group_count - 1)
+        groups[bucket].append(chunk)
+    return ["\n\n".join(group) for group in groups if group]
+
+
+def _build_evidence_fragments(
+    document: dict[str, Any],
+    page_numbers: set[int],
+    matched_sections: list[dict[str, Any]],
+    repeated_margins: set[str],
+    rule: dict[str, Any],
+) -> list[dict[str, Any]]:
+    terms = _rule_terms(rule)
+    fragments: list[dict[str, Any]] = []
+    for page in document.get("pages", []):
+        physical_page = int(page.get("physical_page", 0))
+        if physical_page not in page_numbers:
+            continue
+        toc_page = _is_toc_page(page)
+        active_sections = [
+            section
+            for section in matched_sections
+            if section.get("physical_page_start", 10**9)
+            <= physical_page
+            <= section.get("physical_page_end", -1)
+        ]
+        section_titles = list(
+            dict.fromkeys(str(section.get("title", "")).strip() for section in active_sections)
+        )
+        prefix = [f"【第{physical_page}页】"]
+        if section_titles:
+            prefix.append("章节：" + " / ".join(section_titles))
+        blocks = page.get("blocks", [])
+        substantive = False
+        for block in blocks:
+            block_type = str(block.get("block_type", ""))
+            if block_type == "page_number":
+                continue
+            if block_type == "paragraph" and _margin_key(block, page) in repeated_margins:
+                continue
+            text = str(block.get("text") or "").strip()
+            if block_type == "title" and normalize_section_title(text) in {
+                normalize_section_title(title) for title in section_titles
+            }:
+                continue
+            if block_type == "table":
+                text = _compact_table_text(text, terms)
+            if not text and block_type in _IMAGE_BLOCK_TYPES:
+                text = (
+                    f"[图片/图纸块，block_id={block.get('block_id', '')}，"
+                    f"source_pointer={block.get('source_pointer', '')}]"
+                )
+            if not text and block_type in {"formula", "equation"}:
+                text = (
+                    f"[公式块，block_id={block.get('block_id', '')}，"
+                    f"source_pointer={block.get('source_pointer', '')}]"
+                )
+            if not text:
+                continue
+            if block_type not in {"title", "image", "chart", "formula", "equation"}:
+                substantive = True
+            fragment_text = "\n\n".join(prefix + [text])
+            matched_terms = _find_normalized_terms(text, terms)
+            fragments.append(
+                {
+                    "text": fragment_text,
+                    "page": physical_page,
+                    "section_key": " / ".join(section_titles),
+                    "block_type": block_type,
+                    "matched_terms": matched_terms,
+                    "is_toc": toc_page,
+                    "is_attachment": "附件" in text or "附图" in text,
+                    "substantive": substantive,
+                }
+            )
+        if not blocks or not substantive:
+            page_text = str(page.get("text") or "").strip()
+            if page_text:
+                fragments.append(
+                    {
+                        "text": "\n\n".join(prefix + [page_text]),
+                        "page": physical_page,
+                        "section_key": " / ".join(section_titles),
+                        "block_type": "paragraph",
+                        "matched_terms": _find_normalized_terms(page_text, terms),
+                        "is_toc": toc_page,
+                        "is_attachment": "附件" in page_text or "附图" in page_text,
+                        "substantive": True,
+                    }
+                )
+        if not any(item["page"] == physical_page for item in fragments) and page.get("blocks"):
+            fragments.append(
+                {
+                    "text": "\n\n".join(prefix + [IMAGE_REVIEW_MARKER]),
+                    "page": physical_page,
+                    "section_key": " / ".join(section_titles),
+                    "block_type": "image",
+                    "matched_terms": [],
+                    "is_toc": toc_page,
+                    "is_attachment": False,
+                    "substantive": False,
+                }
+            )
+    return _dedupe_fragments(fragments)
+
+
+def _select_evidence_fragments(
+    fragments: list[dict[str, Any]],
+    *,
+    character_limit: int,
+    max_fragments: int = 3,
+) -> list[dict[str, Any]]:
+    if character_limit <= 0:
+        return []
+    candidates = [item for item in fragments if len(item["text"]) <= character_limit]
+
+    def base_score(item: dict[str, Any]) -> int:
+        block_type = item.get("block_type")
+        matched_terms = item.get("matched_terms", [])
+        if item.get("is_toc"):
+            return 50
+        if item.get("is_attachment") and not matched_terms:
+            return 40
+        if block_type in {"title", "image", "chart", "formula", "equation"} and not matched_terms:
+            return 35
+        if block_type == "table" and matched_terms:
+            return 10
+        if matched_terms:
+            return 5
+        if block_type == "table":
+            return 20
+        return 25
+
+    candidates.sort(key=lambda item: (base_score(item), item.get("page", 0)))
+    groups: list[dict[str, Any]] = []
+    total_length = 0
+    for item in candidates:
+        item_length = len(item["text"]) + (2 if groups else 0)
+        if total_length + item_length > character_limit:
+            continue
+        section_key = item.get("section_key", "")
+        section_already_grouped = any(
+            group["section_key"] == section_key for group in groups
+        )
+        target = next(
+            (
+                group
+                for group in groups
+                if group["section_key"] == section_key
+                and group["length"] + len(item["text"]) + 2 <= character_limit
+            ),
+            None,
+        )
+        if not section_already_grouped and len(groups) < max_fragments:
+            target = None
+        if target is None and len(groups) < max_fragments:
+            target = {
+                "texts": [],
+                "section_key": section_key,
+                "length": 0,
+                "page": item.get("page", 0),
+                "matched_terms": set(),
+            }
+            groups.append(target)
+        if target is None:
+            target = min(groups, key=lambda group: group["length"])
+            if target["length"] + len(item["text"]) + 2 > character_limit:
+                continue
+        separator = 2 if target["texts"] else 0
+        target["texts"].append(item["text"])
+        target["length"] += separator + len(item["text"])
+        target["matched_terms"].update(item.get("matched_terms", []))
+        total_length += item_length
+
+    return [
+        {
+            "text": "\n\n".join(group["texts"]),
+            "page": group["page"],
+            "matched_terms": sorted(group["matched_terms"]),
+        }
+        for group in sorted(groups, key=lambda group: group["page"])
+        if group["texts"]
+    ]
+
+
+def _dedupe_fragments(fragments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in fragments:
+        body = re.sub(r"\s+", " ", item.get("text", "")).strip().casefold()
+        if not body or body in seen:
+            continue
+        seen.add(body)
+        result.append(item)
+    return result
+
+
+def _rule_terms(rule: dict[str, Any]) -> list[str]:
+    terms: list[str] = []
+    terms.extend(str(value) for value in rule.get("text_terms", []) if str(value).strip())
+    for subitem in rule.get("required_subitems", []):
+        terms.extend(str(value) for value in subitem.get("terms", []) if str(value).strip())
+    return list(dict.fromkeys(terms))
+
+
+def _find_normalized_terms(text: str, terms: list[str]) -> list[str]:
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    return [
+        term
+        for term in terms
+        if unicodedata.normalize("NFKC", term).casefold() in normalized
+    ]
+
+
+def _compact_table_text(text: str, terms: list[str]) -> str:
+    lines = [line.strip() for line in str(text).splitlines() if line.strip()]
+    if len(lines) <= 3:
+        return "\n".join(lines)
+    key_lines = [
+        line for line in lines[1:]
+        if _find_normalized_terms(line, terms)
+    ]
+    selected = list(dict.fromkeys([lines[0], *key_lines[:3]]))
+    if len(selected) == 1:
+        selected.extend(lines[1:3])
+    return "\n".join(selected)
 
 
 def build_rule_driven_batches(

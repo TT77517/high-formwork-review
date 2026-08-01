@@ -91,10 +91,17 @@ def main(argv: list[str] | None = None) -> int:
 def _run_dify_review(
     output_dir: Path,
     rules: list[dict[str, Any]],
+    mode: str | None = None,
+    selected_rule_ids: list[str] | None = None,
 ) -> None:
     """执行 Dify 追加流程，并保证任意阶段失败都留下状态文件。"""
     try:
-        _run_dify_review_impl(output_dir, rules)
+        _run_dify_review_impl(
+            output_dir,
+            rules,
+            mode=mode,
+            selected_rule_ids=selected_rule_ids,
+        )
     except (OSError, RuntimeError, ValueError) as exc:
         error_path = output_dir / "dify_error.json"
         if not error_path.exists():
@@ -112,6 +119,9 @@ def _run_dify_review(
 def _run_dify_review_impl(
     output_dir: Path,
     rules: list[dict[str, Any]],
+    *,
+    mode: str | None = None,
+    selected_rule_ids: list[str] | None = None,
 ) -> None:
     """读取已落盘的规范化文档并追加执行 Dify 完整性审查。"""
     from .dify_scheme import (
@@ -124,6 +134,20 @@ def _run_dify_review_impl(
     document_path = output_dir / "mineru_document.json"
     document_data = json.loads(document_path.read_text(encoding="utf-8"))
     task_id = str(document_data.get("document_id") or output_dir.name)
+    selection_path = output_dir / "dify_selection.json"
+    selection = {}
+    if selection_path.is_file():
+        selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    effective_mode = (mode or selection.get("mode") or "full").strip().lower()
+    if effective_mode not in {"off", "on_demand", "full"}:
+        raise ValueError(f"DIFY_COMPLETENESS_MODE invalid: {effective_mode}")
+    if effective_mode == "off":
+        return
+    if effective_mode == "on_demand" and selected_rule_ids is None:
+        selected_rule_ids = [
+            str(value) for value in selection.get("selected_rule_ids", [])
+        ]
+    package_rule_ids = None if effective_mode == "full" else selected_rule_ids or []
     _, overall_metadata = build_dify_scheme_payload(
         document_data,
         character_limit=DEFAULT_CHARACTER_LIMIT,
@@ -131,6 +155,7 @@ def _run_dify_review_impl(
     packages, config_warnings, fallback_results = build_rule_evidence_packages(
         document_data,
         rules,
+        selected_rule_ids=package_rule_ids,
     )
     batches = build_rule_driven_batches(
         packages,
@@ -138,7 +163,44 @@ def _run_dify_review_impl(
         task_id,
         character_limit=DEFAULT_CHARACTER_LIMIT,
     )
+    requested_rule_ids = list(
+        dict.fromkeys(
+            str(rule_id)
+            for batch in batches
+            for rule_id in batch.get("rule_ids", [])
+        )
+    )
+    selected_ids_for_audit = (
+        None
+        if effective_mode == "full"
+        else list(dict.fromkeys(str(value) for value in (selected_rule_ids or [])))
+    )
+    per_rule_char_count = {
+        str(package["rule_id"]): sum(
+            int(item.get("character_count", 0))
+            for item in packages
+            if str(item.get("rule_id")) == str(package["rule_id"])
+        )
+        for package in packages
+    }
     request_audit = {
+        "mode": effective_mode,
+        "selected_rule_ids": selected_ids_for_audit,
+        "selected_count": (
+            len(selected_ids_for_audit)
+            if selected_ids_for_audit is not None
+            else len(rules)
+        ),
+        "requested_rule_ids": requested_rule_ids,
+        "total_selected_rules": (
+            len(selected_ids_for_audit)
+            if selected_ids_for_audit is not None
+            else len(rules)
+        ),
+        "actual_requested_rule_count": len(requested_rule_ids),
+        "batch_count": len(batches),
+        "per_rule_char_count": per_rule_char_count,
+        "total_input_chars": sum(int(batch.get("character_count", 0)) for batch in batches),
         "task_id": task_id,
         "scheme_text_metadata": overall_metadata,
         "rule_evidence_packages": [
@@ -153,6 +215,11 @@ def _run_dify_review_impl(
         "batches": batches,
     }
     _write_json(output_dir / "dify_request.json", request_audit)
+    if not batches:
+        request_audit["status"] = "skipped"
+        request_audit["skip_reason"] = "selected_count=0 或未生成可用证据包"
+        _write_json(output_dir / "dify_request.json", request_audit)
+        return
     try:
         raw_records, parsed_records = asyncio.run(
             _execute_dify_batches(batches, task_id, output_dir)
@@ -164,14 +231,23 @@ def _run_dify_review_impl(
             for batch in batches
             if "oversized_rule_part" in batch
         }
-        expected_rule_ids = [str(rule.get("rule_id")) for rule in rules]
+        expected_rule_ids = list(requested_rule_ids)
+        expected_rule_ids.extend(
+            str(item.get("rule_id"))
+            for item in fallback_results
+            if str(item.get("rule_id")) not in expected_rule_ids
+        )
         review_result = merge_batch_review_results(
             parsed_records,
             expected_rule_ids=expected_rule_ids,
             fallback_results=fallback_results,
             oversized_rule_ids=oversized_rule_ids,
         )
-        review_result["warnings"] = config_warnings + review_result["warnings"]
+        review_result["warnings"] = (
+            config_warnings
+            + [warning for batch in parsed_records for warning in batch.get("warnings", [])]
+            + review_result["warnings"]
+        )
         _write_json(
             output_dir / "dify_raw_response.json",
             {"task_id": task_id, "batches": raw_records},
@@ -203,7 +279,7 @@ async def _execute_dify_batches(
         DifyClient,
         DifyError,
         extract_review_result,
-        validate_review_result,
+        validate_review_result_with_warnings,
     )
 
     raw_records: list[dict[str, Any]] = []
@@ -229,15 +305,17 @@ async def _execute_dify_batches(
                 output_dir / "dify_raw_response.json",
                 {"task_id": task_id, "batches": raw_records},
             )
-            parsed_result = validate_review_result(
+            parsed_result, validation_warnings = validate_review_result_with_warnings(
                 extract_review_result(raw_response),
                 batch["rule_ids"],
+                allow_unrequested=True,
             )
             parsed_records.append(
                 {
                     "batch_index": batch_index,
                     "rule_ids": batch["rule_ids"],
                     "result": parsed_result,
+                    "warnings": validation_warnings,
                 }
             )
         except DifyError as exc:

@@ -149,21 +149,65 @@ def extract_review_result(raw_response: dict[str, Any]) -> Any:
 def validate_review_result(
     result: Any,
     expected_rule_ids: list[str],
+    *,
+    allow_unrequested: bool = False,
 ) -> Any:
     """校验单批返回的规则集合和三态值与请求一致。"""
+    validated, _ = validate_review_result_with_warnings(
+        result,
+        expected_rule_ids,
+        allow_unrequested=allow_unrequested,
+    )
+    return validated
+
+
+def validate_review_result_with_warnings(
+    result: Any,
+    expected_rule_ids: list[str],
+    *,
+    allow_unrequested: bool = False,
+) -> tuple[Any, list[dict[str, Any]]]:
+    """Validate requested rules and ignore any extra unrequested rules when allowed."""
     items = _result_items(result)
+    expected_ids = [str(value).strip() for value in expected_rule_ids]
     actual_ids = [str(item.get("rule_id", "")).strip() for item in items]
-    if len(actual_ids) != len(expected_rule_ids) or set(actual_ids) != set(expected_rule_ids):
+    if len(actual_ids) != len(set(actual_ids)):
+        raise DifyError("Dify 返回的规则结果包含重复 rule_id")
+    expected_set = set(expected_ids)
+    actual_set = set(actual_ids)
+    missing_ids = [rule_id for rule_id in expected_ids if rule_id not in actual_set]
+    unexpected_ids = [rule_id for rule_id in actual_ids if rule_id not in expected_set]
+    if missing_ids or (unexpected_ids and not allow_unrequested):
         raise DifyError(
-            "Dify 返回的规则数量或 rule_id 与当前批次不一致"
+            "Dify 返回的规则集合或 rule_id 与当前批次请求不一致"
         )
+    warnings: list[dict[str, Any]] = []
+    if unexpected_ids:
+        warnings.append(
+            {
+                "code": "UNREQUESTED_RULE_IGNORED",
+                "rule_ids": list(dict.fromkeys(unexpected_ids)),
+                "message": "Dify 返回了未请求规则，已忽略",
+            }
+        )
+        items = [
+            item
+            for item in items
+            if str(item.get("rule_id", "")).strip() in expected_set
+        ]
     allowed_statuses = {"PASS", "MISSING", "UNCERTAIN"}
     for item in items:
         if str(item.get("status", "")).upper() not in allowed_statuses:
             raise DifyError(
                 f"Dify 规则 {item.get('rule_id')} 返回了无效状态"
             )
-    return result
+    if isinstance(result, list):
+        return items, warnings
+    if isinstance(result, dict) and isinstance(result.get("results"), list):
+        filtered = dict(result)
+        filtered["results"] = items
+        return filtered, warnings
+    return items[0] if items else result, warnings
 
 
 def merge_batch_review_results(
