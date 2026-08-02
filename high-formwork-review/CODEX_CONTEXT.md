@@ -26,12 +26,29 @@ C. completeness_review_selector及dify_selection.json
 
 DIFY_COMPLETENESS_MODE=on_demand
 
-下一阶段：
+当前已完成D/E：
 
-D. 复用现有dify_scheme证据提取，缩小单规则证据包
-E. 让on_demand真正只调用selected_rule_ids
-F. 后续再考虑缓存、日志和comparison扩展
+- on_demand实际只请求selected_rule_ids
+- full模式保持全量
+- selected_count=0时跳过Dify
+- 单规则证据上限8000字符
+- 最多3个完整证据片段
+- Dify部分规则返回校验已适配
+- 提交：998edde
 
+下一阶段完成标准
+
+至少满足：
+
+同一PDF第二次上传不调用MinerU；
+改文件名但内容相同仍命中；
+同名但内容不同不命中；
+缓存损坏自动失效；
+parser版本变化自动失效；
+每个新job仍有自己的 mineru_document.json；
+本地完整性审查仍重新执行；
+测试全部通过；
+单独Git提交。
 本阶段禁止事项：
 
 - 不修改MinerU底层解析；
