@@ -59,4 +59,5 @@ data/.pytest_tmp*/
 **/dify_raw_response.json
 **/dify_review_result.json
 **/dify_error.json
+**/dify_call_audit.json
 **/review_comparison.json

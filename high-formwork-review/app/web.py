@@ -431,6 +431,7 @@ def get_output_files(job_id: str) -> dict[str, Any]:
         "review_comparison.json": "本地与 Dify 审查对比",
         "dify_review_result.json": "Dify AI 审查结果",
         "dify_request.json": "Dify 请求审计日志",
+        "dify_call_audit.json": "Dify 调用与缓存审计",
         "dify_raw_response.json": "Dify 原始响应",
         "dify_error.json": "Dify 错误记录",
         "status.json": "任务状态",

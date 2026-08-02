@@ -5,8 +5,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
+import time
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +19,11 @@ from .completeness_review import (
     review_completeness_with_details,
 )
 from .completeness_review_selector import select_rules_for_dify_review
-from .dify_config import resolve_dify_completeness_mode
+from .dify_config import (
+    DifyReviewConfig,
+    resolve_dify_completeness_mode,
+    resolve_dify_review_config,
+)
 from .mineru_cache import parse_pdf_with_cache
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
@@ -127,6 +134,13 @@ def _run_dify_review_impl(
     selected_rule_ids: list[str] | None = None,
 ) -> None:
     """读取已落盘的规范化文档并追加执行 Dify 完整性审查。"""
+    from .dify_cache import (
+        CACHE_ROOT as DIFY_CACHE_ROOT,
+        build_dify_cache_key,
+        cache_lock,
+        load_cached_rule_result,
+        stable_evidence_package_hash,
+    )
     from .dify_scheme import (
         DEFAULT_CHARACTER_LIMIT,
         build_dify_scheme_payload,
@@ -134,6 +148,8 @@ def _run_dify_review_impl(
         build_rule_evidence_packages,
     )
 
+    started_at = _utc_timestamp()
+    started_monotonic = time.perf_counter()
     document_path = output_dir / "mineru_document.json"
     document_data = json.loads(document_path.read_text(encoding="utf-8"))
     task_id = str(document_data.get("document_id") or output_dir.name)
@@ -151,6 +167,8 @@ def _run_dify_review_impl(
             str(value) for value in selection.get("selected_rule_ids", [])
         ]
     package_rule_ids = None if effective_mode == "full" else selected_rule_ids or []
+    dify_config = resolve_dify_review_config()
+    source_sha256 = _resolve_source_sha256(output_dir, document_data)
     _, overall_metadata = build_dify_scheme_payload(
         document_data,
         character_limit=DEFAULT_CHARACTER_LIMIT,
@@ -160,18 +178,67 @@ def _run_dify_review_impl(
         rules,
         selected_rule_ids=package_rule_ids,
     )
+    package_by_id = {str(package["rule_id"]): package for package in packages}
+    package_hashes: dict[str, str] = {}
+    cache_keys: dict[str, str] = {}
+    cached_results: dict[str, dict[str, Any]] = {}
+    cache_warnings: list[dict[str, Any]] = []
+    for package in packages:
+        rule_id = str(package["rule_id"])
+        package_hash = stable_evidence_package_hash(package)
+        package_hashes[rule_id] = package_hash
+        cache_key = build_dify_cache_key(
+            source_sha256,
+            rule_id,
+            package_hash,
+            dify_config.workflow_version,
+            dify_config.prompt_version,
+            dify_config.model_identifier,
+            dify_config.output_schema_version,
+        )
+        cache_keys[rule_id] = cache_key
+        if not dify_config.cache_enabled:
+            continue
+        with cache_lock(cache_key, DIFY_CACHE_ROOT):
+            lookup = load_cached_rule_result(
+                cache_key=cache_key,
+                source_sha256=source_sha256,
+                rule_id=rule_id,
+                evidence_package_hash=package_hash,
+                workflow_version=dify_config.workflow_version,
+                prompt_version=dify_config.prompt_version,
+                model_identifier=dify_config.model_identifier,
+                output_schema_version=dify_config.output_schema_version,
+                cache_root=DIFY_CACHE_ROOT,
+            )
+        if lookup.result is not None:
+            cached_results[rule_id] = lookup.result
+        elif lookup.warning is not None:
+            cache_warnings.append(lookup.warning)
+    api_packages = [
+        package
+        for package in packages
+        if str(package["rule_id"]) not in cached_results
+    ]
     batches = build_rule_driven_batches(
-        packages,
+        api_packages,
         rules,
         task_id,
         character_limit=DEFAULT_CHARACTER_LIMIT,
     )
+    cache_hit_rule_ids = [
+        str(package["rule_id"])
+        for package in packages
+        if str(package["rule_id"]) in cached_results
+    ]
+    cache_miss_rule_ids = [str(package["rule_id"]) for package in api_packages]
+    unavailable_rule_ids = [
+        str(item.get("rule_id"))
+        for item in fallback_results
+        if item.get("rule_id")
+    ]
     requested_rule_ids = list(
-        dict.fromkeys(
-            str(rule_id)
-            for batch in batches
-            for rule_id in batch.get("rule_ids", [])
-        )
+        dict.fromkeys([*cache_hit_rule_ids, *cache_miss_rule_ids])
     )
     selected_ids_for_audit = (
         None
@@ -195,16 +262,30 @@ def _run_dify_review_impl(
             else len(rules)
         ),
         "requested_rule_ids": requested_rule_ids,
+        "requested_rule_count": len(requested_rule_ids),
         "total_selected_rules": (
             len(selected_ids_for_audit)
             if selected_ids_for_audit is not None
             else len(rules)
         ),
-        "actual_requested_rule_count": len(requested_rule_ids),
+        "actual_requested_rule_count": len(cache_miss_rule_ids),
+        "cache_hit_rule_ids": cache_hit_rule_ids,
+        "cache_hit_count": len(cache_hit_rule_ids),
+        "cache_miss_rule_ids": cache_miss_rule_ids,
+        "cache_miss_count": len(cache_miss_rule_ids),
+        "api_requested_rule_ids": cache_miss_rule_ids,
+        "api_requested_rule_count": len(cache_miss_rule_ids),
+        "unavailable_rule_ids": unavailable_rule_ids,
+        "cache_enabled": dify_config.cache_enabled,
         "batch_count": len(batches),
         "per_rule_char_count": per_rule_char_count,
         "total_input_chars": sum(int(batch.get("character_count", 0)) for batch in batches),
         "task_id": task_id,
+        "source_sha256": source_sha256,
+        "workflow_version": dify_config.workflow_version,
+        "prompt_version": dify_config.prompt_version,
+        "model_identifier": dify_config.model_identifier,
+        "output_schema_version": dify_config.output_schema_version,
         "scheme_text_metadata": overall_metadata,
         "rule_evidence_packages": [
             {
@@ -219,9 +300,66 @@ def _run_dify_review_impl(
     }
     _write_json(output_dir / "dify_request.json", request_audit)
     if not batches:
-        request_audit["status"] = "skipped"
-        request_audit["skip_reason"] = "selected_count=0 或未生成可用证据包"
+        if cached_results:
+            from .services.dify_client import merge_batch_review_results
+
+            expected_rule_ids = list(
+                dict.fromkeys([*cache_hit_rule_ids, *unavailable_rule_ids])
+            )
+            review_result = merge_batch_review_results(
+                _cached_result_records(cached_results),
+                expected_rule_ids=expected_rule_ids,
+                fallback_results=fallback_results,
+            )
+            review_result["warnings"] = (
+                config_warnings + cache_warnings + review_result["warnings"]
+            )
+            _write_json(output_dir / "dify_review_result.json", review_result)
+            _write_review_comparison_if_ready(output_dir, review_result)
+            request_audit["status"] = "cache_hit_complete"
+            _write_dify_call_audit(
+                output_dir,
+                _build_dify_call_audit(
+                    mode=effective_mode,
+                    source_sha256=source_sha256,
+                    requested_rule_ids=requested_rule_ids,
+                    cache_hit_rule_ids=cache_hit_rule_ids,
+                    cache_miss_rule_ids=cache_miss_rule_ids,
+                    api_requested_rule_ids=[],
+                    batch_count=0,
+                    per_rule_input_chars=per_rule_char_count,
+                    total_input_chars=0,
+                    config=dify_config,
+                    started_at=started_at,
+                    started_monotonic=started_monotonic,
+                    status="cache_hit_complete",
+                    warnings=config_warnings + cache_warnings,
+                ),
+            )
+        else:
+            request_audit["status"] = "skipped"
+            request_audit["skip_reason"] = "selected_count=0 或未生成可用证据包"
         _write_json(output_dir / "dify_request.json", request_audit)
+        if not cached_results:
+            _write_dify_call_audit(
+                output_dir,
+                _build_dify_call_audit(
+                    mode=effective_mode,
+                    source_sha256=source_sha256,
+                    requested_rule_ids=requested_rule_ids,
+                    cache_hit_rule_ids=cache_hit_rule_ids,
+                    cache_miss_rule_ids=cache_miss_rule_ids,
+                    api_requested_rule_ids=[],
+                    batch_count=0,
+                    per_rule_input_chars=per_rule_char_count,
+                    total_input_chars=0,
+                    config=dify_config,
+                    started_at=started_at,
+                    started_monotonic=started_monotonic,
+                    status="skipped",
+                    warnings=config_warnings + cache_warnings,
+                ),
+            )
         return
     try:
         raw_records, parsed_records = asyncio.run(
@@ -234,21 +372,39 @@ def _run_dify_review_impl(
             for batch in batches
             if "oversized_rule_part" in batch
         }
-        expected_rule_ids = list(requested_rule_ids)
+        all_parsed_records = [
+            *_cached_result_records(cached_results),
+            *parsed_records,
+        ]
+        expected_rule_ids = list(
+            dict.fromkeys([*cache_hit_rule_ids, *requested_rule_ids])
+        )
         expected_rule_ids.extend(
             str(item.get("rule_id"))
             for item in fallback_results
             if str(item.get("rule_id")) not in expected_rule_ids
         )
         review_result = merge_batch_review_results(
-            parsed_records,
+            all_parsed_records,
             expected_rule_ids=expected_rule_ids,
             fallback_results=fallback_results,
             oversized_rule_ids=oversized_rule_ids,
         )
+        cache_write_warnings = _cache_successful_rule_results(
+            review_result.get("results", []),
+            api_rule_ids=set(cache_miss_rule_ids),
+            package_by_id=package_by_id,
+            package_hashes=package_hashes,
+            cache_keys=cache_keys,
+            source_sha256=source_sha256,
+            config=dify_config,
+            duration_ms=int((time.perf_counter() - started_monotonic) * 1000),
+        )
         review_result["warnings"] = (
             config_warnings
+            + cache_warnings
             + [warning for batch in parsed_records for warning in batch.get("warnings", [])]
+            + cache_write_warnings
             + review_result["warnings"]
         )
         _write_json(
@@ -258,17 +414,107 @@ def _run_dify_review_impl(
         _write_json(output_dir / "dify_review_result.json", review_result)
         _write_review_comparison_if_ready(output_dir, review_result)
         (output_dir / "dify_error.json").unlink(missing_ok=True)
+        status = "partial_cache_hit" if cache_hit_rule_ids else "api_success"
+        request_audit["status"] = status
+        _write_json(output_dir / "dify_request.json", request_audit)
+        _write_dify_call_audit(
+            output_dir,
+            _build_dify_call_audit(
+                mode=effective_mode,
+                source_sha256=source_sha256,
+                requested_rule_ids=requested_rule_ids,
+                cache_hit_rule_ids=cache_hit_rule_ids,
+                cache_miss_rule_ids=cache_miss_rule_ids,
+                api_requested_rule_ids=cache_miss_rule_ids,
+                batch_count=len(batches),
+                per_rule_input_chars=per_rule_char_count,
+                total_input_chars=request_audit["total_input_chars"],
+                config=dify_config,
+                started_at=started_at,
+                started_monotonic=started_monotonic,
+                status=status,
+                warnings=(
+                    config_warnings
+                    + cache_warnings
+                    + cache_write_warnings
+                    + [
+                        warning
+                        for batch in parsed_records
+                        for warning in batch.get("warnings", [])
+                    ]
+                ),
+            ),
+        )
     except Exception as exc:
         from .services.dify_client import DifyError
 
         if not isinstance(exc, (DifyError, OSError, RuntimeError, ValueError)):
             raise
+        partial_raw_records = getattr(exc, "partial_raw_records", [])
+        partial_parsed_records = getattr(exc, "partial_parsed_records", [])
+        if partial_raw_records:
+            _write_json(
+                output_dir / "dify_raw_response.json",
+                {"task_id": task_id, "batches": partial_raw_records},
+            )
+        partial_result_ids = _parsed_rule_ids(partial_parsed_records)
+        partial_cache_warnings = _cache_successful_rule_results(
+            [
+                result
+                for batch in partial_parsed_records
+                for result in _result_items(batch.get("result"))
+            ],
+            api_rule_ids=partial_result_ids,
+            package_by_id=package_by_id,
+            package_hashes=package_hashes,
+            cache_keys=cache_keys,
+            source_sha256=source_sha256,
+            config=dify_config,
+            duration_ms=int((time.perf_counter() - started_monotonic) * 1000),
+            oversized_rule_ids={
+                str(batch["oversized_rule_part"]["rule_id"])
+                for batch in batches
+                if "oversized_rule_part" in batch
+            },
+        )
+        failed_rule_ids = [
+            rule_id
+            for rule_id in cache_miss_rule_ids
+            if rule_id not in partial_result_ids
+        ]
         error_data = {
             "status": "DIFY_FAILED",
             "message": str(exc),
             "failed_batch_index": getattr(exc, "batch_index", None),
         }
         _write_json(output_dir / "dify_error.json", error_data)
+        request_audit["status"] = (
+            "partial_api_failure" if partial_result_ids else "api_failed"
+        )
+        _write_json(output_dir / "dify_request.json", request_audit)
+        _write_dify_call_audit(
+            output_dir,
+            _build_dify_call_audit(
+                mode=effective_mode,
+                source_sha256=source_sha256,
+                requested_rule_ids=requested_rule_ids,
+                cache_hit_rule_ids=cache_hit_rule_ids,
+                cache_miss_rule_ids=cache_miss_rule_ids,
+                api_requested_rule_ids=cache_miss_rule_ids,
+                batch_count=len(batches),
+                per_rule_input_chars=per_rule_char_count,
+                total_input_chars=request_audit["total_input_chars"],
+                config=dify_config,
+                started_at=started_at,
+                started_monotonic=started_monotonic,
+                status=(
+                    "partial_api_failure" if partial_result_ids else "api_failed"
+                ),
+                warnings=config_warnings + cache_warnings + partial_cache_warnings,
+                error_summary=_safe_error_summary(exc),
+                failed_rule_ids=failed_rule_ids,
+            ),
+        )
         raise RuntimeError(str(exc)) from exc
 
 
@@ -335,8 +581,181 @@ async def _execute_dify_batches(
                     {"task_id": task_id, "batches": raw_records},
                 )
             exc.batch_index = batch_index
+            exc.partial_raw_records = list(raw_records)
+            exc.partial_parsed_records = list(parsed_records)
             raise
     return raw_records, parsed_records
+
+
+def _resolve_source_sha256(
+    output_dir: Path,
+    document_data: dict[str, Any],
+) -> str:
+    status_path = output_dir / "status.json"
+    if status_path.is_file():
+        try:
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            if isinstance(status, dict) and str(status.get("source_sha256", "")).strip():
+                return str(status["source_sha256"]).strip()
+        except (OSError, json.JSONDecodeError):
+            pass
+    for key in ("source_sha256", "document_id"):
+        value = str(document_data.get(key, "")).strip()
+        if value:
+            return value
+    return output_dir.name
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _cached_result_records(
+    cached_results: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "batch_index": 0,
+            "rule_ids": [rule_id],
+            "result": {"results": [result]},
+            "warnings": [],
+        }
+        for rule_id, result in cached_results.items()
+    ]
+
+
+def _result_items(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, dict) and isinstance(value.get("results"), list):
+        items = value["results"]
+    elif isinstance(value, dict) and value.get("rule_id"):
+        items = [value]
+    else:
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def _parsed_rule_ids(parsed_batches: list[dict[str, Any]]) -> set[str]:
+    return {
+        str(result.get("rule_id")).strip()
+        for batch in parsed_batches
+        for result in _result_items(batch.get("result"))
+        if str(result.get("rule_id", "")).strip()
+    }
+
+
+def _cache_successful_rule_results(
+    results: list[dict[str, Any]],
+    *,
+    api_rule_ids: set[str],
+    package_by_id: dict[str, dict[str, Any]],
+    package_hashes: dict[str, str],
+    cache_keys: dict[str, str],
+    source_sha256: str,
+    config: DifyReviewConfig,
+    duration_ms: int,
+    oversized_rule_ids: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    if not config.cache_enabled:
+        return []
+    from .dify_cache import CACHE_ROOT as DIFY_CACHE_ROOT, cache_lock, save_cached_rule_result
+
+    warnings: list[dict[str, Any]] = []
+    skipped_oversized = oversized_rule_ids or set()
+    for result in results:
+        rule_id = str(result.get("rule_id", "")).strip()
+        if (
+            not rule_id
+            or rule_id not in api_rule_ids
+            or rule_id in skipped_oversized
+            or rule_id not in package_by_id
+        ):
+            continue
+        package = package_by_id[rule_id]
+        try:
+            with cache_lock(cache_keys[rule_id], DIFY_CACHE_ROOT):
+                save_cached_rule_result(
+                    cache_key=cache_keys[rule_id],
+                    source_sha256=source_sha256,
+                    rule_id=rule_id,
+                    evidence_package_hash=package_hashes[rule_id],
+                    workflow_version=config.workflow_version,
+                    prompt_version=config.prompt_version,
+                    model_identifier=config.model_identifier,
+                    output_schema_version=config.output_schema_version,
+                    result=result,
+                    input_chars=int(package.get("character_count", 0)),
+                    duration_ms=duration_ms,
+                    cache_root=DIFY_CACHE_ROOT,
+                )
+        except (OSError, RuntimeError, ValueError) as exc:
+            warnings.append(
+                {
+                    "code": "DIFY_CACHE_WRITE_WARNING",
+                    "rule_id": rule_id,
+                    "message": _safe_error_summary(exc),
+                }
+            )
+    return warnings
+
+
+def _build_dify_call_audit(
+    *,
+    mode: str,
+    source_sha256: str,
+    requested_rule_ids: list[str],
+    cache_hit_rule_ids: list[str],
+    cache_miss_rule_ids: list[str],
+    api_requested_rule_ids: list[str],
+    batch_count: int,
+    per_rule_input_chars: dict[str, int],
+    total_input_chars: int,
+    config: DifyReviewConfig,
+    started_at: str,
+    started_monotonic: float,
+    status: str,
+    warnings: list[dict[str, Any]],
+    error_summary: str | None = None,
+    failed_rule_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "source_sha256": source_sha256,
+        "requested_rule_ids": requested_rule_ids,
+        "requested_rule_count": len(requested_rule_ids),
+        "cache_hit_rule_ids": cache_hit_rule_ids,
+        "cache_hit_count": len(cache_hit_rule_ids),
+        "cache_miss_rule_ids": cache_miss_rule_ids,
+        "cache_miss_count": len(cache_miss_rule_ids),
+        "api_requested_rule_ids": api_requested_rule_ids,
+        "api_requested_rule_count": len(api_requested_rule_ids),
+        "batch_count": batch_count,
+        "per_rule_input_chars": per_rule_input_chars,
+        "total_input_chars": total_input_chars,
+        "workflow_version": config.workflow_version,
+        "prompt_version": config.prompt_version,
+        "model_identifier": config.model_identifier,
+        "output_schema_version": config.output_schema_version,
+        "started_at": started_at,
+        "finished_at": _utc_timestamp(),
+        "duration_ms": max(0, int((time.perf_counter() - started_monotonic) * 1000)),
+        "status": status,
+        "warnings": warnings,
+        "error_summary": error_summary,
+        "failed_rule_ids": failed_rule_ids or [],
+    }
+
+
+def _write_dify_call_audit(output_dir: Path, audit: dict[str, Any]) -> None:
+    _write_json(output_dir / "dify_call_audit.json", audit)
+
+
+def _safe_error_summary(error: Exception | str) -> str:
+    value = str(error)
+    value = re.sub(r"(?i)bearer\s+\S+", "Bearer [redacted]", value)
+    value = re.sub(r"https?://\S+", "[url redacted]", value)
+    return value[:300]
 
 
 def _write_json(path: Path, data: Any) -> None:
