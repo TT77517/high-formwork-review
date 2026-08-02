@@ -19,9 +19,11 @@ class DifyError(RuntimeError):
         message: str,
         *,
         raw_response: dict[str, Any] | None = None,
+        technical_details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
         self.raw_response = raw_response
+        self.technical_details = technical_details or {}
 
 
 class DifyClient:
@@ -86,18 +88,32 @@ class DifyClient:
             try:
                 raw_response = response.json()
             except ValueError as exc:
+                response_details = {
+                    "http_status": response.status_code,
+                    "content_type": response.headers.get("content-type"),
+                    "body_preview": response.text[:500],
+                }
                 raise DifyError(
-                    f"Dify 返回了非 JSON 响应（HTTP {response.status_code}）"
+                    f"Dify 返回了非 JSON 响应（HTTP {response.status_code}）",
+                    technical_details=response_details,
                 ) from exc
             if not isinstance(raw_response, dict):
                 raise DifyError(
                     "Dify 返回的 JSON 顶层不是对象",
                     raw_response={"response": raw_response},
+                    technical_details={
+                        "http_status": response.status_code,
+                        "content_type": response.headers.get("content-type"),
+                    },
                 )
             if response.is_error:
                 raise DifyError(
                     f"Dify Workflow 调用失败（HTTP {response.status_code}）",
                     raw_response=raw_response,
+                    technical_details={
+                        "http_status": response.status_code,
+                        "content_type": response.headers.get("content-type"),
+                    },
                 )
             data = raw_response.get("data")
             if isinstance(data, dict) and data.get("status") == "failed":

@@ -538,6 +538,9 @@ def _run_dify_review_impl(
             "message": str(exc),
             "failed_batch_index": getattr(exc, "batch_index", None),
         }
+        error_details = _safe_error_details(exc)
+        if error_details:
+            error_data["technical_details"] = error_details
         _write_json(output_dir / "dify_error.json", error_data)
         request_audit["status"] = (
             "partial_api_failure" if partial_result_ids else "api_failed"
@@ -563,6 +566,7 @@ def _run_dify_review_impl(
                 ),
                 warnings=config_warnings + cache_warnings + partial_cache_warnings,
                 error_summary=_safe_error_summary(exc),
+                error_details=error_details,
                 failed_rule_ids=failed_rule_ids,
             ),
         )
@@ -768,6 +772,7 @@ def _build_dify_call_audit(
     status: str,
     warnings: list[dict[str, Any]],
     error_summary: str | None = None,
+    error_details: dict[str, Any] | None = None,
     failed_rule_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -794,6 +799,7 @@ def _build_dify_call_audit(
         "status": status,
         "warnings": warnings,
         "error_summary": error_summary,
+        "error_details": error_details,
         "failed_rule_ids": failed_rule_ids or [],
     }
 
@@ -807,6 +813,20 @@ def _safe_error_summary(error: Exception | str) -> str:
     value = re.sub(r"(?i)bearer\s+\S+", "Bearer [redacted]", value)
     value = re.sub(r"https?://\S+", "[url redacted]", value)
     return value[:300]
+
+
+def _safe_error_details(error: Exception | str) -> dict[str, Any] | None:
+    details = getattr(error, "technical_details", None)
+    if not isinstance(details, dict):
+        return None
+    sanitized: dict[str, Any] = {}
+    for key, value in details.items():
+        if isinstance(value, str):
+            value = re.sub(r"(?i)bearer\s+\S+", "Bearer [redacted]", value)
+            value = re.sub(r"https?://\S+", "[url redacted]", value)
+            value = value[:500]
+        sanitized[str(key)] = value
+    return sanitized or None
 
 
 def _write_json(path: Path, data: Any) -> None:

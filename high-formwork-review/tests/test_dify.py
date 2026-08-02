@@ -445,6 +445,35 @@ def test_dify_client_does_not_send_metadata() -> None:
     ) == extract_review_result(raw)
 
 
+def test_dify_client_records_http_status_for_non_json_gateway_failure() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            504,
+            content=b"<html>gateway timeout</html>",
+            headers={"content-type": "text/html"},
+        )
+
+    async def run() -> DifyError:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as http_client:
+            client = DifyClient(
+                "https://dify.example/v1",
+                "secret",
+                http_client=http_client,
+            )
+            with pytest.raises(DifyError) as caught:
+                await client.run_workflow({"scheme_text": "text"}, user="task-1")
+            return caught.value
+
+    error = asyncio.run(run())
+
+    assert "504" in str(error)
+    assert error.technical_details["http_status"] == 504
+    assert error.technical_details["content_type"] == "text/html"
+    assert "gateway timeout" in error.technical_details["body_preview"]
+
+
 def test_batch_result_validation_rejects_wrong_rule_or_status() -> None:
     with pytest.raises(DifyError, match="rule_id"):
         validate_review_result(
@@ -881,6 +910,39 @@ def test_dify_orchestration_failure_writes_error_without_deleting_parse_result(
         "failed_batch_index": 1,
     }
     assert parse_path.read_text(encoding="utf-8") == original
+
+
+def test_dify_orchestration_keeps_technical_failure_details_in_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    monkeypatch.setenv("DIFY_CACHE_ENABLED", "false")
+    (output_dir / "mineru_document.json").write_text(
+        json.dumps(_document_dict(), ensure_ascii=False), encoding="utf-8"
+    )
+
+    async def fail_execute(batches, task_id, target_dir):
+        error = DifyError(
+            "Dify 返回了非 JSON 响应（HTTP 504）",
+            technical_details={
+                "http_status": 504,
+                "content_type": "text/html",
+                "body_preview": "gateway timeout",
+            },
+        )
+        error.batch_index = 1
+        raise error
+
+    monkeypatch.setattr(main_module, "_execute_dify_batches", fail_execute)
+    with pytest.raises(RuntimeError, match="504"):
+        main_module._run_dify_review(output_dir, [_rules()[0]])
+
+    error = json.loads((output_dir / "dify_error.json").read_text(encoding="utf-8"))
+    audit = json.loads((output_dir / "dify_call_audit.json").read_text(encoding="utf-8"))
+    assert error["technical_details"]["http_status"] == 504
+    assert audit["error_details"]["content_type"] == "text/html"
+    assert audit["error_details"]["body_preview"] == "gateway timeout"
 
 
 def test_dify_preparation_failure_also_writes_error(

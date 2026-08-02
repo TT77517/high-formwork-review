@@ -9,10 +9,62 @@ const STAGE_NAMES = {
   completed: '已完成', completed_with_warning: '已完成(有警告)', failed: '失败'
 };
 const STATUS_CN = { PASS: '已识别', MISSING: '疑似缺失', UNCERTAIN: '无法核验' };
+const COMPARISON_STATUS_CN = {
+  AGREEMENT: '一致',
+  DISAGREEMENT: '不一致',
+  NOT_REQUESTED: '未请求',
+  DIFY_FAILED: '暂未完成',
+  BOTH_UNCERTAIN: '均不确定'
+};
+const DIFY_SOURCE_CN = {
+  not_requested: '增强复核：未请求',
+  failed: '增强复核：暂未完成',
+  cache: '增强复核：缓存结果',
+  api: '增强复核：实时结果'
+};
 const HUMAN_DECISION_CN = {
   pending: '待复核', confirmed_pass: '确认已具备', confirmed_missing: '确认存在缺项',
   unable_to_verify: '暂无法核验', false_positive: '排除误报', need_supplement: '要求补充资料'
 };
+
+function comparisonStatus(comp) {
+  return comp?.comparison_status || null;
+}
+
+function difyDisplayLabel(comp, hasComparison = true) {
+  if (!hasComparison || !comp) return '增强复核：未请求';
+  const source = comp.dify_result_source || (
+    comparisonStatus(comp) === 'DIFY_FAILED' ? 'failed' : 'not_requested'
+  );
+  const sourceLabel = DIFY_SOURCE_CN[source] || DIFY_SOURCE_CN.not_requested;
+  if (source === 'cache' || source === 'api') {
+    const statusLabel = STATUS_CN[comp.dify_status] || '已返回';
+    return `${sourceLabel} · ${statusLabel}`;
+  }
+  return sourceLabel;
+}
+
+function comparisonDisplayLabel(comp) {
+  if (!comp) return '未请求';
+  return COMPARISON_STATUS_CN[comparisonStatus(comp)] || '未请求';
+}
+
+function isPriorityReview(comp, rule) {
+  if (comp?.review_priority === 'priority_review') return true;
+  return !comp && (rule.status === 'MISSING' || rule.status === 'UNCERTAIN' || rule.requires_human_review);
+}
+
+function isQuickConfirm(comp, rule) {
+  if (comp?.review_priority === 'quick_confirm') return true;
+  return Boolean(
+    comp?.comparison_status === 'NOT_REQUESTED' &&
+    rule.status === 'PASS' &&
+    typeof rule.confidence === 'number' &&
+    rule.confidence >= 0.8 &&
+    !rule.requires_human_review &&
+    !rule.needs_semantic_review
+  );
+}
 
 let currentJobId = null;
 let reviewData = null;
@@ -145,15 +197,38 @@ function renderOverview() {
   const compSummary = comparisonData || {};
   const decisions = decisionsData;
   const diffCount = comparisonData ? comparisonData.disagreement_count : 0;
-  const manualNeeded = decisions.filter(d => d.human_decision === 'pending').length;
+  const comparisonById = {};
+  (comparisonData?.results || []).forEach(item => { comparisonById[item.rule_id] = item; });
+  const priorityNeeded = (reviewData?.results || []).filter(rule => {
+    const comp = comparisonById[rule.rule_id];
+    const decision = decisions.find(item => item.rule_id === rule.rule_id);
+    return isPriorityReview(comp, rule) &&
+      (!decision || decision.human_decision === 'pending');
+  }).length;
+  const quickConfirmNeeded = (reviewData?.results || []).filter(rule => {
+    const comp = comparisonById[rule.rule_id];
+    const decision = decisions.find(item => item.rule_id === rule.rule_id);
+    return isQuickConfirm(comp, rule) && (!decision || decision.human_decision === 'pending');
+  }).length;
+  const manualNeeded = priorityNeeded;
   const difyUnavailable = !comparisonData && !difyErrorData;
+  const difyRequested = (comparisonData?.results || []).filter(item => item.requested_to_dify).length;
+  const difyFailed = compSummary.dify_failed_count || 0;
+  const difyNotRequested = compSummary.not_requested_count || 0;
 
   const cards = [
     { icon: '📄', title: '文档解析', value: documentMeta?.physical_page_count || '—', sub: `页 · ${documentMeta?.section_count || 0} 章节 · ${documentMeta?.block_count || 0} block` },
     { icon: '🔍', title: '本地预审', value: summary.total_rules || 10, sub: `已识别 ${summary.pass_count || 0} · 疑似缺失 ${summary.missing_count || 0} · 无法核验 ${summary.uncertain_count || 0}` },
     { icon: '🤖', title: 'Dify 审查', value: comparisonData ? compSummary.total_rules : '未启用', sub: difyErrorData ? 'Dify 调用失败，使用本地结果' : (comparisonData ? `一致 ${compSummary.agreement_count} · 不一致 ${compSummary.disagreement_count}` : '未配置 Dify 集成'), warn: !!difyErrorData || difyUnavailable },
-    { icon: '✅', title: '待人工复核', value: manualNeeded || decisions.length || '—', sub: `已保存 ${decisions.filter(d => d.human_decision !== 'pending').length} 条复核记录`, warn: manualNeeded > 0 }
+    { icon: '✅', title: '待人工复核', value: manualNeeded || decisions.length || '—', sub: `${quickConfirmNeeded ? `快速确认 ${quickConfirmNeeded} 条 · ` : ''}已保存 ${decisions.filter(d => d.human_decision !== 'pending').length} 条复核记录`, warn: manualNeeded > 0 }
   ];
+
+  if (comparisonData) {
+    cards[2].value = difyRequested;
+    if (difyErrorData) {
+      cards[2].sub = `Dify 调用失败，使用本地结果 · 失败 ${difyFailed} · 未请求 ${difyNotRequested}`;
+    }
+  }
 
   if (difyUnavailable && !difyErrorData) {
     cards[2].sub = 'Dify 未启用，仅展示本地审查结果';
@@ -338,7 +413,7 @@ function renderReviewTable(filter) {
     const dec = decisionsById[r.rule_id];
     const needsReview = (comp.manual_review) || r.status === 'MISSING' || r.status === 'UNCERTAIN' || r.requires_human_review || (dec && dec.human_decision === 'pending');
     if (filter === 'manual-review') return needsReview;
-    if (filter === 'disagree') return comp && !comp.agreement && comp.dify_status;
+    if (filter === 'disagree') return comp?.comparison_status === 'DISAGREEMENT';
     if (filter === 'MISSING') return r.status === 'MISSING';
     if (filter === 'UNCERTAIN') return r.status === 'UNCERTAIN';
     return true;
@@ -349,19 +424,24 @@ function renderReviewTable(filter) {
     const dec = decisionsById[r.rule_id];
     const localLabel = STATUS_CN[r.status] || r.status;
     const difyStatus = comp.dify_status;
-    const difyLabel = difyStatus ? (STATUS_CN[difyStatus] || difyStatus) : (comparisonData ? '—' : '未启用');
-    const agreement = comp.agreement;
-    const agreeLabel = !difyStatus ? '仅本地' : (agreement ? '一致' : '不一致');
-    const agreeClass = !difyStatus ? '' : (agreement ? 'agreement-consistent' : 'agreement-inconsistent');
-    const humanLabel = dec && dec.human_decision !== 'pending' ? HUMAN_DECISION_CN[dec.human_decision] || dec.human_decision : '待复核';
-    const humanClass = dec && dec.human_decision !== 'pending' ? 'human-confirmed' : 'review-yes';
+    const difyLabel = difyDisplayLabel(comp, Boolean(comparisonData));
+    const comparisonLabel = comparisonDisplayLabel(comp);
+    const comparisonClass = comp.comparison_status === 'AGREEMENT' || comp.comparison_status === 'BOTH_UNCERTAIN'
+      ? 'agreement-consistent'
+      : comp.comparison_status === 'DISAGREEMENT' ? 'agreement-inconsistent' : '';
+    const humanLabel = dec && dec.human_decision !== 'pending'
+      ? HUMAN_DECISION_CN[dec.human_decision] || dec.human_decision
+      : comp.review_priority === 'quick_confirm' ? '快速确认' : '待复核';
+    const humanClass = dec && dec.human_decision !== 'pending'
+      ? 'human-confirmed'
+      : comp.review_priority === 'quick_confirm' ? 'review-priority' : 'review-yes';
 
     return `<tr>
       <td><b>${esc(r.rule_id)}</b></td>
       <td>${esc(r.name)}</td>
       <td><span class="status-chip status-${r.status}">${localLabel}</span></td>
-      <td><span class="status-chip status-${difyStatus || 'uncertain'}">${difyLabel}</span></td>
-      <td class="${agreeClass}">${agreeLabel}</td>
+      <td><span class="status-chip status-${difyStatus || 'uncertain'}">${esc(difyLabel)}</span></td>
+      <td class="${comparisonClass}">${comparisonLabel}</td>
       <td class="${humanClass}">${humanLabel}</td>
       <td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td>
     </tr>`;
@@ -389,8 +469,8 @@ function openReviewDrawer(ruleId) {
 
   const localLabel = STATUS_CN[rule.status] || rule.status;
   const difyStatus = comp.dify_status;
-  const difyLabel = difyStatus ? (STATUS_CN[difyStatus] || difyStatus) : '未启用/失败';
-  const diffReason = comp.difference_reason || (comparisonData ? '—' : 'Dify 未启用');
+  const difyLabel = difyDisplayLabel(comp, Boolean(comparisonData));
+  const diffReason = comp.difference_reason || (comparisonData ? comparisonDisplayLabel(comp) : 'Dify 未启用');
 
   // 证据列表
   const evidenceHtml = (rule.evidence || []).length === 0
@@ -533,13 +613,19 @@ function renderManualReview() {
 
   const items = results.map(r => {
     const dec = decisionsById[r.rule_id];
-    return { rule: r, decision: dec || { human_decision: 'pending', note: '' } };
+    return {
+      rule: r,
+      decision: dec || { human_decision: 'pending', note: '' },
+      hasSavedDecision: Boolean(dec)
+    };
   });
 
-  const filtered = showAll ? items : items.filter(item =>
-    item.rule.status !== 'PASS' || item.decision.human_decision === 'pending' ||
-    (comparisonData && comparisonData.results?.find(c => c.rule_id === item.rule.rule_id && !c.agreement))
-  );
+  const filtered = showAll ? items : items.filter(item => {
+    const comp = comparisonData?.results?.find(c => c.rule_id === item.rule.rule_id);
+    return isPriorityReview(comp, item.rule) ||
+      isQuickConfirm(comp, item.rule) ||
+      (item.hasSavedDecision && item.decision.human_decision === 'pending');
+  });
 
   const total = filtered.length;
   const done = filtered.filter(item => item.decision.human_decision !== 'pending').length;
@@ -556,15 +642,20 @@ function renderManualReview() {
     const isDone = d.human_decision !== 'pending';
     const localLabel = STATUS_CN[r.status] || r.status;
     const comp = comparisonData?.results?.find(c => c.rule_id === r.rule_id);
-    const difyLabel = comp ? (STATUS_CN[comp.dify_status] || comp.dify_status) : '—';
-    const agreeLabel = !comp ? '—' : (comp.agreement ? '一致' : '不一致');
+    const difyLabel = difyDisplayLabel(comp, Boolean(comparisonData));
+    const agreeLabel = comp ? comparisonDisplayLabel(comp) : '未请求';
+    const priorityLabel = isPriorityReview(comp, r) ? '优先复核' : isQuickConfirm(comp, r) ? '快速确认' : '';
+    const comparisonClass = comp?.comparison_status === 'AGREEMENT' || comp?.comparison_status === 'BOTH_UNCERTAIN'
+      ? 'agreement-consistent'
+      : comp?.comparison_status === 'DISAGREEMENT' ? 'agreement-inconsistent' : '';
 
     return `<div class="manual-item${isDone ? ' manual-done' : ''}" data-index="${idx}">
       <div class="manual-head">
         <span class="rule-label">${esc(r.rule_id)} ${esc(r.name)}</span>
         <span class="status-chip status-${r.status}">本地: ${localLabel}</span>
-        ${comp ? `<span class="status-chip status-${comp.dify_status || 'uncertain'}">Dify: ${difyLabel}</span>` : ''}
-        ${comp ? `<span class="${comp.agreement ? 'agreement-consistent' : 'agreement-inconsistent'}">${agreeLabel}</span>` : ''}
+        ${comp ? `<span class="status-chip status-${comp.dify_status || 'uncertain'}">${esc(difyLabel)}</span>` : '<span class="status-chip status-uncertain">增强复核：未请求</span>'}
+        ${comp ? `<span class="${comparisonClass}">${agreeLabel}</span>` : ''}
+        ${priorityLabel ? `<span class="review-priority">${priorityLabel}</span>` : ''}
         ${isDone ? `<span class="human-confirmed">${HUMAN_DECISION_CN[d.human_decision] || d.human_decision}</span>` : '<span class="review-yes">待复核</span>'}
       </div>
       <div class="manual-body">
@@ -607,10 +698,17 @@ $('#saveAndNext').addEventListener('click', async () => {
   const decisionsById = {};
   decisionsData.forEach(d => { decisionsById[d.rule_id] = d; });
   const showAll = $('#showAllDecisions').checked;
-  const items = results.map(r => ({ rule: r, decision: decisionsById[r.rule_id] || { human_decision: 'pending' } }));
-  const filtered = showAll ? items : items.filter(item =>
-    item.rule.status !== 'PASS' || item.decision.human_decision === 'pending'
-  );
+  const items = results.map(r => ({
+    rule: r,
+    decision: decisionsById[r.rule_id] || { human_decision: 'pending' },
+    hasSavedDecision: Boolean(decisionsById[r.rule_id])
+  }));
+  const filtered = showAll ? items : items.filter(item => {
+    const comp = comparisonData?.results?.find(c => c.rule_id === item.rule.rule_id);
+    return isPriorityReview(comp, item.rule) ||
+      isQuickConfirm(comp, item.rule) ||
+      (item.hasSavedDecision && item.decision.human_decision === 'pending');
+  });
   const nextIdx = filtered.findIndex(item => item.decision.human_decision === 'pending');
   if (nextIdx >= 0) {
     currentManualIndex = nextIdx;

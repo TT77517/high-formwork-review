@@ -16,6 +16,10 @@ NOT_REQUESTED = "NOT_REQUESTED"
 DIFY_FAILED = "DIFY_FAILED"
 BOTH_UNCERTAIN = "BOTH_UNCERTAIN"
 
+PRIORITY_REVIEW = "priority_review"
+QUICK_CONFIRM = "quick_confirm"
+NO_REVIEW = "none"
+
 
 def build_review_comparison(
     local_results: Any,
@@ -41,6 +45,7 @@ def build_review_comparison(
         selection=selection,
         audit=audit,
         dify_by_rule=dify_by_rule,
+        dify_error=dify_error,
         mode=mode,
     )
     failed_rule_ids = _failed_rule_ids(
@@ -87,6 +92,12 @@ def build_review_comparison(
             local_status=local_status,
             dify_status=dify_status,
         )
+        review_priority = _review_priority(
+            comparison_status,
+            local=local,
+            local_status=local_status,
+            manual_review=manual_review,
+        )
         source = _dify_result_source(
             rule_id,
             requested=requested,
@@ -124,6 +135,7 @@ def build_review_comparison(
                 "local_evidence": local.get("evidence", []),
                 "dify_evidence": dify.get("evidence", []),
                 "warnings": item_warnings,
+                "review_priority": review_priority,
                 # Backwards-compatible fields used by the first comparison UI.
                 "agreement": agreement,
                 "manual_review": manual_review,
@@ -165,6 +177,7 @@ def _requested_rule_ids(
     selection: dict[str, Any] | None,
     audit: dict[str, Any] | None,
     dify_by_rule: dict[str, dict[str, Any]],
+    dify_error: dict[str, Any] | None,
     mode: str | None,
 ) -> list[str]:
     if audit is not None and "requested_rule_ids" in audit:
@@ -179,9 +192,15 @@ def _requested_rule_ids(
     if effective_mode == "full":
         return list(rule_ids)
     # Legacy output directories had no selection/audit files. If a Dify result
-    # exists, treat its returned rules as requested; otherwise it is local-only.
-    if dify_by_rule:
-        return list(dify_by_rule)
+    # exists, treat its returned rules as requested.  A failure record may be
+    # the only source of requested ids when the batch failed before a result
+    # file was written, so include its failed ids as well.
+    inferred = [
+        *dify_by_rule,
+        *_string_list((dify_error or {}).get("failed_rule_ids")),
+    ]
+    if inferred:
+        return list(dict.fromkeys(inferred))
     return []
 
 
@@ -214,6 +233,11 @@ def _comparison_status(
         return NOT_REQUESTED
     if rule_id in failed_rule_ids or dify_status not in VALID_STATUSES:
         return DIFY_FAILED
+    # A comparison is meaningful only when both sides have a valid verdict.
+    # This guard prevents a malformed/missing local item from being reported
+    # as a Dify disagreement.
+    if local_status not in VALID_STATUSES:
+        return DIFY_FAILED
     if local_status == UNCERTAIN and dify_status == UNCERTAIN:
         return BOTH_UNCERTAIN
     if local_status == dify_status:
@@ -236,12 +260,13 @@ def _manual_review(
 ) -> bool:
     if comparison_status in {DISAGREEMENT, DIFY_FAILED, BOTH_UNCERTAIN}:
         return True
+    if local_status in {MISSING, UNCERTAIN}:
+        return True
     if comparison_status == NOT_REQUESTED:
         confidence = local.get("confidence")
         return bool(
             local.get("requires_human_review")
             or local.get("needs_semantic_review")
-            or local_status == UNCERTAIN
             or not isinstance(confidence, (int, float))
             or confidence < 0.8
         )
@@ -249,6 +274,45 @@ def _manual_review(
         local.get("requires_human_review")
         or local_status == UNCERTAIN
         or dify_status == UNCERTAIN
+    )
+
+
+def _review_priority(
+    comparison_status: str,
+    *,
+    local: dict[str, Any],
+    local_status: str | None,
+    manual_review: bool,
+) -> str:
+    """Classify rules for the human-review work queue.
+
+    ``requires_human_review`` remains the compatibility boolean used by the
+    original UI.  This separate value lets the UI distinguish urgent review
+    from a low-risk confirmation without changing any local verdict.
+    """
+    if comparison_status in {DISAGREEMENT, DIFY_FAILED, BOTH_UNCERTAIN}:
+        return PRIORITY_REVIEW
+    if local_status in {MISSING, UNCERTAIN}:
+        return PRIORITY_REVIEW
+    if (
+        comparison_status == NOT_REQUESTED
+        and local_status == PASS
+        and _is_high_confidence_pass(local)
+    ):
+        return QUICK_CONFIRM
+    if manual_review:
+        return PRIORITY_REVIEW
+    return NO_REVIEW
+
+
+def _is_high_confidence_pass(local: dict[str, Any]) -> bool:
+    confidence = local.get("confidence")
+    return bool(
+        local.get("status") == PASS
+        and isinstance(confidence, (int, float))
+        and confidence >= 0.8
+        and not local.get("requires_human_review")
+        and not local.get("needs_semantic_review")
     )
 
 

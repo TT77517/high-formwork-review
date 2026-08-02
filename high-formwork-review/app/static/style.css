@@ -285,6 +285,7 @@ tbody tr:hover { background: #f7fafc; }
 }
 .manual-toolbar label { cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .manual-progress { color: var(--muted); font-size: 13px; }
+.review-priority { color: var(--orange, #c65d00); font-size: 12px; font-weight: 700; }
 
 .manual-item {
   padding: 14px 16px; margin-bottom: 8px; border: 1px solid var(--line);
