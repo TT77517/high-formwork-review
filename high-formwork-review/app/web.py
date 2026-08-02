@@ -531,7 +531,10 @@ def _process_job(job_id: str) -> None:
         )
         try:
             mode = _web_dify_mode()
-            from .main import _write_dify_selection
+            from .main import (
+                _write_dify_selection,
+                _write_review_comparison_if_ready,
+            )
 
             _write_dify_selection(job_dir, summary.results, mode)
         except ValueError as exc:
@@ -549,6 +552,7 @@ def _process_job(job_id: str) -> None:
                 "Dify配置无效，本地结果可用",
                 error_stage="dify_review",
             )
+            _write_review_comparison_if_ready(job_dir)
             return
 
         if mode != "off":
@@ -564,6 +568,7 @@ def _process_job(job_id: str) -> None:
                 )
         else:
             _update_status(job_dir, "completed", "解析与完整性审查已完成")
+        _write_review_comparison_if_ready(job_dir)
     except Exception:
         _update_status(
             job_dir,

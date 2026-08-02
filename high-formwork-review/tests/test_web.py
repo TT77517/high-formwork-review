@@ -404,7 +404,10 @@ def test_web_pipeline_dify_disabled_keeps_existing_behavior(
     assert status["status"] == "completed"
     assert (job_dir / "completeness_results.json").is_file()
     assert not (job_dir / "dify_review_result.json").exists()
-    assert not (job_dir / "review_comparison.json").exists()
+    comparison = json.loads(
+        (job_dir / "review_comparison.json").read_text(encoding="utf-8")
+    )
+    assert comparison["not_requested_count"] == comparison["total_rules"]
 
 
 def test_web_pipeline_dify_enabled_success(
@@ -452,7 +455,7 @@ def test_web_pipeline_dify_failure_keeps_local_results(
 ) -> None:
     monkeypatch.setattr(web, "JOBS_ROOT", tmp_path / "jobs")
     monkeypatch.setenv("WEB_ENABLE_DIFY", "true")
-    monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "on_demand")
+    monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "full")
     _mock_web_pipeline(monkeypatch)
 
     def fail_dify(output_dir: Path, rules: list[dict]) -> None:
@@ -474,7 +477,10 @@ def test_web_pipeline_dify_failure_keeps_local_results(
     assert status["message"] == "Dify审查失败，本地结果可用"
     assert (job_dir / "completeness_results.json").is_file()
     assert (job_dir / "dify_error.json").is_file()
-    assert not (job_dir / "review_comparison.json").exists()
+    comparison = json.loads(
+        (job_dir / "review_comparison.json").read_text(encoding="utf-8")
+    )
+    assert comparison["dify_failed_count"] == comparison["total_rules"]
 
 
 def test_decisions_can_be_saved(client: TestClient) -> None:

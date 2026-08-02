@@ -88,13 +88,18 @@ def main(argv: list[str] | None = None) -> int:
         try:
             mode = resolve_dify_completeness_mode(web_enable_dify=True)
             _write_dify_selection(output_dir, summary.results, mode)
+            _write_review_comparison_if_ready(output_dir)
             if mode == "off":
                 print("Dify 完整性审查模式为 off，跳过 Dify 调用")
                 return 0
             _run_dify_review(output_dir, rules)
+            _write_review_comparison_if_ready(output_dir)
         except (OSError, RuntimeError, ValueError) as exc:
+            _write_review_comparison_if_ready(output_dir)
             print(f"Dify 错误：{exc}", file=sys.stderr)
             return 1
+    else:
+        _write_review_comparison_if_ready(output_dir)
     return 0
 
 
@@ -482,6 +487,52 @@ def _run_dify_review_impl(
             for rule_id in cache_miss_rule_ids
             if rule_id not in partial_result_ids
         ]
+        oversized_rule_ids = {
+            str(batch["oversized_rule_part"]["rule_id"])
+            for batch in batches
+            if "oversized_rule_part" in batch
+        }
+        partial_items = [
+            result
+            for batch in partial_parsed_records
+            for result in _result_items(batch.get("result"))
+            if str(result.get("rule_id", "")) not in oversized_rule_ids
+        ]
+        partial_item_ids = list(
+            dict.fromkeys(
+                [
+                    *cache_hit_rule_ids,
+                    *[
+                        str(item.get("rule_id"))
+                        for item in partial_items
+                        if item.get("rule_id")
+                    ],
+                ]
+            )
+        )
+        if partial_item_ids:
+            from .services.dify_client import merge_batch_review_results
+
+            partial_review = merge_batch_review_results(
+                [
+                    *_cached_result_records(cached_results),
+                    *[
+                        {
+                            "batch_index": 0,
+                            "rule_ids": [str(item["rule_id"])],
+                            "result": {"results": [item]},
+                        }
+                        for item in partial_items
+                    ],
+                ],
+                expected_rule_ids=partial_item_ids,
+            )
+            partial_review["partial"] = True
+            partial_review["failed_rule_ids"] = failed_rule_ids
+            partial_review["warnings"] = (
+                config_warnings + cache_warnings + partial_cache_warnings
+            )
+            _write_json(output_dir / "dify_review_result.json", partial_review)
         error_data = {
             "status": "DIFY_FAILED",
             "message": str(exc),
@@ -767,7 +818,7 @@ def _write_json(path: Path, data: Any) -> None:
 
 def _write_review_comparison_if_ready(
     output_dir: Path,
-    dify_review_result: dict[str, Any],
+    dify_review_result: dict[str, Any] | None = None,
 ) -> None:
     local_path = output_dir / "completeness_results.json"
     if not local_path.is_file():
@@ -775,8 +826,31 @@ def _write_review_comparison_if_ready(
     from .review_comparison import build_review_comparison
 
     local_results = json.loads(local_path.read_text(encoding="utf-8"))
-    comparison = build_review_comparison(local_results, dify_review_result)
+    if dify_review_result is None:
+        dify_path = output_dir / "dify_review_result.json"
+        if dify_path.is_file():
+            dify_review_result = json.loads(dify_path.read_text(encoding="utf-8"))
+    selection = _read_optional_json(output_dir / "dify_selection.json")
+    audit = _read_optional_json(output_dir / "dify_call_audit.json")
+    dify_error = _read_optional_json(output_dir / "dify_error.json")
+    comparison = build_review_comparison(
+        local_results,
+        dify_review_result,
+        selection=selection,
+        audit=audit,
+        dify_error=dify_error,
+    )
     _write_json(output_dir / "review_comparison.json", comparison)
+
+
+def _read_optional_json(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def _write_dify_selection(

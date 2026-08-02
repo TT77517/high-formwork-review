@@ -565,7 +565,10 @@ def test_cli_without_dify_never_calls_dify(
 
     assert code == 0
     assert not (tmp_path / "out" / "dify_request.json").exists()
-    assert not (tmp_path / "out" / "review_comparison.json").exists()
+    comparison = json.loads(
+        (tmp_path / "out" / "review_comparison.json").read_text(encoding="utf-8")
+    )
+    assert comparison["not_requested_count"] == comparison["total_rules"]
 
 
 def test_cli_with_dify_calls_after_parse(
@@ -627,7 +630,7 @@ def test_cli_dify_failure_preserves_existing_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _mock_existing_pipeline(monkeypatch)
-    monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "on_demand")
+    monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "full")
     monkeypatch.setattr(
         main_module,
         "_run_dify_review",
@@ -650,7 +653,10 @@ def test_cli_dify_failure_preserves_existing_outputs(
     assert (output_dir / "completeness_results.json").is_file()
     assert (output_dir / "completeness_summary.json").is_file()
     assert (output_dir / "completeness_evidence_check.md").is_file()
-    assert not (output_dir / "review_comparison.json").exists()
+    comparison = json.loads(
+        (output_dir / "review_comparison.json").read_text(encoding="utf-8")
+    )
+    assert comparison["dify_failed_count"] == comparison["total_rules"]
 
 
 def test_dify_orchestration_saves_request_raw_and_review_result(
@@ -658,6 +664,7 @@ def test_dify_orchestration_saves_request_raw_and_review_result(
 ) -> None:
     output_dir = tmp_path / "out"
     output_dir.mkdir()
+    monkeypatch.setenv("DIFY_CACHE_ENABLED", "false")
     document = _document_dict()
     document["sections"] = [document["sections"][0]]
     document["pages"] = document["pages"][:3]
@@ -731,6 +738,7 @@ def test_on_demand_orchestration_requests_only_selected_rules(
 ) -> None:
     output_dir = tmp_path / "out"
     output_dir.mkdir()
+    monkeypatch.setenv("DIFY_CACHE_ENABLED", "false")
     document = _document_dict()
     (output_dir / "mineru_document.json").write_text(
         json.dumps(document, ensure_ascii=False), encoding="utf-8"
@@ -825,6 +833,7 @@ def test_full_orchestration_keeps_all_rules_when_selection_is_full(
 ) -> None:
     output_dir = tmp_path / "out"
     output_dir.mkdir()
+    monkeypatch.setenv("DIFY_CACHE_ENABLED", "false")
     (output_dir / "mineru_document.json").write_text(
         json.dumps(_document_dict(), ensure_ascii=False), encoding="utf-8"
     )
@@ -849,6 +858,7 @@ def test_dify_orchestration_failure_writes_error_without_deleting_parse_result(
 ) -> None:
     output_dir = tmp_path / "out"
     output_dir.mkdir()
+    monkeypatch.setenv("DIFY_CACHE_ENABLED", "false")
     parse_path = output_dir / "mineru_document.json"
     original = json.dumps(_document_dict(), ensure_ascii=False)
     parse_path.write_text(original, encoding="utf-8")
