@@ -24,12 +24,22 @@ from .completeness_review import (
     review_completeness_with_details,
 )
 from .dify_config import resolve_dify_completeness_mode
+from .mineru_cache import (
+    CACHE_ROOT,
+    ParseCacheInfo,
+    PARSER_CONFIG_VERSION,
+    PARSER_VERSION,
+    build_cache_key,
+    parse_pdf_with_cache,
+    sha256_file,
+)
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 JOBS_ROOT = PROJECT_ROOT / "data" / "web" / "jobs"
+MINERU_CACHE_ROOT = CACHE_ROOT
 RULES_PATH = PROJECT_ROOT / "config" / "completeness_rules.json"
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 UPLOAD_CHUNK_BYTES = 1024 * 1024
@@ -122,6 +132,8 @@ async def create_job(
     finally:
         await file.close()
 
+    source_sha256 = sha256_file(source_path)
+    parse_cache_key = build_cache_key(source_sha256)
     now = _utc_now()
     status = {
         "job_id": job_id,
@@ -134,6 +146,14 @@ async def create_job(
         "progress": STAGE_PROGRESS["uploaded"],
         "message": "PDF 已上传，等待开始解析",
         "error_stage": None,
+        "source_sha256": source_sha256,
+        "parse_cache_hit": None,
+        "parse_cache_key": parse_cache_key,
+        "parse_cache_source": "pending",
+        "parser_version": PARSER_VERSION,
+        "parser_config_version": PARSER_CONFIG_VERSION,
+        "parse_cache_warning": None,
+        "document_parse_message": None,
     }
     _atomic_write_json(job_dir / "status.json", status)
     background_tasks.add_task(_process_job, job_id)
@@ -329,7 +349,10 @@ def get_timeline(job_id: str) -> dict[str, Any]:
     events.append({
         "time": status.get("updated_at", ""),
         "stage": "document_parsing",
-        "description": "文档解析 Agent：章节构建与风险标记",
+        "description": status.get(
+            "document_parse_message",
+            "文档解析 Agent：章节构建与风险标记",
+        ),
     })
 
     # 完整性审查
@@ -451,15 +474,22 @@ def _process_job(job_id: str) -> None:
     stage = "mineru_parsing"
     try:
         _update_status(job_dir, stage, "MinerU 正在进行底层多模态解析")
-        raw_dir = MinerUClient().parse_pdf(
+        document, cache_info = parse_pdf_with_cache(
             pdf_path=source_path,
-            output_dir=job_dir / "mineru_api",
+            raw_output_dir=job_dir / "mineru_api",
+            document_output_path=job_dir / "mineru_document.json",
+            cache_root=MINERU_CACHE_ROOT,
+            client_factory=MinerUClient,
+            parser=parse_mineru,
+            before_document_parse=lambda: _update_status(
+                job_dir,
+                "document_parsing",
+                "文档解析 Agent 正在构建章节与标记风险",
+            ),
         )
+        _record_parse_cache_status(job_dir, cache_info)
 
         stage = "document_parsing"
-        _update_status(job_dir, stage, "文档解析 Agent 正在构建章节与标记风险")
-        document = parse_mineru(raw_dir)
-        _atomic_write_json(job_dir / "mineru_document.json", asdict(document))
 
         stage = "completeness_review"
         _update_status(job_dir, stage, "完整性审查 Agent 正在执行 10 条规则")
@@ -558,6 +588,28 @@ def _update_status(
             "updated_at": _utc_now(),
             "message": message,
             "error_stage": error_stage,
+        }
+    )
+    _atomic_write_json(status_path, status)
+
+
+def _record_parse_cache_status(job_dir: Path, cache_info: ParseCacheInfo) -> None:
+    status_path = job_dir / "status.json"
+    status = _read_json(status_path, "任务状态不存在")
+    status.update(
+        {
+            "source_sha256": cache_info.source_sha256,
+            "parse_cache_hit": cache_info.cache_hit,
+            "parse_cache_key": cache_info.cache_key,
+            "parse_cache_source": cache_info.cache_source,
+            "parser_version": cache_info.parser_version,
+            "parser_config_version": cache_info.parser_config_version,
+            "parse_cache_warning": cache_info.warning,
+            "document_parse_message": (
+                "文档解析：复用缓存"
+                if cache_info.cache_hit
+                else "文档解析：调用 MinerU"
+            ),
         }
     )
     _atomic_write_json(status_path, status)

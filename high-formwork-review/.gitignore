@@ -36,6 +36,7 @@ uploads/
 # Web jobs and generated task data
 data/jobs/
 data/web/jobs/
+data/cache/
 data/output/
 data/output*/
 data/dify-test/

@@ -17,6 +17,7 @@ from .completeness_review import (
 )
 from .completeness_review_selector import select_rules_for_dify_review
 from .dify_config import resolve_dify_completeness_mode
+from .mineru_cache import parse_pdf_with_cache
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
 
@@ -45,15 +46,17 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.pdf is not None:
-            client = MinerUClient()
-            raw_dir = client.parse_pdf(
+            document, _cache_info = parse_pdf_with_cache(
                 pdf_path=args.pdf,
-                output_dir=Path(args.output_dir) / "mineru_api",
+                raw_output_dir=Path(args.output_dir) / "mineru_api",
+                document_output_path=output_dir / "mineru_document.json",
+                client_factory=MinerUClient,
+                parser=parse_mineru,
             )
+            raw_dir = None
         else:
             raw_dir = args.raw_dir
-
-        document = parse_mineru(raw_dir)
+            document = parse_mineru(raw_dir)
         rules = load_rules(rules_path)
         summary, details = review_completeness_with_details(document, rules)
         if output_dir.exists() and not output_dir.is_dir():
