@@ -486,11 +486,29 @@ def _is_section_title(block: MinerUBlock) -> bool:
     title = block.text.strip()
     if re.search(r"(?:\.{2,}|…{2,}|·{2,})\s*\d+\s*$", title):
         return False
-    if re.match(
-        r"^\s*(?:[（(]\d+[）)]|\d+[）)]|\d+[、，,])(?:[、，,.)）．.\s]*)",
-        title,
-    ):
+    # 括号编号格式：(1)xxx、1)xxx 几乎肯定是列表项，直接拒绝
+    if re.match(r"^\s*(?:[（(]\d+[）)]|\d+[）)])", title):
         return False
+    # 数字+顿号/逗号格式：如"2、编制依据""1、准备工作"
+    # 只有包含典型章节关键词的才放行当章节标题
+    if re.match(r"^\s*(?:\d+[、，,])(?:[、，,.)）．.\s]*)", title):
+        remainder = re.sub(r"^\s*\d+[、，,]\s*", "", title).strip()
+        useful = re.findall(r"[一-鿿A-Za-z]", remainder)
+        if len(useful) < 2:
+            return False
+        chapter_keywords = (
+            "工程概况|项目概况|编制依据|编制说明|施工计划|施工部署|"
+            "施工工艺|施工方法|技术参数|工艺流程|施工安全|安全保证|"
+            "安全管理|人员配备|验收要求|验收|应急|计算书|施工图纸|附图|"
+            "施工进度|材料|设备|劳动力|项目背景|工程简述|施工管理|"
+            "监测监控|危险源|安全措施|施工组织|施工准备|施工规划|"
+            "技术方案|施工方案|支架|模板|支撑|搭设|拆除|防护|"
+            "概况|依据|计划|工艺|安全|人员|应急|计算|图纸|"
+            "设计|施工|安装|拆卸|救援|配置|安排"
+        )
+        if not re.search(chapter_keywords, remainder):
+            return False
+        # 包含章节关键词 → 放行
     if re.match(r"^\s*(?:图|表|附图|附件)\s*\d+\s*[:：、.．-]", title):
         return False
 
