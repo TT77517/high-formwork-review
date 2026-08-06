@@ -181,13 +181,14 @@ def test_section_title_without_required_subitems_is_uncertain() -> None:
 
 
 def test_high_formwork_mandatory_subitem_is_required() -> None:
+    """HF-COMP-001 只匹配 2/4 子项且缺少高支模关键内容时，应为 UNCERTAIN。"""
     document = _document(
         [
             _block("title", "title", "工程概况", 0, title_level=1),
             _block(
                 "body",
                 "paragraph",
-                "工程名称为测试工程，建设地点明确，采用框架结构。",
+                "工程名称为测试工程。",
                 1,
             ),
         ],
@@ -196,7 +197,7 @@ def test_high_formwork_mandatory_subitem_is_required() -> None:
 
     result = _result(document, "HF-COMP-001")
     assert result.status == "UNCERTAIN"
-    assert "高支模部位或主要参数" in result.reason
+    assert "只满足 1/4" in result.reason
 
 
 def test_partial_page_subitems_do_not_pass() -> None:
@@ -263,7 +264,7 @@ def test_drawing_image_only_is_uncertain() -> None:
 
 def test_complete_document_without_evidence_is_missing() -> None:
     document = _document(
-        [_block("body", "paragraph", "这是一段与应急处置无关的普通说明文字。", 0)]
+        [_block("body", "paragraph", "这是一段纯施工技术说明文字。", 0)]
     )
 
     result = _result(document, "HF-COMP-008")

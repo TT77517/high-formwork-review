@@ -41,6 +41,162 @@ _DRAWING_EVIDENCE_PAGE_LIMIT = 8
 _SEMANTIC_CONFIDENCE_THRESHOLD = 0.70
 _HIGH_CONFIDENCE = 0.80
 
+# -------------------------------------------------------------------
+# OCR 常见混淆字符映射——用于标准化相似字形
+# -------------------------------------------------------------------
+_OCR_CHAR_MAP: dict[str, str] = {
+    # 形近字混淆
+    "模": "模",  # 模 (correct), keep as-is
+    "摸": "模",  # 摸 -> 模
+    "搭": "搭",  # 搭 (correct)
+    "塔": "搭",  # 塔 -> 搭
+    "验": "验",  # 验 (correct)
+    "检": "验",  # 检 -> 验 (在某些语境)
+    "支": "支",  # 支 (correct)
+    "枝": "支",  # 枝 -> 支
+    "股": "股",  # 股 -> 股 (only map in context of 支模)
+    "高": "高",  # 高 (correct)
+    "端": "端",  # 端 -> 端 (keep)
+    "立": "立",   # 立 (correct)
+    "力": "力",   # 力 (correct) -- only in context of 杆
+    "杆": "杆",   # 杆 (correct) -- avoid mapping to 千/干
+    # 特殊：立杆 混淆为 立千/立干
+    "立千": "立杆",  # 立千 -> 立杆
+    "立干": "立杆",  # 立干 -> 立杆
+    "立杆": "立杆",  # 立杆 (keep)
+}
+
+# OCR 全角/半角、简繁体归一化
+_OCR_NORMALIZE_MAP: dict[int, int | None] = {
+    ord("０"): ord("0"),
+    ord("１"): ord("1"),
+    ord("２"): ord("2"),
+    ord("３"): ord("3"),
+    ord("４"): ord("4"),
+    ord("５"): ord("5"),
+    ord("６"): ord("6"),
+    ord("７"): ord("7"),
+    ord("８"): ord("8"),
+    ord("９"): ord("9"),
+    ord("Ａ"): ord("A"),
+    ord("Ｂ"): ord("B"),
+    ord("Ｃ"): ord("C"),
+    ord("Ｄ"): ord("D"),
+    ord("Ｅ"): ord("E"),
+    ord("Ｏ"): ord("O"),
+    ord("Ｈ"): ord("H"),
+    ord("Ｉ"): ord("I"),
+    ord("Ｇ"): ord("G"),
+    ord("Ｊ"): ord("J"),
+    ord("Ｋ"): ord("K"),
+    ord("Ｎ"): ord("N"),
+    ord("Ｍ"): ord("M"),
+    ord("Ｐ"): ord("P"),
+    ord("Ｓ"): ord("S"),
+    ord("Ｔ"): ord("T"),
+    ord("＼"): ord("\\"),
+    ord("－"): ord("-"),
+    ord("（"): ord("("),
+    ord("）"): ord(")"),
+    ord("："): ord(":"),
+    ord("；"): ord(";"),
+    ord("，"): ord(","),
+    ord("、"): ord(","),
+    ord("。"): ord("."),
+    ord("！"): ord("!"),
+}
+
+# OCR 常见易混淆词 -> 标准化词 (归一化后的)
+_OCR_TOKEN_MAP: dict[str, str] = {}
+for _raw, _norm in _OCR_CHAR_MAP.items():
+    _key = "".join(str(_raw).lower().split())
+    _val = "".join(str(_norm).lower().split())
+    if _key != _val:
+        _OCR_TOKEN_MAP[_key] = _val
+
+
+# -------------------------------------------------------------------
+# 同义词组：将术语扩展为同义表达
+# -------------------------------------------------------------------
+_SYNONYM_GROUPS: list[list[str]] = [
+    # 章节/部分
+    ["工程概况", "项目概况", "工程简介", "工程概述", "项目概述", "工程总体情况"],
+    ["编制依据", "编制说明", "依据标准", "引用标准", "执行标准"],
+    ["施工计划", "施工部署", "施工组织", "施工安排", "施工方案部署"],
+    ["施工工艺技术", "施工工艺", "施工方法", "技术方案", "施工技术方案"],
+    ["施工安全保证措施", "安全保证措施", "安全管理措施", "安全施工措施"],
+    ["施工管理及作业人员配备", "人员配备", "管理人员配备", "人员组织"],
+    ["验收要求", "检查验收", "质量验收", "施工验收"],
+    ["应急处置措施", "应急预案", "应急救援", "应急处理措施"],
+    ["计算书", "设计计算", "验算书", "支架计算", "结构计算"],
+    ["相关施工图纸", "附图", "施工图纸", "图纸", "施工图"],
+    # 子项术语
+    ["工程名称", "项目名称", "建设项目"],
+    ["建设地点", "工程地点", "项目地点", "工程位置", "项目地址"],
+    ["施工进度", "进度计划", "工期", "施工工期", "进度安排"],
+    ["材料计划", "材料需用", "材料配置", "物资计划"],
+    ["设备计划", "设备需用", "机械设备", "施工机具"],
+    ["劳动力", "劳动力计划", "人员计划", "人员投入", "用工计划"],
+    ["技术参数", "设计参数", "支撑参数", "架体参数"],
+    ["工艺流程", "施工流程", "施工工序", "操作流程"],
+    ["搭设", "安装", "架设", "支架搭设", "模板安装"],
+    ["拆除", "拆模", "拆撑", "拆卸"],
+    ["组织保障", "安全组织", "安全管理机构", "安全领导小组"],
+    ["技术保障", "安全技术", "技术措施", "安全技术措施"],
+    ["监测监控", "监测项目", "变形监测", "沉降监测"],
+    ["施工管理人员", "项目负责人", "管理人员", "项目管理人员"],
+    ["安全生产管理人员", "安全员", "专职安全员", "安全总监", "安全主管"],
+    ["特种作业人员", "架子工", "特殊工种", "特种作业"],
+    ["岗位职责", "人员职责", "职责分工", "安全职责", "管理职责"],
+    ["支架验收", "架体验收", "支撑架检查与验收", "脚手架验收"],
+    ["验收程序", "验收流程", "验收步骤"],
+    ["验收标准", "验收规范", "质量标准", "技术标准"],
+    ["验收人员", "验收负责人", "验收小组", "验收组"],
+    ["应急组织", "应急小组", "应急救援组织", "应急指挥部"],
+    ["应急响应", "应急反应", "应急处理", "应急启动"],
+    ["事故报告", "信息报告", "上报", "报告程序"],
+    ["抢险救援", "救援措施", "应急救援", "抢险"],
+    ["应急物资", "应急资源", "救援物资", "应急设备"],
+]
+
+
+def _build_synonym_index() -> dict[str, set[str]]:
+    """Build a flat index: normalized term -> all equivalent normalized forms."""
+    index: dict[str, set[str]] = {}
+    for group in _SYNONYM_GROUPS:
+        norm_group = {_normalize(t) for t in group if _normalize(t)}
+        for norm_term in norm_group:
+            existing = index.setdefault(norm_term, set())
+            existing.update(norm_group)
+    return index
+
+
+_SYNONYM_INDEX: dict[str, set[str]] | None = None
+
+
+def _get_synonym_index() -> dict[str, set[str]]:
+    global _SYNONYM_INDEX
+    if _SYNONYM_INDEX is None:
+        _SYNONYM_INDEX = _build_synonym_index()
+    return _SYNONYM_INDEX
+
+
+# -------------------------------------------------------------------
+# Fallback section detection keywords for each rule
+# -------------------------------------------------------------------
+_FALLBACK_SECTION_KEYWORDS: dict[str, list[str]] = {
+    "HF-COMP-001": ["工程概况", "工程简介", "项目概况", "工程概述"],
+    "HF-COMP-002": ["编制依据", "编制说明", "依据", "规范"],
+    "HF-COMP-003": ["施工计划", "施工部署", "进度计划", "施工组织"],
+    "HF-COMP-004": ["施工工艺", "施工方法", "技术参数", "工艺流程"],
+    "HF-COMP-005": ["安全保证", "安全措施", "监测监控", "危险源"],
+    "HF-COMP-006": ["人员配备", "管理人员", "特种作业", "岗位职责"],
+    "HF-COMP-007": ["验收", "检查验收", "验收标准"],
+    "HF-COMP-008": ["应急", "应急预案", "应急救援"],
+    "HF-COMP-009": ["计算书", "验算", "荷载计算", "承载力"],
+    "HF-COMP-010": ["施工图纸", "附图", "平面图", "布置图"],
+}
+
 
 def load_rules(path: str | Path) -> list[dict[str, Any]]:
     """读取规则并做最小结构校验。"""
@@ -726,6 +882,35 @@ def _matching_sections(
         ) and section.section_id not in seen:
             matches.append(section)
             seen.add(section.section_id)
+    # Fallback: if no section matched, try keyword-based section detection
+    if not matches:
+        matches = _fallback_section_match(document, rule_id, seen)
+    return matches
+
+
+def _fallback_section_match(
+    document: MinerUDocument,
+    rule_id: str,
+    seen: set[str],
+) -> list[MinerUSection]:
+    """When primary aliases don't match, try fallback keyword-based heuristics."""
+    fallback_keywords = _FALLBACK_SECTION_KEYWORDS.get(rule_id)
+    if not fallback_keywords:
+        return []
+
+    matches: list[MinerUSection] = []
+    # Score sections by how many fallback keywords appear in their title
+    for section in document.sections:
+        if section.section_id in seen:
+            continue
+        norm_title = _normalize(section.title)
+        score = sum(
+            1 for kw in fallback_keywords
+            if _normalize(kw) and _normalize(kw) in norm_title
+        )
+        if score >= 2:  # At least 2 keywords to avoid false match
+            matches.append(section)
+            seen.add(section.section_id)
     return matches
 
 
@@ -1088,12 +1273,27 @@ def _unique_evidence(items: list[ReviewEvidence]) -> list[ReviewEvidence]:
 
 
 def _find_terms(text: str, terms: list[str]) -> list[str]:
+    """Match terms against text with synonym expansion and OCR tolerance."""
     normalized = _normalize(text)
-    return [
-        term
-        for term in terms
-        if _normalize(term) and _normalize(term) in normalized
-    ]
+    synonym_index = _get_synonym_index()
+    result: list[str] = []
+    for term in terms:
+        norm_term = _normalize(term)
+        if not norm_term:
+            continue
+        # Direct match (with OCR tolerance)
+        if _normalized_contains(normalized, norm_term):
+            result.append(term)
+            continue
+        # Synonym expansion
+        synonyms = synonym_index.get(norm_term, {norm_term})
+        if any(_normalized_contains(normalized, s) for s in synonyms if s != norm_term):
+            result.append(term)
+            continue
+        # Partial keyword match: try individual chars/subwords as hint
+        if len(norm_term) >= 2 and _partial_keyword_match(normalized, norm_term):
+            result.append(term)
+    return result
 
 
 def _matches_any(text: str, terms: list[str]) -> bool:
@@ -1118,7 +1318,54 @@ def _is_target_text(rule_id: str, text: str, aliases: list[str]) -> bool:
 
 
 def _normalize(text: str) -> str:
-    return "".join(str(text).lower().split())
+    """Normalize text for comparison: lowercase, strip whitespace,
+    apply OCR character corrections."""
+    text = str(text).lower()
+    # Apply fullwidth -> halfwidth and character normalizations
+    text = text.translate(_OCR_NORMALIZE_MAP)
+    # Remove all whitespace
+    text = "".join(text.split())
+    return text
+
+
+def _normalized_contains(text: str, term: str) -> bool:
+    """Check if term is contained in text, with OCR tolerance."""
+    if term in text:
+        return True
+    return _ocr_tolerant_contains(text, term)
+
+
+def _ocr_tolerant_contains(text: str, term: str) -> bool:
+    """Try matching with OCR character confusions resolved."""
+    # If term is short, try character-level OCR map
+    if len(term) <= 4:
+        for raw, fixed in _OCR_TOKEN_MAP.items():
+            if len(raw) == len(term) and len(raw) >= 2:
+                candidate = raw
+                if candidate in text:
+                    return True
+    return False
+
+
+def _partial_keyword_match(normalized_text: str, norm_term: str) -> bool:
+    """Match when most 2-char bigrams of a long term appear in the text.
+
+    Conservative: only applies to terms >= 6 chars (3 bigrams), and requires
+    at most one missing bigram to avoid false positives on short terms.
+    For example: '施工进度安排' (6 chars) is bigram-split into ['施工','进度','安排'].
+    If both '进度' and '安排' appear (only '施工' missing), it still matches
+    because the core content is there.
+    """
+    if len(norm_term) < 6:
+        return False
+    # Split term into two-char tokens
+    tokens = [norm_term[i:i + 2] for i in range(0, len(norm_term) - 1, 2)]
+    tokens = [t for t in tokens if len(t) == 2]
+    if len(tokens) < 3:
+        return False
+    matched = sum(1 for t in tokens if t in normalized_text)
+    # Need all but at most one token to match
+    return matched >= len(tokens) - 1
 
 
 def _string_list(value: Any) -> list[str]:
