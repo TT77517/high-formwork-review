@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import threading
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -37,6 +37,8 @@ CACHE_ROOT = DATA_ROOT / "cache" / "mineru"
 PARSER_NAME = "app.mineru_parser.parse_mineru"
 PARSER_VERSION = "mineru-parser-v1"
 PARSER_CONFIG_VERSION = "mineru-config-v1"
+MAX_MINERU_PDF_PAGES = 200
+PDF_CHUNK_SIZE = 180
 _CACHE_KEY_SAFE = re.compile(r"[^A-Za-z0-9_.-]+")
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
@@ -51,6 +53,13 @@ class ParseCacheInfo:
     parser_version: str
     parser_config_version: str
     warning: str | None = None
+
+
+@dataclass(frozen=True)
+class PdfPart:
+    path: Path
+    start_page: int
+    page_count: int
 
 
 def sha256_file(path: str | Path) -> str:
@@ -148,13 +157,39 @@ def parse_pdf_with_cache(
 
         target_document.unlink(missing_ok=True)
         client = client_factory() if client_factory is not None else MinerUClient()
-        raw_dir = client.parse_pdf(
-            pdf_path=source_path,
-            output_dir=Path(raw_output_dir),
-        )
-        if before_document_parse is not None:
-            before_document_parse()
-        document = parser(raw_dir)
+        page_count = _pdf_page_count(source_path)
+        if page_count > MAX_MINERU_PDF_PAGES:
+            parts = _write_pdf_parts(
+                source_path,
+                Path(raw_output_dir) / "split",
+                chunk_size=PDF_CHUNK_SIZE,
+            )
+            part_documents: list[tuple[PdfPart, MinerUDocument, str]] = []
+            asset_root = Path(raw_output_dir) / "raw"
+            for index, part in enumerate(parts, start=1):
+                part_name = f"part-{index:03d}"
+                raw_dir = client.parse_pdf(
+                    pdf_path=part.path,
+                    output_dir=asset_root / part_name,
+                )
+                relative_raw_dir = _relative_asset_path(raw_dir, asset_root)
+                part_documents.append((part, parser(raw_dir), relative_raw_dir))
+            if before_document_parse is not None:
+                before_document_parse()
+            document = _merge_part_documents(
+                part_documents,
+                source_path=source_path,
+                source_sha256=source_sha256,
+                physical_page_count=page_count,
+            )
+        else:
+            raw_dir = client.parse_pdf(
+                pdf_path=source_path,
+                output_dir=Path(raw_output_dir),
+            )
+            if before_document_parse is not None:
+                before_document_parse()
+            document = parser(raw_dir)
         _validate_document(document)
         _atomic_write_json(target_document, asdict(document))
         _write_cache(
@@ -173,6 +208,139 @@ def parse_pdf_with_cache(
             parser_config_version=parser_config_version,
             warning=warning,
         )
+
+
+def _pdf_page_count(pdf_path: Path) -> int:
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(pdf_path)
+    except PdfReadError:
+        # 保持原有流程的兼容性：页数预检失败时仍交由 MinerU 返回权威错误。
+        return 1
+    if reader.is_encrypted:
+        raise ValueError("暂不支持加密 PDF")
+    page_count = len(reader.pages)
+    if page_count <= 0:
+        raise ValueError("PDF 没有可解析页面")
+    return page_count
+
+
+def _write_pdf_parts(
+    source_path: Path,
+    split_dir: Path,
+    *,
+    chunk_size: int,
+) -> list[PdfPart]:
+    from pypdf import PdfReader, PdfWriter
+
+    if chunk_size <= 0 or chunk_size > MAX_MINERU_PDF_PAGES:
+        raise ValueError("PDF 分片页数必须介于 1 和 MinerU 页数上限之间")
+    reader = PdfReader(source_path)
+    if reader.is_encrypted:
+        raise ValueError("暂不支持加密 PDF")
+    split_dir.mkdir(parents=True, exist_ok=True)
+    parts: list[PdfPart] = []
+    total_pages = len(reader.pages)
+    for index, start_index in enumerate(range(0, total_pages, chunk_size), start=1):
+        end_index = min(start_index + chunk_size, total_pages)
+        part_path = split_dir / f"part-{index:03d}.pdf"
+        writer = PdfWriter()
+        for page_index in range(start_index, end_index):
+            writer.add_page(reader.pages[page_index])
+        with part_path.open("wb") as output:
+            writer.write(output)
+        parts.append(
+            PdfPart(
+                path=part_path,
+                start_page=start_index + 1,
+                page_count=end_index - start_index,
+            )
+        )
+    return parts
+
+
+def _relative_asset_path(raw_dir: str | Path, asset_root: Path) -> str:
+    try:
+        return Path(raw_dir).resolve().relative_to(asset_root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError("MinerU 分片输出不在预期资源目录中") from exc
+
+
+def _merge_part_documents(
+    part_documents: list[tuple[PdfPart, MinerUDocument, str]],
+    *,
+    source_path: Path,
+    source_sha256: str,
+    physical_page_count: int,
+) -> MinerUDocument:
+    from .mineru_parser import _build_sections
+
+    pages: list[MinerUPage] = []
+    warnings = [
+        f"原始 PDF 共 {physical_page_count} 页，已自动分片调用 MinerU 并合并结果"
+    ]
+    requires_human_review = False
+    for part_index, (part, document, asset_prefix) in enumerate(
+        part_documents, start=1
+    ):
+        if document.physical_page_count != part.page_count:
+            raise ValueError(
+                f"MinerU 分片 {part_index} 返回页数与输入不一致"
+            )
+        page_offset = part.start_page - 1
+        part_label = f"part-{part_index:03d}"
+        for page in document.pages:
+            physical_page = page.physical_page + page_offset
+            blocks = [
+                replace(
+                    block,
+                    block_id=f"p{physical_page:04d}-b{block.block_index:04d}",
+                    physical_page=physical_page,
+                    image_path=(
+                        f"{asset_prefix}/{block.image_path}"
+                        if block.image_path
+                        else None
+                    ),
+                    source_file=f"{part_label}/{block.source_file}",
+                    source_pointer=f"{part_label}:{block.source_pointer}",
+                )
+                for block in page.blocks
+            ]
+            pages.append(
+                replace(
+                    page,
+                    physical_page=physical_page,
+                    source_page_index=page.source_page_index + page_offset,
+                    blocks=blocks,
+                )
+            )
+        warnings.extend(
+            f"{part_label}: {message}" for message in document.warnings
+        )
+        requires_human_review = (
+            requires_human_review or document.requires_human_review
+        )
+    pages.sort(key=lambda page: page.physical_page)
+    if len(pages) != physical_page_count:
+        raise ValueError("MinerU 分片合并后页数与原始 PDF 不一致")
+    toc_page_indexes = {
+        page.source_page_index
+        for page in pages
+        if any("目录页" in warning for warning in page.warnings)
+    }
+    sections = _build_sections(pages, toc_page_indexes)
+    return MinerUDocument(
+        document_id=f"mineru-{source_sha256[:16]}",
+        source_file_name=source_path.name,
+        source_sha256=source_sha256,
+        physical_page_count=physical_page_count,
+        pages=pages,
+        sections=sections,
+        warnings=warnings,
+        requires_human_review=requires_human_review,
+    )
 
 
 @contextmanager

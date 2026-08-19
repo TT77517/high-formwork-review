@@ -318,6 +318,12 @@ def test_construction_plan_rule_collects_cross_section_labor_evidence() -> None:
     assert warnings == []
     assert fallback == []
     assert packages[0]["section_aliases"] == rule["section_aliases"]
+    assert [item["title"] for item in packages[0]["matched_sections"]] == [
+        "3. 施工计划"
+    ]
+    assert [item["title"] for item in packages[0]["evidence_sections"]] == [
+        "6.4 其他作业人员配备及分工"
+    ]
     assert "劳动力投入计划表" in packages[0]["evidence_text"]
     assert packages[0]["page_ranges"] == [
         {"start_page": 12, "end_page": 17},
@@ -331,20 +337,23 @@ def test_construction_plan_rule_collects_cross_section_labor_evidence() -> None:
     ]
 
 
-def test_rule_driven_batches_send_each_rule_once_and_actual_rule_string() -> None:
+def test_rule_driven_batches_send_one_rule_per_batch() -> None:
     packages, _, _ = build_rule_evidence_packages(_document_dict(), _rules())
     batches = build_rule_driven_batches(
         packages, _rules(), "task-1", character_limit=50_000
     )
 
-    assert len(batches) == 1
-    batch = batches[0]
-    assert batch["rule_ids"] == ["HF-COMP-001", "HF-COMP-007"]
-    assert batch["expected_rule_count"] == 2
-    assert batch["inputs"]["expected_rule_count"] == 2
-    assert json.loads(batch["inputs"]["review_rules"]) == _rules()
-    assert batch["character_count"] == len(batch["inputs"]["scheme_text"])
-    assert batch["scheme_text_metadata"]["omitted_sections"] == []
+    assert len(batches) == 2
+    assert [batch["rule_ids"] for batch in batches] == [
+        ["HF-COMP-001"],
+        ["HF-COMP-007"],
+    ]
+    for batch, rule in zip(batches, _rules(), strict=True):
+        assert batch["expected_rule_count"] == 1
+        assert batch["inputs"]["expected_rule_count"] == 1
+        assert json.loads(batch["inputs"]["review_rules"]) == [rule]
+        assert batch["character_count"] == len(batch["inputs"]["scheme_text"])
+        assert batch["scheme_text_metadata"]["omitted_sections"] == []
 
 
 def test_oversized_rule_is_split_by_complete_paragraphs() -> None:
@@ -417,6 +426,7 @@ def test_dify_client_does_not_send_metadata() -> None:
             client = DifyClient(
                 "https://dify.example/v1",
                 "secret",
+                max_retries=0,
                 http_client=http_client,
             )
             return await client.run_workflow(
@@ -472,6 +482,47 @@ def test_dify_client_records_http_status_for_non_json_gateway_failure() -> None:
     assert error.technical_details["http_status"] == 504
     assert error.technical_details["content_type"] == "text/html"
     assert "gateway timeout" in error.technical_details["body_preview"]
+
+
+def test_dify_client_retries_gateway_failures_then_succeeds() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            return httpx.Response(504, content=b"gateway timeout")
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "status": "succeeded",
+                    "outputs": {
+                        "result_json": json.dumps(
+                            {"results": [{"rule_id": "HF-COMP-001", "status": "PASS"}]}
+                        )
+                    },
+                }
+            },
+        )
+
+    async def run() -> dict:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as http_client:
+            client = DifyClient(
+                "https://dify.example/v1",
+                "secret",
+                max_retries=2,
+                retry_backoff_seconds=0,
+                http_client=http_client,
+            )
+            return await client.run_workflow({"scheme_text": "text"}, user="task-1")
+
+    raw = asyncio.run(run())
+
+    assert attempts == 3
+    assert extract_review_result(raw)["results"][0]["status"] == "PASS"
 
 
 def test_batch_result_validation_rejects_wrong_rule_or_status() -> None:

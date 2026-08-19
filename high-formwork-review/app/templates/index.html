@@ -8,33 +8,67 @@
 </head>
 <body>
   <nav class="top-nav">
-    <div class="nav-brand">高支模方案审查工作台</div>
-    <div class="nav-tabs" id="navTabs">
-      <button class="nav-tab active" data-tab="overview">任务概览</button>
-      <button class="nav-tab" data-tab="document">文档解析</button>
-      <button class="nav-tab" data-tab="review">完整性检查</button>
-      <button class="nav-tab" data-tab="manual">人工复核</button>
-      <button class="nav-tab" data-tab="records">审查记录</button>
-    </div>
+    <div class="nav-brand">高支模方案智能审查系统</div>
+    <div class="nav-subtitle">专项施工方案智能预审驾驶舱</div>
     <div class="nav-status">
       <span id="statusBadge" class="badge neutral">等待上传</span>
       <span id="jobIdBadge" class="job-id-text">—</span>
     </div>
   </nav>
 
-  <main>
+  <main class="app-shell">
+    <aside class="side-nav" id="sideNav" aria-label="审查流程导航">
+      <div class="side-section-title">审查流程</div>
+      <button class="nav-tab active" data-tab="home"><span>01</span>首页上传</button>
+      <button class="nav-tab" data-tab="overview"><span>02</span>任务概览</button>
+      <button class="nav-tab" data-tab="qualification"><span>03</span>工程基础信息</button>
+      <button class="nav-tab" data-tab="document"><span>04</span>文档解析</button>
+      <button class="nav-tab" data-tab="review"><span>05</span>完整性审查</button>
+      <button class="nav-tab" data-tab="substantive"><span>06</span>规范符合性审查</button>
+      <button class="nav-tab" data-tab="consistency"><span>07</span>参数一致性检查</button>
+      <button class="nav-tab" data-tab="drawing"><span>08</span>图文复核提示</button>
+      <button class="nav-tab" data-tab="manual"><span>09</span>人工复核</button>
+      <button class="nav-tab" data-tab="records"><span>10</span>审查记录</button>
+      <div class="side-note">同一份方案解析结果，被各审查模块复用；自动结论均需人工确认。</div>
+    </aside>
+
+    <div class="content-area">
     <!-- ====== 上传区 ====== -->
-    <section class="panel upload-panel" id="uploadPanel">
+    <section class="panel upload-panel tab-panel" id="tab-home">
       <div class="section-heading">
-        <h2>上传方案文件</h2>
+        <h2>选择审查方式</h2>
         <span id="uploadStage" class="stage-tag">等待上传</span>
       </div>
+      <div class="shared-pipeline-note">各审查方式共享同一份方案解析、工程基础识别和证据定位能力；智能预审为组合执行模式。</div>
+      <div class="review-mode-grid" id="reviewModeGrid" role="radiogroup" aria-label="选择审查方式">
+        <button class="review-mode-card selected" type="button" data-mode="smart" aria-pressed="true">
+          <span class="mode-head"><strong>智能预审</strong><span class="mode-status status-available">当前可用</span><span class="mode-recommend">推荐</span></span>
+          <span class="mode-desc">组合执行工程识别、完整性审查、当前已支持的规范符合性审查和人工复核汇总。</span>
+        </button>
+        <button class="review-mode-card" type="button" data-mode="completeness" aria-pressed="false">
+          <span class="mode-head"><strong>完整性审查</strong><span class="mode-status status-available">当前可用</span></span>
+          <span class="mode-desc">仅关注 10 项完整性审查，结果仍复用同一份解析和基础识别信息。</span>
+        </button>
+        <button class="review-mode-card" type="button" data-mode="compliance" aria-pressed="false">
+          <span class="mode-head"><strong>规范符合性审查</strong><span class="mode-status status-partial">部分可用</span></span>
+          <span class="mode-desc">当前仅支持少量已实现审查项，不宣称完整规范审查。</span>
+        </button>
+        <button class="review-mode-card" type="button" data-mode="calculation" aria-pressed="false">
+          <span class="mode-head"><strong>参数一致性检查</strong><span class="mode-status status-partial">部分可用</span></span>
+          <span class="mode-desc">核对正文/构造参数与计算书输入参数一致性，不做完整力学复算。</span>
+        </button>
+        <button class="review-mode-card" type="button" data-mode="drawing_consistency" aria-pressed="false">
+          <span class="mode-head"><strong>图文复核提示</strong><span class="mode-status status-partial">部分可用</span></span>
+          <span class="mode-desc">召回正文证据与相关图纸页，提示人工复核图纸尺寸和构造一致性。</span>
+        </button>
+      </div>
+      <p id="modeHint" class="mode-hint">当前选择：智能预审（推荐），将组合执行当前可用能力。</p>
       <form id="uploadForm">
         <label class="file-picker">
           <input id="pdfFile" type="file" accept=".pdf,application/pdf" required>
           <span id="fileLabel">选择不超过 50MB 的 PDF 文件</span>
         </label>
-        <button id="submitButton" type="submit">开始审查</button>
+        <button id="submitButton" type="submit">开始智能预审</button>
       </form>
       <p id="uploadError" class="error" role="alert"></p>
       <div class="task-grid">
@@ -44,20 +78,30 @@
         <div><small>当前阶段</small><strong id="taskStage">waiting</strong></div>
       </div>
       <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
-      <p id="taskMessage" class="task-message">请选择 PDF 文件，系统将依次执行解析和审查。</p>
+      <p id="taskMessage" class="task-message">请选择审查方式和 PDF 文件。系统会先解析方案并提取工程基础信息，再执行所选的已开放审查能力。</p>
     </section>
 
     <!-- ====== Tab 1: 任务概览 ====== -->
     <section class="panel tab-panel hidden" id="tab-overview">
       <div class="section-heading">
         <h2>任务概览</h2>
-        <span class="disclaimer">系统辅助检查结果，仅供参考，需人工确认。</span>
+        <span class="disclaimer">系统结果仅作为专项施工方案预审辅助，需由审查人员人工确认，不作为最终审查结论。</span>
       </div>
       <div class="card-grid" id="overviewCards"></div>
       <div id="priorityItems" class="priority-box hidden">
         <h3>⚠ 优先处理事项</h3>
         <ul id="priorityList"></ul>
       </div>
+    </section>
+
+    <!-- ====== Tab: 工程基础信息 ====== -->
+    <section class="panel tab-panel hidden" id="tab-qualification">
+      <div class="section-heading">
+        <h2>工程基础信息</h2>
+        <span class="disclaimer">基础识别结果用于确定预审范围和适用规则包，需人工确认。</span>
+      </div>
+      <div id="qualificationPanel" class="stats"></div>
+      <div id="qualificationEvidence" class="evidence-list"></div>
     </section>
 
     <!-- ====== Tab 2: 文档解析 ====== -->
@@ -93,10 +137,46 @@
       </div>
     </section>
 
-    <!-- ====== Tab 3: 完整性检查 ====== -->
+    <!-- ====== Tab: 规范符合性审查 ====== -->
+    <section class="panel tab-panel hidden" id="tab-substantive">
+      <div class="section-heading">
+        <h2>规范符合性审查</h2>
+        <span class="disclaimer">当前仅执行少量已实现审查项，不宣称完整规范审查，不代替专家审查。</span>
+      </div>
+      <div id="substantiveStats" class="stats"></div>
+      <div class="table-wrap review-table-wrap"><table>
+        <thead><tr><th>编号</th><th>事项</th><th>状态</th><th>实际值/事实</th><th>系统提示</th><th>依据</th></tr></thead>
+        <tbody id="substantiveRows"></tbody>
+      </table></div>
+    </section>
+
+    <!-- ====== Tab: 参数一致性检查 ====== -->
+    <section class="panel tab-panel hidden" id="tab-consistency">
+      <div class="section-heading">
+        <h2>参数一致性检查</h2>
+        <span class="disclaimer">当前核对正文/构造参数与计算书输入参数一致性，不进行完整力学复算。</span>
+      </div>
+      <div id="consistencyStats" class="stats"></div>
+      <div class="table-wrap review-table-wrap"><table>
+        <thead><tr><th>编号</th><th>参数</th><th>状态</th><th>正文/构造侧</th><th>计算书侧</th><th>系统提示</th></tr></thead>
+        <tbody id="consistencyRows"></tbody>
+      </table></div>
+    </section>
+
+    <!-- ====== Tab: 图文复核提示 ====== -->
+    <section class="panel tab-panel hidden" id="tab-drawing">
+      <div class="section-heading">
+        <h2>图文复核提示</h2>
+        <span class="disclaimer">当前仅召回相关图纸页和正文证据，不自动识别图纸尺寸。</span>
+      </div>
+      <div id="drawingStats" class="stats"></div>
+      <div id="drawingCards" class="review-card-list"></div>
+    </section>
+
+    <!-- ====== Tab 3: 完整性审查 ====== -->
     <section class="panel tab-panel hidden" id="tab-review">
       <div class="section-heading">
-        <h2>完整性检查（10 条规则）</h2>
+        <h2>完整性审查（10 项）</h2>
         <span class="disclaimer">系统辅助检查结果，仅供参考，需人工确认。</span>
       </div>
       <div class="explain">完整性审查 Agent 在结构化文档上执行固定的 10 条规则，对比本地预审与 Dify 审查结果，组织章节、页码、原文引用作为可追溯证据。</div>
@@ -146,6 +226,7 @@
       <h3>输出文件</h3>
       <div id="outputFiles" class="output-files"></div>
     </section>
+    </div>
   </main>
 
   <footer>系统辅助审查结果仅供参考，需人工确认。数据仅保存在本机。</footer>

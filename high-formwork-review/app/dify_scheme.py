@@ -120,6 +120,11 @@ def build_rule_evidence_packages(
             for value in rule.get("section_aliases", [])
             if str(value).strip()
         ]
+        evidence_aliases = [
+            str(value).strip()
+            for value in rule.get("evidence_section_aliases", [])
+            if str(value).strip()
+        ]
         if not aliases:
             message = "section_aliases 缺失或为空，未自动匹配全部章节"
             warnings.append(
@@ -147,12 +152,27 @@ def build_rule_evidence_packages(
             for section in sections
             if any(_titles_match(section.get("title", ""), alias) for alias in aliases)
         ]
+        evidence_sections = [
+            section
+            for section in sections
+            if any(
+                _titles_match(section.get("title", ""), alias)
+                for alias in evidence_aliases
+            )
+            and section not in matched_sections
+        ]
+        all_evidence_sections = matched_sections + evidence_sections
         unmatched_aliases = [
             alias
             for alias in aliases
             if not any(_titles_match(section.get("title", ""), alias) for section in sections)
         ]
-        page_ranges = _merged_page_ranges(matched_sections)
+        unmatched_evidence_aliases = [
+            alias
+            for alias in evidence_aliases
+            if not any(_titles_match(section.get("title", ""), alias) for section in sections)
+        ]
+        page_ranges = _merged_page_ranges(all_evidence_sections)
         page_numbers = {
             page_number
             for page_range in page_ranges
@@ -166,7 +186,7 @@ def build_rule_evidence_packages(
             f"{'、'.join(section.get('title', '') for section in matched_sections) or '无'}\n\n"
         )
         full_page_chunks = [
-            _render_page(document, page, repeated_margins, matched_sections)
+            _render_page(document, page, repeated_margins, all_evidence_sections)
             for page in document.get("pages", [])
             if page.get("physical_page") in page_numbers and not _is_toc_page(page)
         ]
@@ -179,7 +199,7 @@ def build_rule_evidence_packages(
             fragments = _build_evidence_fragments(
                 document,
                 page_numbers,
-                matched_sections,
+                all_evidence_sections,
                 repeated_margins,
                 rule,
             )
@@ -197,6 +217,7 @@ def build_rule_evidence_packages(
                 "rule_id": rule_id,
                 "item_name": item_name,
                 "section_aliases": aliases,
+                "evidence_section_aliases": evidence_aliases,
                 "matched_sections": [
                     {
                         "title": section.get("title"),
@@ -207,7 +228,18 @@ def build_rule_evidence_packages(
                     }
                     for section in matched_sections
                 ],
+                "evidence_sections": [
+                    {
+                        "title": section.get("title"),
+                        "level": section.get("level"),
+                        "path": section.get("path", []),
+                        "start_page": section.get("physical_page_start"),
+                        "end_page": section.get("physical_page_end"),
+                    }
+                    for section in evidence_sections
+                ],
                 "unmatched_aliases": unmatched_aliases,
+                "unmatched_evidence_aliases": unmatched_evidence_aliases,
                 "page_ranges": page_ranges,
                 "evidence_text": evidence_text,
                 "character_count": len(evidence_text),
@@ -460,10 +492,13 @@ def build_rule_driven_batches(
     rules: list[dict[str, Any]],
     task_id: str,
     character_limit: int = DEFAULT_CHARACTER_LIMIT,
+    max_rules_per_batch: int = 1,
 ) -> list[dict[str, Any]]:
     """把完整规则证据包组合为不重复规则的 Dify 请求批次。"""
     if character_limit <= 0:
         raise ValueError("Dify 单次字符上限必须大于 0")
+    if max_rules_per_batch <= 0:
+        raise ValueError("Dify 单批规则数必须大于 0")
     rule_by_id = {str(rule.get("rule_id")): rule for rule in rules}
     normal_packages: list[dict[str, Any]] = []
     oversized_parts: list[dict[str, Any]] = []
@@ -479,7 +514,9 @@ def build_rule_driven_batches(
     for package in normal_packages:
         separator_length = 2 if current else 0
         proposed = current_length + separator_length + len(package["evidence_text"])
-        if current and proposed > character_limit:
+        if current and (
+            proposed > character_limit or len(current) >= max_rules_per_batch
+        ):
             groups.append(current)
             current = []
             current_length = 0

@@ -107,6 +107,25 @@ def _completed_job(root: Path) -> str:
             "results": [result],
         },
     )
+    _write_json(
+        job_dir / "review_results.json",
+        {
+            "project_qualification": {
+                "project_type": "concrete_formwork_support",
+                "support_system": "disk_lock",
+                "applicable_rule_packs": ["general_high_formwork", "disk_lock"],
+            },
+            "completeness_review": {"local_result": {"results": [result]}},
+            "substantive_review": [
+                {"review_item_id": "SR-01", "title": "支撑体系识别", "status": "PASS"}
+            ],
+            "summary": {
+                "completeness_total": 1,
+                "substantive_total": 1,
+            },
+            "human_review_queue": [],
+        },
+    )
     return job_id
 
 
@@ -293,7 +312,19 @@ def _mock_web_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_home_page_is_accessible(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert "高支模方案审查工作台" in response.text
+    assert "高支模方案智能审查系统" in response.text
+
+
+def test_home_page_shows_modular_review_modes(client: TestClient) -> None:
+    response = client.get("/")
+    assert response.status_code == 200
+    text = response.text
+    for label in ("智能预审", "完整性审查", "规范符合性审查", "参数一致性检查", "图文复核提示"):
+        assert label in text
+    assert "工程识别</button>" not in text
+    assert "工程基础信息" in text
+    assert "内容符合性" not in text
+    assert "部分可用" in text
 
 
 def test_non_pdf_is_rejected(client: TestClient) -> None:
@@ -318,6 +349,7 @@ def test_file_over_50mb_is_rejected(
 def test_upload_creates_job(client: TestClient) -> None:
     response = client.post(
         "/api/jobs",
+        data={"review_mode": "compliance"},
         files={"file": ("方案.pdf", b"%PDF-1.7\n%%EOF", "application/pdf")},
     )
     assert response.status_code == 202
@@ -325,6 +357,17 @@ def test_upload_creates_job(client: TestClient) -> None:
     job_dir = web.JOBS_ROOT / data["job_id"]
     assert (job_dir / "source.pdf").is_file()
     assert data["status"] == "uploaded"
+    assert data["review_mode"] == "compliance"
+
+
+def test_parameter_consistency_review_mode_is_accepted(client: TestClient) -> None:
+    response = client.post(
+        "/api/jobs",
+        data={"review_mode": "calculation"},
+        files={"file": ("方案.pdf", b"%PDF-1.7\n%%EOF", "application/pdf")},
+    )
+    assert response.status_code == 202
+    assert response.json()["review_mode"] == "calculation"
 
 
 def test_status_endpoint(client: TestClient) -> None:
@@ -354,6 +397,16 @@ def test_completed_review_can_be_read(client: TestClient) -> None:
     response = client.get(f"/api/jobs/{job_id}/review")
     assert response.status_code == 200
     assert response.json()["results"][0]["rule_id"] == "HF-COMP-001"
+
+
+def test_completed_precheck_can_be_read(client: TestClient) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    response = client.get(f"/api/jobs/{job_id}/precheck")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project_qualification"]["support_system"] == "disk_lock"
+    assert data["substantive_review"][0]["review_item_id"] == "SR-01"
 
 
 def test_completed_comparison_can_be_read(client: TestClient) -> None:

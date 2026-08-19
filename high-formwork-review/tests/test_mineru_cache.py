@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import app.mineru_cache as mineru_cache
 import app.web as web
 from app.mineru_cache import (
     PARSER_CONFIG_VERSION,
@@ -98,6 +99,24 @@ def test_sha256_and_cache_key_include_file_and_parser_versions(tmp_path: Path) -
     assert digest in key
     assert key != build_cache_key(digest, "parser-v2", "config-v1")
     assert key != build_cache_key(digest, "parser-v1", "config-v2")
+
+
+def test_large_pdf_is_split_into_bounded_parts(tmp_path: Path) -> None:
+    from pypdf import PdfReader, PdfWriter
+
+    source = tmp_path / "large.pdf"
+    writer = PdfWriter()
+    for _ in range(5):
+        writer.add_blank_page(width=100, height=100)
+    with source.open("wb") as output:
+        writer.write(output)
+
+    parts = mineru_cache._write_pdf_parts(
+        source, tmp_path / "split", chunk_size=3
+    )
+
+    assert [(part.start_page, part.page_count) for part in parts] == [(1, 3), (4, 2)]
+    assert [len(PdfReader(part.path).pages) for part in parts] == [3, 2]
 
 
 def test_first_parse_writes_cache_and_second_same_content_hits(tmp_path: Path) -> None:

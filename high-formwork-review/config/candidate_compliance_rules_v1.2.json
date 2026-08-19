@@ -1,0 +1,5047 @@
+{
+  "schema_version": "1.2.0",
+  "rule_set_id": "HF-JGJT231-2021-SHORING-CANDIDATE-V1.2",
+  "name": "JGJ/T 231-2021 高支模承插型盘扣式支撑架规范符合性候选规则 V1.2",
+  "standard": {
+    "code": "JGJ/T 231-2021",
+    "name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+    "scope": "高支模场景下的承插型盘扣式支撑架/支撑脚手架",
+    "source_pdf": "高支模资料/标准规范/《建筑施工承插型盘扣式钢管脚手架安全技术标准》.pdf"
+  },
+  "status": "candidate",
+  "decision_statuses": [
+    "PASS",
+    "ISSUE",
+    "UNCERTAIN",
+    "NOT_APPLICABLE"
+  ],
+  "review_policy": {
+    "parameter_missing": "UNCERTAIN",
+    "evidence_insufficient": "UNCERTAIN",
+    "parse_failure": "UNCERTAIN",
+    "violation": "ISSUE"
+  },
+  "rules": [
+    {
+      "rule_id": "HF-JGJT231-3.0.2-01",
+      "name": "插销自锁后不得拔脱",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_system",
+            "operator": "==",
+            "value": "disk_lock"
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "杆端扣接头与连接盘的插销连接锤击自锁后不拔脱"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "3.0.2",
+        "source_type": "normative_text",
+        "original_text": "杆端扣接头与连接盘的插销连接锤击自锁后不应拔脱。",
+        "physical_page": 17
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "节点详图",
+          "检查与验收"
+        ],
+        "keywords": [
+          "插销",
+          "连接盘",
+          "扣接头",
+          "自锁",
+          "拔脱"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "drawing",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-3.0.2-02",
+      "name": "插销销紧后二次击打下沉量",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_system",
+            "operator": "==",
+            "value": "disk_lock"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "pin_additional_settlement",
+        "operator": "<=",
+        "value": 3,
+        "unit": "mm",
+        "measurement_condition": "插销销紧后再次击打"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "3.0.2",
+        "source_type": "normative_text",
+        "original_text": "销紧后应再次击打，插销下沉量不应大于3mm。",
+        "physical_page": 17
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "检查与验收",
+          "验收记录"
+        ],
+        "keywords": [
+          "插销",
+          "下沉量",
+          "再次击打",
+          "3mm"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "table",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-3.0.4-01",
+      "name": "支撑架安全等级查表",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_system",
+            "operator": "==",
+            "value": "disk_lock"
+          }
+        ]
+      },
+      "requirement": {
+        "output_parameter": "safety_class",
+        "lookup_table": {
+          "table_id": "3.0.4",
+          "inputs": [
+            "support_height",
+            "area_load_design",
+            "line_load_design",
+            "point_load_design"
+          ],
+          "unit_map": {
+            "support_height": "m",
+            "area_load_design": "kN/m²",
+            "line_load_design": "kN/m",
+            "point_load_design": "kN/point"
+          },
+          "rows": [
+            {
+              "when": {
+                "support_height": "<=8",
+                "area_load_design": "<=15",
+                "line_load_design": "<=20",
+                "point_load_design": "<=7"
+              },
+              "result": "II"
+            },
+            {
+              "when": {
+                "any_not_satisfy_class_II": true
+              },
+              "result": "I"
+            }
+          ]
+        },
+        "selection_policy": "高度、面荷载、线荷载、点荷载任一项不满足II级条件时划为I级"
+      },
+      "requirement_level": "shall",
+      "review_severity": "critical",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "3.0.4",
+        "source_type": "table",
+        "original_text": "脚手架安全等级的划分应符合表3.0.4的规定。支撑脚手架的搭设高度、荷载中任一项不满足安全等级为Ⅱ级的条件时，其安全等级划为Ⅰ级。",
+        "physical_page": 17
+      },
+      "evidence": {
+        "preferred_sections": [
+          "工程概况",
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "安全等级",
+          "搭设高度",
+          "荷载设计值",
+          "Ⅰ级",
+          "Ⅱ级"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "table",
+          "calculation"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-3.0.5-01",
+      "name": "结构重要性系数查表",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "limit_state",
+            "operator": "==",
+            "value": "ultimate"
+          }
+        ]
+      },
+      "requirement": {
+        "output_parameter": "structural_importance_factor",
+        "unit": "dimensionless",
+        "lookup_table": {
+          "table_id": "3.0.5",
+          "inputs": [
+            "safety_class"
+          ],
+          "rows": [
+            {
+              "safety_class": "I",
+              "value": 1.1
+            },
+            {
+              "safety_class": "II",
+              "value": 1.0
+            }
+          ]
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "3.0.5",
+        "source_type": "table",
+        "original_text": "脚手架结构重要性系数γ0应按表3.0.5的规定取值。",
+        "physical_page": 17
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "结构设计"
+        ],
+        "keywords": [
+          "结构重要性系数",
+          "γ0",
+          "安全等级"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.1.2-01",
+      "name": "支撑架永久荷载项目完整纳入",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "架体及构配件自重G1",
+          "模板及小楞等自重G2",
+          "钢筋混凝土、钢构件或预制构件自重G3"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.1.2",
+        "source_type": "normative_text",
+        "original_text": "支撑架永久荷载应包括架体自重G1、作用到支撑架上的模板及小楞等构件自重G2，以及钢筋和混凝土自重以及钢构件和预制混凝土等构件自重G3。",
+        "physical_page": 18
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "G1",
+          "G2",
+          "G3",
+          "架体自重",
+          "模板自重",
+          "钢筋混凝土自重"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.1.4-01",
+      "name": "支撑架可变荷载项目完整纳入",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "施工人员及设备荷载Q1",
+          "附加水平荷载Q2",
+          "风荷载Q3"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.1.4",
+        "source_type": "normative_text",
+        "original_text": "支撑架可变荷载应包括施工荷载Q1、附加水平荷载Q2和风荷载Q3。",
+        "physical_page": 18
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "Q1",
+          "Q2",
+          "Q3",
+          "施工荷载",
+          "附加水平荷载",
+          "风荷载"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.2.3-01",
+      "name": "施工人员及设备荷载下限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "personnel_equipment_load_standard",
+        "operator": ">=",
+        "value": 2.5,
+        "unit": "kN/m²"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.2.3(1)",
+        "source_type": "normative_text",
+        "original_text": "作用在支撑架上的施工人员及设备荷载Q1可按实际计算，但不应小于2.5kN/m²。",
+        "physical_page": 19
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "施工人员及设备荷载",
+          "Q1",
+          "2.5kN/m²"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.2.3-02A",
+      "name": "附加水平荷载参考取值",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "reference_calculation",
+      "applicability": {
+        "all": [
+          {
+            "field": "construction_method",
+            "operator": "contains_any",
+            "value": [
+              "pumped_concrete",
+              "dumped_concrete"
+            ]
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "4.2.3-Q2-reference",
+          "expression": "Q2 = 0.02 * vertical_permanent_load_standard",
+          "inputs": [
+            {
+              "symbol": "vertical_permanent_load_standard",
+              "unit": "kN"
+            }
+          ],
+          "output": {
+            "symbol": "Q2",
+            "unit": "kN"
+          }
+        },
+        "normative_effect": "reference_option"
+      },
+      "requirement_level": "may",
+      "review_severity": "low",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.2.3(2)",
+        "source_type": "normative_text",
+        "original_text": "泵送混凝土、倾倒混凝土等因素产生的附加水平荷载Q2可取计算工况下的竖向永久荷载标准值的2%。",
+        "physical_page": 19
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "附加水平荷载",
+          "Q2",
+          "2%",
+          "最不利位置"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "drawing"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "UNCERTAIN"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "reference_only_no_compliance_issue",
+      "finding_level_on_violation": "reference_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.2.3-02B",
+      "name": "附加水平荷载作用于架顶最不利位置",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "construction_method",
+            "operator": "contains_any",
+            "value": [
+              "pumped_concrete",
+              "dumped_concrete"
+            ]
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "附加水平荷载作用在支撑架上端最不利位置"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.2.3(2)",
+        "source_type": "normative_text",
+        "original_text": "附加水平荷载Q2应作用在支撑架上端最不利位置。",
+        "physical_page": 19
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "附加水平荷载",
+          "Q2",
+          "2%",
+          "最不利位置"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "drawing"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.2.3-03",
+      "name": "支撑架风荷载标准值计算",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "4.2.3",
+          "expression": "wk = μz * μs * w0",
+          "inputs": [
+            {
+              "symbol": "μz",
+              "unit": "dimensionless",
+              "source": "Appendix A"
+            },
+            {
+              "symbol": "μs",
+              "unit": "dimensionless",
+              "source": "Table 4.2.4"
+            },
+            {
+              "symbol": "w0",
+              "unit": "kN/m²",
+              "minimum": 0.3,
+              "external_reference": "GB 50009, return period n=10"
+            }
+          ],
+          "output": {
+            "symbol": "wk",
+            "unit": "kN/m²"
+          }
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.2.3(3)",
+        "source_type": "formula",
+        "original_text": "作用在支撑架上的风荷载Q3标准值应按式(4.2.3)计算：wk=μzμsw0；基本风压按GB 50009采用重现期n=10对应风压值，不小于0.3kN/m²。",
+        "physical_page": 19
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载设计",
+          "计算书"
+        ],
+        "keywords": [
+          "风荷载",
+          "wk",
+          "μz",
+          "μs",
+          "基本风压",
+          "重现期"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "needs_review",
+      "validation_issues": [
+        "基本风压的最终取值依赖外部规范GB 50009；本规则仅固化本规范明确给出的0.3kN/m²下限及公式关系"
+      ],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.3.1-01",
+      "name": "荷载分项系数查表",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "design_calculation",
+            "operator": "exists",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "lookup_table": {
+          "table_id": "4.3.1",
+          "inputs": [
+            "verification_item",
+            "load_kind",
+            "effect_kind"
+          ],
+          "rows": [
+            {
+              "verification_item": "strength_or_stability",
+              "gamma_G": 1.3,
+              "gamma_Q": 1.5
+            },
+            {
+              "verification_item": "foundation_capacity",
+              "gamma_G": 1.0,
+              "gamma_Q": 1.0
+            },
+            {
+              "verification_item": "deflection",
+              "gamma_G": 1.0,
+              "gamma_Q": 1.0
+            },
+            {
+              "verification_item": "overturning",
+              "effect_kind": "favorable",
+              "gamma_G": 0.9,
+              "gamma_Q": 0
+            },
+            {
+              "verification_item": "overturning",
+              "effect_kind": "unfavorable",
+              "gamma_G": 1.3,
+              "gamma_Q": 1.5
+            }
+          ]
+        },
+        "unit": "dimensionless"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.3.1",
+        "source_type": "table",
+        "original_text": "计算脚手架架体构件的强度、稳定性和节点连接强度时，荷载设计值应采用荷载标准值乘以荷载分项系数，分项系数取值应符合表4.3.1的规定。",
+        "physical_page": 20
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "荷载组合"
+        ],
+        "keywords": [
+          "荷载分项系数",
+          "γG",
+          "γQ",
+          "强度",
+          "稳定性",
+          "地基承载力",
+          "倾覆"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.4.3-01",
+      "name": "承载力极限状态验算式",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "limit_state",
+            "operator": "==",
+            "value": "ultimate"
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "4.4.3",
+          "expression": "γ0 * S <= R / γR",
+          "inputs": [
+            {
+              "symbol": "γ0",
+              "unit": "dimensionless",
+              "source": "Table 3.0.5"
+            },
+            {
+              "symbol": "S",
+              "unit": "effect-dependent"
+            },
+            {
+              "symbol": "R",
+              "unit": "resistance-dependent"
+            },
+            {
+              "symbol": "γR",
+              "unit": "dimensionless",
+              "operator": ">=",
+              "value": 1.0
+            }
+          ],
+          "comparison": "<="
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "critical",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.4.3",
+        "source_type": "formula",
+        "original_text": "脚手架承载力计算应按临时工况设计进行计算，并应符合式(4.4.3)：γ0S≤R/γR；γR不小于1.0。",
+        "physical_page": 21
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "结构设计"
+        ],
+        "keywords": [
+          "γ0S",
+          "γR",
+          "承载力",
+          "临时工况"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.4.4-01A",
+      "name": "最不利荷载效应组合要求",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "设计考虑使用过程中可能出现的荷载，并取最不利荷载效应组合"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.4.4",
+        "source_type": "normative_text",
+        "original_text": "脚手架设计应根据使用过程中可能出现的荷载取其最不利荷载效应组合进行计算。",
+        "physical_page": 21
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载组合",
+          "计算书"
+        ],
+        "keywords": [
+          "荷载效应组合",
+          "立杆稳定",
+          "抗倾覆",
+          "水平杆",
+          "G1",
+          "Q3"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-4.4.4-01B",
+      "name": "表4.4.4推荐荷载组合",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "lookup_table": {
+          "table_id": "4.4.4",
+          "inputs": [
+            "calculation_item"
+          ],
+          "requirement_level": "should",
+          "rows": [
+            {
+              "calculation_item": "upright_stability",
+              "required_loads": [
+                "G1",
+                "G2",
+                "G3",
+                "Q1",
+                "Q3"
+              ]
+            },
+            {
+              "calculation_item": "overturning",
+              "alternatives": [
+                [
+                  "G1",
+                  "G2",
+                  "G3",
+                  "Q1",
+                  "Q2"
+                ],
+                [
+                  "G1",
+                  "G2",
+                  "G3",
+                  "Q1",
+                  "Q3"
+                ]
+              ]
+            },
+            {
+              "calculation_item": "horizontal_member_capacity_and_deformation",
+              "required_loads": [
+                "G1",
+                "G2",
+                "G3",
+                "Q1"
+              ]
+            }
+          ]
+        },
+        "selection_policy": "按使用过程中可能出现的荷载取最不利荷载效应组合"
+      },
+      "requirement_level": "should",
+      "review_severity": "medium",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "4.4.4",
+        "source_type": "table",
+        "original_text": "荷载效应组合宜按表4.4.4采用。",
+        "physical_page": 21
+      },
+      "evidence": {
+        "preferred_sections": [
+          "荷载组合",
+          "计算书"
+        ],
+        "keywords": [
+          "荷载效应组合",
+          "立杆稳定",
+          "抗倾覆",
+          "水平杆",
+          "G1",
+          "Q3"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "finding_level_on_violation": "advisory"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.1.2-01",
+      "name": "支撑架设计计算项目",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "立杆稳定性计算",
+          "超出规定高宽比时独立支撑架抗倾覆验算",
+          "纵横向水平杆承载力计算",
+          "通过连接盘传力时连接盘抗剪承载力验算",
+          "立杆地基承载力计算"
+        ],
+        "conditional_items": [
+          {
+            "item": "独立支撑架抗倾覆验算",
+            "when": "independent_shoring && height_width_ratio_exceeds_limit"
+          },
+          {
+            "item": "连接盘抗剪承载力验算",
+            "when": "load_transferred_through_rosette"
+          }
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.1.2",
+        "source_type": "normative_text",
+        "original_text": "支撑架设计计算应包括立杆稳定性、超规定高宽比独立支撑架抗倾覆、纵横向水平杆承载力、通过连接盘传力时连接盘抗剪承载力及立杆地基承载力计算。",
+        "physical_page": 23
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "结构设计"
+        ],
+        "keywords": [
+          "立杆稳定性",
+          "抗倾覆",
+          "水平杆承载力",
+          "连接盘抗剪",
+          "地基承载力"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.1.5-01",
+      "name": "受弯构件容许挠度",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "member_type",
+            "operator": "==",
+            "value": "flexural_member"
+          },
+          {
+            "field": "deformation_control_required",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "Table 5.1.5",
+          "expression": "allowable_deflection = min(span / 150, 10)",
+          "inputs": [
+            {
+              "symbol": "span",
+              "unit": "mm"
+            }
+          ],
+          "output": {
+            "symbol": "allowable_deflection",
+            "unit": "mm"
+          },
+          "comparison": "actual_deflection <= allowable_deflection"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.1.5",
+        "source_type": "table",
+        "original_text": "当杆件变形量有控制要求时，应按正常使用极限状态验算其变形量。受弯构件的挠度不应超过l/150与10mm取较小值。",
+        "physical_page": 24
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "变形验算"
+        ],
+        "keywords": [
+          "挠度",
+          "l/150",
+          "10mm",
+          "正常使用极限状态"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.1.6-01",
+      "name": "支撑架立杆几何长细比上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "member",
+            "operator": "==",
+            "value": "shoring_upright"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "geometric_slenderness_ratio",
+        "operator": "<=",
+        "value": 150,
+        "unit": "dimensionless"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.1.6",
+        "source_type": "normative_text",
+        "original_text": "支撑架立杆几何长细比不得大于150。",
+        "physical_page": 24
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "立杆稳定性验算"
+        ],
+        "keywords": [
+          "长细比",
+          "立杆",
+          "λ",
+          "150"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.1.9-01",
+      "name": "可调底座和托撑承载力设计值",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "component",
+            "operator": "in",
+            "value": [
+              "base_jack",
+              "head_jack"
+            ]
+          }
+        ]
+      },
+      "requirement": {
+        "output_parameter": "bearing_capacity_design_value",
+        "unit": "kN",
+        "lookup_table": {
+          "table_id": "5.1.9",
+          "inputs": [
+            "shoring_model",
+            "component"
+          ],
+          "rows": [
+            {
+              "shoring_model": "B",
+              "component": "base_jack",
+              "value": 100
+            },
+            {
+              "shoring_model": "B",
+              "component": "head_jack",
+              "value": 100
+            },
+            {
+              "shoring_model": "Z",
+              "component": "base_jack",
+              "value": 140
+            },
+            {
+              "shoring_model": "Z",
+              "component": "head_jack",
+              "value": 140
+            }
+          ]
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.1.9",
+        "source_type": "table",
+        "original_text": "脚手架可调底座和可调托撑的承载力设计值应按表5.1.9采用。",
+        "physical_page": 24
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "构配件验算",
+          "技术参数"
+        ],
+        "keywords": [
+          "可调底座",
+          "可调托撑",
+          "承载力设计值",
+          "B型",
+          "Z型"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.2.1-01",
+      "name": "可调底座地基承载力验算",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_location",
+            "operator": "==",
+            "value": "ground"
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "5.2.1-1/2",
+          "expression": "Pk = Nk / Ag; Pk <= fa",
+          "inputs": [
+            {
+              "symbol": "Nk",
+              "unit": "kN"
+            },
+            {
+              "symbol": "Ag",
+              "unit": "m²"
+            },
+            {
+              "symbol": "fa",
+              "unit": "kPa",
+              "external_reference": "GB 50007"
+            }
+          ],
+          "output": {
+            "symbol": "Pk",
+            "unit": "kPa"
+          },
+          "comparison": "Pk <= fa"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.2.1",
+        "source_type": "formula",
+        "original_text": "可调底座底部地基承载力应满足Pk≤fa，Pk=Nk/Ag。fa按现行国家标准GB 50007确定。",
+        "physical_page": 25
+      },
+      "evidence": {
+        "preferred_sections": [
+          "地基与基础",
+          "计算书"
+        ],
+        "keywords": [
+          "地基承载力",
+          "Pk",
+          "Nk",
+          "Ag",
+          "fa"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula",
+          "geotechnical_report"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "needs_review",
+      "validation_issues": [
+        "fa取值依赖外部规范GB 50007及项目地勘资料"
+      ],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.2.2-01",
+      "name": "楼面支承承载力与不足时加固",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_location",
+            "operator": "==",
+            "value": "structural_floor"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "支承架体楼面结构承载力验算"
+        ],
+        "conditions": [
+          {
+            "if": {
+              "field": "floor_capacity_sufficient",
+              "operator": "==",
+              "value": false
+            },
+            "then": {
+              "required_state": "楼面结构下方设置附加支撑等加固措施"
+            }
+          }
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.2.2",
+        "source_type": "normative_text",
+        "original_text": "当脚手架搭设在结构楼面上时，应对支承架体的楼面结构进行承载力验算；当楼面结构承载力不能满足要求时，应采取楼面结构下方设置附加支撑等加固措施。",
+        "physical_page": 25
+      },
+      "evidence": {
+        "preferred_sections": [
+          "楼板验算",
+          "计算书",
+          "支撑布置图"
+        ],
+        "keywords": [
+          "结构楼面",
+          "承载力验算",
+          "附加支撑",
+          "加固"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "drawing",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.3.2-01",
+      "name": "立杆计算长度取较大值",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "member",
+            "operator": "==",
+            "value": "shoring_upright"
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "5.3.2-1/2",
+          "expression": "l0 = max(βH*η*h, βH*γ*h_prime + 2*k*a)",
+          "inputs": [
+            {
+              "symbol": "h",
+              "unit": "m",
+              "selection": "maximum_step"
+            },
+            {
+              "symbol": "h_prime",
+              "unit": "m"
+            },
+            {
+              "symbol": "a",
+              "unit": "m"
+            },
+            {
+              "symbol": "η",
+              "unit": "dimensionless",
+              "lookup": {
+                "0.5": 1.5,
+                "1.0": 1.5,
+                "1.5": 1.05
+              }
+            },
+            {
+              "symbol": "γ",
+              "unit": "dimensionless",
+              "lookup": {
+                "0.5": 1.5,
+                "1.0": 0.9,
+                "1.5": 0.9
+              }
+            },
+            {
+              "symbol": "βH",
+              "unit": "dimensionless",
+              "lookup_table": {
+                "H<=8": 1.0,
+                "8<H<=16": 1.05,
+                "16<H<=24": 1.1,
+                "H>24": 1.2
+              }
+            },
+            {
+              "symbol": "k",
+              "unit": "dimensionless",
+              "value": 0.6
+            }
+          ],
+          "output": {
+            "symbol": "l0",
+            "unit": "m"
+          },
+          "selection": "take_maximum"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.3.2",
+        "source_type": "formula",
+        "original_text": "立杆计算长度应按式(5.3.2-1)和式(5.3.2-2)计算，并应取其中的较大值；βH按表5.3.2采用，k取0.6。",
+        "physical_page": 25
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "立杆稳定性验算"
+        ],
+        "keywords": [
+          "立杆计算长度",
+          "l0",
+          "βH",
+          "η",
+          "顶层步距",
+          "取较大值"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.3.3-01",
+      "name": "立杆稳定性验算",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "member",
+            "operator": "==",
+            "value": "shoring_upright"
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "5.3.3-1/2",
+          "branches": [
+            {
+              "when": "wind_not_combined",
+              "expression": "N / (φ*A) <= f"
+            },
+            {
+              "when": "wind_combined",
+              "expression": "N / (φ*A) + Mw/W <= f"
+            }
+          ],
+          "inputs": [
+            {
+              "symbol": "N",
+              "unit": "N"
+            },
+            {
+              "symbol": "φ",
+              "unit": "dimensionless",
+              "source": "Appendix C"
+            },
+            {
+              "symbol": "A",
+              "unit": "mm²",
+              "source": "Table B.0.2"
+            },
+            {
+              "symbol": "Mw",
+              "unit": "kN·m"
+            },
+            {
+              "symbol": "W",
+              "unit": "mm³",
+              "source": "Table B.0.2"
+            },
+            {
+              "symbol": "f",
+              "unit": "N/mm²",
+              "source": "Table B.0.1"
+            }
+          ]
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "critical",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.3.3",
+        "source_type": "formula",
+        "original_text": "立杆稳定性应按式(5.3.3-1)和式(5.3.3-2)计算：不组合风荷载时N/(φA)≤f；组合风荷载时N/(φA)+Mw/W≤f。",
+        "physical_page": 26
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "立杆稳定性验算"
+        ],
+        "keywords": [
+          "立杆稳定性",
+          "φA",
+          "Mw",
+          "截面模量",
+          "风荷载"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.3.4-01",
+      "name": "浇筑前和浇筑时整体抗倾覆验算",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "required_cases": [
+          "before_concrete_pouring",
+          "during_concrete_pouring"
+        ],
+        "formula": {
+          "formula_id": "5.3.4",
+          "expression": "MR >= γ0 * MT",
+          "inputs": [
+            {
+              "symbol": "MR",
+              "unit": "kN·m"
+            },
+            {
+              "symbol": "MT",
+              "unit": "kN·m"
+            },
+            {
+              "symbol": "γ0",
+              "unit": "dimensionless",
+              "source": "Table 3.0.5"
+            }
+          ],
+          "comparison": ">="
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "critical",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.3.4",
+        "source_type": "formula",
+        "original_text": "支撑架应按混凝土浇筑前和混凝土浇筑时两种工况进行整体抗倾覆计算，整体抗倾覆稳定性应满足MR≥γ0MT。",
+        "physical_page": 27
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "抗倾覆验算",
+          "混凝土浇筑方案"
+        ],
+        "keywords": [
+          "浇筑前",
+          "浇筑时",
+          "抗倾覆",
+          "MR",
+          "MT"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-5.5.1-01",
+      "name": "连接盘抗剪承载力验算",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "formula_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "load_transferred_through_rosette",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "formula": {
+          "formula_id": "5.5.1",
+          "expression": "FR <= Qb",
+          "inputs": [
+            {
+              "symbol": "FR",
+              "unit": "kN"
+            },
+            {
+              "symbol": "Qb",
+              "unit": "kN",
+              "value": 40
+            }
+          ],
+          "comparison": "<="
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "formula_pending",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "5.5.1",
+        "source_type": "formula",
+        "original_text": "盘扣节点连接盘的抗剪承载力应按FR≤Qb计算，连接盘抗剪承载力设计值Qb取40kN。",
+        "physical_page": 29
+      },
+      "evidence": {
+        "preferred_sections": [
+          "计算书",
+          "节点验算"
+        ],
+        "keywords": [
+          "连接盘",
+          "抗剪承载力",
+          "FR",
+          "Qb",
+          "40kN"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "formula"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "calculation_book",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "C",
+      "current_capability": "check_presence_and_parameter_consistency_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.1.2-01",
+      "name": "立杆间距与杆件选型及施工图一致",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "consistency_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_system",
+            "operator": "==",
+            "value": "disk_lock"
+          }
+        ]
+      },
+      "requirement": {
+        "consistency_between": [
+          "计算书立杆纵横向间距",
+          "正文技术参数",
+          "水平杆选型",
+          "斜杆选型",
+          "施工图布置"
+        ],
+        "required_action": "按计算所得立杆纵横向间距选用杆件并组合构配件"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.1.2",
+        "source_type": "normative_text",
+        "original_text": "应根据施工方案计算得出的立杆纵横向间距选用定长的水平杆和斜杆，并应根据搭设高度组合立杆、基座、可调托撑和可调底座。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "立杆间距与杆件选型及施工图一致"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "table",
+          "drawing",
+          "calculation"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "not_applicable"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.1.3-01",
+      "name": "脚手架搭设步距上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_system",
+            "operator": "==",
+            "value": "disk_lock"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "step_height",
+        "operator": "<=",
+        "value": 2.0,
+        "unit": "m"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.1.3",
+        "source_type": "normative_text",
+        "original_text": "脚手架搭设步距不应超过2m。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "支架构造",
+          "施工图",
+          "计算书"
+        ],
+        "keywords": [
+          "步距",
+          "水平杆步距",
+          "2m"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "table",
+          "drawing",
+          "calculation"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.1.4-01",
+      "name": "竖向斜杆不得采用钢管扣件",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "categorical_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "member",
+            "operator": "==",
+            "value": "vertical_diagonal"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "vertical_diagonal_member_type",
+        "operator": "!=",
+        "value": "steel_tube_coupler"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": true,
+      "execution_pool": "A",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.1.4",
+        "source_type": "normative_text",
+        "original_text": "脚手架的竖向斜杆不应采用钢管扣件。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "竖向斜杆不得采用钢管扣件"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "drawing"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "not_applicable"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.1.5-01",
+      "name": "高轴力时顶层步距缩小",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_numeric",
+      "applicability": {
+        "any": [
+          {
+            "all": [
+              {
+                "field": "shoring_model",
+                "operator": "==",
+                "value": "B"
+              },
+              {
+                "field": "upright_load_design",
+                "operator": ">",
+                "value": 40,
+                "unit": "kN"
+              }
+            ]
+          },
+          {
+            "all": [
+              {
+                "field": "shoring_model",
+                "operator": "==",
+                "value": "Z"
+              },
+              {
+                "field": "upright_load_design",
+                "operator": ">",
+                "value": 65,
+                "unit": "kN"
+              }
+            ]
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "top_step_reduction_from_standard",
+        "operator": "==",
+        "value": 0.5,
+        "unit": "m"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.1.5",
+        "source_type": "normative_text",
+        "original_text": "当标准型（B型）立杆荷载设计值大于40kN，或重型（Z型）立杆荷载设计值大于65kN时，脚手架顶层步距应比标准步距缩小0.5m。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "支架构造",
+          "计算书",
+          "施工图"
+        ],
+        "keywords": [
+          "顶层步距",
+          "标准步距",
+          "40kN",
+          "65kN",
+          "缩小0.5m"
+        ],
+        "expected_evidence_types": [
+          "table",
+          "drawing",
+          "calculation"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.1-01",
+      "name": "支撑架推荐高宽比",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "height_width_ratio",
+        "operator": "<=",
+        "value": 3,
+        "unit": "dimensionless"
+      },
+      "requirement_level": "should",
+      "review_severity": "medium",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.1",
+        "source_type": "normative_text",
+        "original_text": "支撑架的高宽比宜控制在3以内。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "抗倾覆验算",
+          "施工图"
+        ],
+        "keywords": [
+          "高宽比",
+          "刚性连接",
+          "抗倾覆措施"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "drawing",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A",
+      "finding_level_on_violation": "advisory",
+      "advisory_action": "推荐值偏离，需继续检查抗倾覆措施。"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.1-02",
+      "name": "高宽比超过3时抗倾覆措施",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "height_width_ratio",
+            "operator": ">",
+            "value": 3,
+            "unit": "dimensionless"
+          }
+        ]
+      },
+      "requirement": {
+        "any_required": [
+          "与既有结构刚性连接",
+          "采取增加抗倾覆措施"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.1",
+        "source_type": "normative_text",
+        "original_text": "高宽比大于3的支撑架应与既有结构进行刚性连接或采取增加抗倾覆措施。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "抗倾覆验算",
+          "施工图"
+        ],
+        "keywords": [
+          "高宽比",
+          "刚性连接",
+          "抗倾覆措施"
+        ],
+        "expected_evidence_types": [
+          "calculation",
+          "drawing",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": true,
+      "execution_pool": "A",
+      "finding_logic": {
+        "not_applicable_when": "height_width_ratio <= 3",
+        "pass_when": "height_width_ratio > 3 且确认存在与既有结构刚性连接或增加抗倾覆措施",
+        "uncertain_when": "height_width_ratio > 3 但证据不足，无法确认是否设置对应措施",
+        "issue_when": "height_width_ratio > 3 且方案明确表明未设置任何对应措施"
+      }
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.2-01",
+      "name": "标准步距1.5m支撑架竖向斜杆布置查表",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "standard_step_height",
+            "operator": "==",
+            "value": 1.5,
+            "unit": "m"
+          }
+        ]
+      },
+      "requirement": {
+        "output_parameter": "vertical_diagonal_pattern",
+        "lookup_table": {
+          "table_id": "6.2.2-1/2",
+          "inputs": [
+            "shoring_model",
+            "maximum_upright_axial_force_design",
+            "support_height"
+          ],
+          "unit_map": {
+            "maximum_upright_axial_force_design": "kN",
+            "support_height": "m"
+          },
+          "model_B": {
+            "N<=25": [
+              "gap_3",
+              "gap_3",
+              "gap_2",
+              "gap_1"
+            ],
+            "25<N<=40": [
+              "gap_2",
+              "gap_1",
+              "gap_1",
+              "gap_1"
+            ],
+            "N>40": [
+              "gap_1",
+              "gap_1",
+              "gap_1",
+              "every_bay"
+            ]
+          },
+          "model_Z": {
+            "N<=40": [
+              "gap_3",
+              "gap_3",
+              "gap_2",
+              "gap_1"
+            ],
+            "40<N<=65": [
+              "gap_2",
+              "gap_1",
+              "gap_1",
+              "gap_1"
+            ],
+            "N>65": [
+              "gap_1",
+              "gap_1",
+              "gap_1",
+              "every_bay"
+            ]
+          },
+          "height_bands": [
+            "H<=8",
+            "8<H<=16",
+            "16<H<=24",
+            "H>24"
+          ]
+        },
+        "selection_policy": "N和H取同一独立架体内最大值"
+      },
+      "requirement_level": "shall",
+      "review_severity": "critical",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.2",
+        "source_type": "table",
+        "original_text": "对标准步距为1.5m的支撑架，应根据搭设高度、支撑架型号及立杆轴向力设计值进行竖向斜杆布置，布置型式应符合表6.2.2要求。",
+        "physical_page": 30
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "支架构造",
+          "施工图",
+          "计算书"
+        ],
+        "keywords": [
+          "竖向斜杆",
+          "间隔1跨",
+          "间隔2跨",
+          "间隔3跨",
+          "每跨",
+          "B型",
+          "Z型"
+        ],
+        "expected_evidence_types": [
+          "table",
+          "drawing",
+          "calculation"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.3-01",
+      "name": "超过16m顶层每跨竖向斜杆",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_height",
+            "operator": ">",
+            "value": 16,
+            "unit": "m"
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "顶层步距内沿纵横向每跨布置竖向斜杆"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.3",
+        "source_type": "normative_text",
+        "original_text": "当支撑架搭设高度大于16m时，顶层步距内应每跨布置竖向斜杆。",
+        "physical_page": 32
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "节点详图",
+          "施工图"
+        ],
+        "keywords": [
+          "搭设高度",
+          "顶层步距",
+          "每跨",
+          "竖向斜杆"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.4-01",
+      "name": "可调托撑悬臂长度上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "component",
+            "operator": "==",
+            "value": "head_jack"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "head_jack_cantilever_length",
+        "operator": "<=",
+        "value": 650,
+        "unit": "mm",
+        "measurement": "顶层水平杆或双槽托梁中心线至支承点"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.4",
+        "source_type": "normative_text",
+        "original_text": "支撑架可调托撑伸出顶层水平杆或双槽托梁中心线的悬臂长度不应超过650mm。",
+        "physical_page": 32
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "支架构造",
+          "节点详图",
+          "计算书"
+        ],
+        "keywords": [
+          "可调托撑",
+          "顶托",
+          "悬臂长度",
+          "650mm"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "table",
+          "calculation"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.4-02",
+      "name": "可调托撑丝杆外露长度上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "component",
+            "operator": "==",
+            "value": "head_jack"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "head_jack_screw_exposed_length",
+        "operator": "<=",
+        "value": 400,
+        "unit": "mm"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.4",
+        "source_type": "normative_text",
+        "original_text": "可调托撑丝杆外露长度不应超过400mm。",
+        "physical_page": 32
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "可调托撑",
+          "丝杆",
+          "外露长度",
+          "400mm"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "table",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.4-03",
+      "name": "可调托撑插入长度下限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "component",
+            "operator": "==",
+            "value": "head_jack"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "head_jack_insertion_length",
+        "operator": ">=",
+        "value": 150,
+        "unit": "mm"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.4",
+        "source_type": "normative_text",
+        "original_text": "可调托撑插入立杆或双槽托梁长度不得小于150mm。",
+        "physical_page": 32
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "可调托撑",
+          "插入长度",
+          "150mm"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "table",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.5-01",
+      "name": "可调底座插入长度下限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "component",
+            "operator": "==",
+            "value": "base_jack"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "base_jack_insertion_length",
+        "operator": ">=",
+        "value": 150,
+        "unit": "mm"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.5",
+        "source_type": "normative_text",
+        "original_text": "支撑架可调底座丝杆插入立杆长度不得小于150mm。",
+        "physical_page": 33
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "可调底座",
+          "插入长度",
+          "150mm"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "table",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.5-02",
+      "name": "可调底座丝杆外露长度建议上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "component",
+            "operator": "==",
+            "value": "base_jack"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "base_jack_screw_exposed_length",
+        "operator": "<=",
+        "value": 300,
+        "unit": "mm"
+      },
+      "requirement_level": "should",
+      "review_severity": "medium",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.5",
+        "source_type": "normative_text",
+        "original_text": "丝杆外露长度不宜大于300mm。",
+        "physical_page": 33
+      },
+      "evidence": {
+        "preferred_sections": [
+          "技术参数",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "可调底座",
+          "丝杆",
+          "外露长度",
+          "300mm"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "table",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A",
+      "finding_level_on_violation": "advisory"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.5-03",
+      "name": "扫地杆中心线高度上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "member",
+            "operator": "==",
+            "value": "lowest_horizontal_member_as_sweeper"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "sweeper_centerline_height_above_base_plate",
+        "operator": "<=",
+        "value": 550,
+        "unit": "mm"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.5",
+        "source_type": "normative_text",
+        "original_text": "作为扫地杆的最底层水平杆中心线高度离可调底座的底板高度不应大于550mm。",
+        "physical_page": 33
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "扫地杆",
+          "最底层水平杆",
+          "中心线高度",
+          "550mm"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "table",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.6-01",
+      "name": "超过8m支撑架与既有结构拉结",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_height",
+            "operator": ">",
+            "value": 8,
+            "unit": "m"
+          },
+          {
+            "field": "existing_structure_available",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "沿高度每间隔4~6个步距与周围已建成结构可靠拉结",
+        "interval": {
+          "minimum": 4,
+          "maximum": 6,
+          "unit": "step"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.6",
+        "source_type": "normative_text",
+        "original_text": "当支撑架搭设高度超过8m、有既有建筑结构时，应沿高度每间隔4~6个步距与周围已建成的结构进行可靠拉结。",
+        "physical_page": 33
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "拉结节点详图",
+          "施工图"
+        ],
+        "keywords": [
+          "超过8m",
+          "拉结",
+          "既有结构",
+          "4~6个步距"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.7-01",
+      "name": "水平剪刀撑设置间隔",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "沿高度设置水平剪刀撑",
+        "interval": {
+          "minimum": 4,
+          "maximum": 6,
+          "unit": "standard_step"
+        },
+        "external_reference": {
+          "standard_code": "JGJ 130",
+          "scope": "钢管水平剪刀撑相关规定",
+          "source_type": "external_reference"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.7",
+        "source_type": "normative_text",
+        "original_text": "支撑架应沿高度每间隔4~6个标准步距设置水平剪刀撑，并应符合JGJ130中钢管水平剪刀撑的相关规定。",
+        "physical_page": 33
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "剪刀撑布置图",
+          "施工图"
+        ],
+        "keywords": [
+          "水平剪刀撑",
+          "4~6个标准步距",
+          "JGJ130"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "needs_review",
+      "validation_issues": [
+        "剪刀撑具体构造依赖外部规范JGJ 130，本规则未引入其阈值"
+      ],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": true,
+      "execution_pool": "A",
+      "compliance_scope": {
+        "checked": [
+          "JGJ/T 231-2021 第6.2.7条明确规定的水平剪刀撑沿高度每间隔4~6个标准步距设置要求"
+        ],
+        "not_checked": [
+          "JGJ 130中钢管水平剪刀撑的具体构造要求"
+        ]
+      },
+      "execution_scope": "partial_normative_scope",
+      "external_dependency_status": "not_integrated",
+      "finding_logic": {
+        "pass_when": "方案明确设置水平剪刀撑，且间隔位于4~6个标准步距",
+        "issue_when": "方案明确给出的水平剪刀撑设置间隔不在4~6个标准步距范围内",
+        "uncertain_when": [
+          "方案存在水平剪刀撑描述，但无法确认具体间隔",
+          "证据仅存在于当前系统无法可靠识别间隔的施工图"
+        ],
+        "requires_human_review_when": "证据仅存在于当前系统无法可靠识别间隔的施工图",
+        "pass_scope_note": "PASS仅表示JGJ/T 231-2021第6.2.7条中设置间隔要求未发现明显问题，不表示水平剪刀撑整体符合全部相关规范。",
+        "external_dependency_note": "当前仅核验JGJ/T 231-2021第6.2.7条中明确的水平剪刀撑设置间隔要求；该条引用的JGJ 130具体构造要求尚未纳入本次自动核验，需人工复核或待对应规范规则接入。"
+      }
+    },
+    {
+      "rule_id": "HF-JGJT231-6.2.8-01",
+      "name": "独立塔架相邻塔架水平拉结",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "shoring_form",
+            "operator": "==",
+            "value": "independent_tower"
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "与相邻独立塔架水平拉结",
+        "interval": {
+          "minimum": 2,
+          "maximum": 4,
+          "unit": "step"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "6.2.8",
+        "source_type": "normative_text",
+        "original_text": "当以独立塔架形式搭设支撑架时，应沿高度间隔2~4个步距与相邻的独立塔架水平拉结。",
+        "physical_page": 33
+      },
+      "evidence": {
+        "preferred_sections": [
+          "支架构造",
+          "独立塔架布置图",
+          "施工图"
+        ],
+        "keywords": [
+          "独立塔架",
+          "水平拉结",
+          "2~4个步距"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.3.1-01",
+      "name": "基础按方案施工并验收合格后搭设",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "support_system",
+            "operator": "==",
+            "value": "disk_lock"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "基础按专项施工方案施工",
+          "按基础承载力要求验收",
+          "地基基础验收合格后搭设"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.3.1",
+        "source_type": "normative_text",
+        "original_text": "脚手架基础应按专项施工方案进行施工，并应按基础承载力要求进行验收，脚手架应在地基基础验收合格后搭设。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "地基与基础",
+          "施工工艺",
+          "验收要求"
+        ],
+        "keywords": [
+          "基础验收",
+          "承载力",
+          "验收合格",
+          "搭设"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.3.2-01",
+      "name": "土层地基设置可调底座和垫板",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "foundation_type",
+            "operator": "==",
+            "value": "soil"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "立杆下采用可调底座",
+          "立杆下设置垫板"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.3.2",
+        "source_type": "normative_text",
+        "original_text": "土层地基上的立杆下应采用可调底座和垫板。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "地基与基础",
+          "节点详图",
+          "施工图"
+        ],
+        "keywords": [
+          "土层地基",
+          "可调底座",
+          "垫板",
+          "2跨"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.3.2-02",
+      "name": "土层地基垫板推荐长度",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "foundation_type",
+            "operator": "==",
+            "value": "soil"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "sole_board_span_count",
+        "operator": ">=",
+        "value": 2,
+        "unit": "bay"
+      },
+      "requirement_level": "should",
+      "review_severity": "medium",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.3.2",
+        "source_type": "normative_text",
+        "original_text": "垫板的长度不宜少于2跨。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "地基与基础",
+          "节点详图",
+          "施工图"
+        ],
+        "keywords": [
+          "土层地基",
+          "可调底座",
+          "垫板",
+          "2跨"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "full",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "finding_level_on_violation": "advisory"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.1-01",
+      "name": "立杆位置与专项方案一致",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "consistency_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "consistency_between": [
+          "专项施工方案立杆布置",
+          "现场放线确定的立杆位置"
+        ],
+        "required_action": "按专项施工方案放线确定"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.1",
+        "source_type": "normative_text",
+        "original_text": "支撑架立杆搭设位置应按专项施工方案放线确定。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺",
+          "立杆布置图",
+          "技术交底"
+        ],
+        "keywords": [
+          "立杆位置",
+          "放线",
+          "专项施工方案"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text",
+          "record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.2-01",
+      "name": "支撑架搭设顺序",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "work_phase",
+            "operator": "==",
+            "value": "erection"
+          }
+        ]
+      },
+      "requirement": {
+        "required_sequence": [
+          "立杆",
+          "水平杆",
+          "斜杆"
+        ],
+        "required_state": "形成基本架体单元并扩展为整体体系"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.2",
+        "source_type": "normative_text",
+        "original_text": "支撑架搭设应根据立杆放置可调底座，应按先立杆后水平杆再斜杆的顺序搭设，形成基本的架体单元，应以此扩展搭设成整体脚手架体系。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "支撑架搭设顺序"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "flowchart"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.3-01",
+      "name": "底座和土层垫板水平放置于定位线",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "base_or_soil_sole_board_used",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "可调底座和土层基础垫板水平放置在定位线上并保持水平"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.3",
+        "source_type": "normative_text",
+        "original_text": "可调底座和土层基础上垫板应水平放置在定位线上，应保持水平。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "底座和土层垫板水平放置于定位线"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "drawing"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "plan_requirement_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.3-02",
+      "name": "垫板平整无翘曲",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "sole_board_used",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "垫板平整、无翘曲"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.3",
+        "source_type": "normative_text",
+        "original_text": "垫板应平整、无翘曲。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "垫板平整无翘曲"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "plan_requirement_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.3-03",
+      "name": "禁止使用已开裂木垫板",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "categorical_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "sole_board_material",
+            "operator": "==",
+            "value": "wood"
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "wood_sole_board_condition",
+        "operator": "!=",
+        "value": "cracked"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.3",
+        "source_type": "normative_text",
+        "original_text": "不得采用已开裂木垫板。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "禁止使用已开裂木垫板"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "plan_requirement_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.4-01",
+      "name": "多层连续支撑立杆轴线一致",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "consistency_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "multi_floor_continuous_shoring",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "consistency_between": [
+          "upper_floor_upright_axis",
+          "lower_floor_upright_axis"
+        ],
+        "expected_state": "same_axis"
+      },
+      "requirement_level": "should",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.4",
+        "source_type": "normative_text",
+        "original_text": "在多层楼板上连续设置支撑架时，上下层支撑立杆宜在同一轴线上。",
+        "physical_page": 37
+      },
+      "evidence": {
+        "preferred_sections": [
+          "多层支撑布置",
+          "施工图",
+          "计算书"
+        ],
+        "keywords": [
+          "多层楼板",
+          "连续支撑",
+          "上下层立杆",
+          "同一轴线"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "finding_level_on_violation": "advisory"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.5-01",
+      "name": "搭设完成验收并确认符合方案",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "erection_completed",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "架体验收",
+          "确认符合专项施工方案",
+          "确认后进入下道工序"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.5",
+        "source_type": "normative_text",
+        "original_text": "支撑架搭设完成后应对架体进行验收，并应确认符合专项施工方案要求后再进入下道工序施工。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "验收要求",
+          "验收记录"
+        ],
+        "keywords": [
+          "搭设完成",
+          "架体验收",
+          "符合专项施工方案",
+          "下道工序"
+        ],
+        "expected_evidence_types": [
+          "inspection_record",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.6-01",
+      "name": "立杆与可调螺母吻合",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "adjustable_base_or_head_installed",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "可调底座和可调托撑安装完成后，立杆外表面与可调螺母吻合"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.6",
+        "source_type": "normative_text",
+        "original_text": "可调底座和可调托撑安装完成后，立杆外表面应与可调螺母吻合。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "构配件参数",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "可调螺母",
+          "立杆外径",
+          "内径差",
+          "2mm"
+        ],
+        "expected_evidence_types": [
+          "table",
+          "drawing",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "site_execution",
+      "automation_level": "future",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.6-02",
+      "name": "立杆外径与螺母台阶内径差",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "adjustable_base_or_head_installed",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "upright_outer_diameter_minus_nut_step_inner_diameter",
+        "operator": "<=",
+        "value": 2,
+        "unit": "mm"
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.6",
+        "source_type": "normative_text",
+        "original_text": "立杆外径与螺母台阶内径差不应大于2mm。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "构配件参数",
+          "节点详图",
+          "验收记录"
+        ],
+        "keywords": [
+          "可调螺母",
+          "立杆外径",
+          "内径差",
+          "2mm"
+        ],
+        "expected_evidence_types": [
+          "table",
+          "drawing",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": false,
+      "execution_pool": "B"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.7-01",
+      "name": "插销锤击抽查连续下沉量",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "numeric_limit",
+      "applicability": {
+        "all": [
+          {
+            "field": "horizontal_and_diagonal_pins_installed",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "pin_continuous_settlement_during_hammer_check",
+        "operator": "<=",
+        "value": 3,
+        "unit": "mm"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.7",
+        "source_type": "normative_text",
+        "original_text": "水平杆及斜杆插销安装完成后，应采用锤击方法抽查插销，连续下沉量不应大于3mm。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺",
+          "验收要求",
+          "验收记录"
+        ],
+        "keywords": [
+          "锤击抽查",
+          "插销",
+          "连续下沉量",
+          "3mm"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "inspection_record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "manual",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.10-01",
+      "name": "立杆垂直偏差双重上限",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_numeric",
+      "applicability": {
+        "all": [
+          {
+            "field": "erection_completed",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "parameter": "upright_vertical_deviation",
+        "operator": "<=",
+        "value_expression": "min(support_height/500, 50mm)",
+        "unit": "mm",
+        "constraints": [
+          {
+            "expression": "deviation <= support_height_mm / 500"
+          },
+          {
+            "expression": "deviation <= 50mm"
+          }
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "deterministic",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.10",
+        "source_type": "normative_text",
+        "original_text": "脚手架搭设完成后，立杆的垂直偏差不应大于支撑架总高度的1/500，且不得大于50mm。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "验收要求",
+          "验收记录"
+        ],
+        "keywords": [
+          "立杆垂直偏差",
+          "1/500",
+          "50mm"
+        ],
+        "expected_evidence_types": [
+          "inspection_record",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "multi_source",
+      "automation_level": "full",
+      "execution_enabled": true,
+      "execution_pool": "A"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.11-01",
+      "name": "支撑架拆除顺序和禁止行为",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "work_phase",
+            "operator": "==",
+            "value": "dismantling"
+          }
+        ]
+      },
+      "requirement": {
+        "required_sequence": [
+          "先装后拆",
+          "后装先拆",
+          "从顶层开始",
+          "逐层向下"
+        ],
+        "prohibited_actions": [
+          "上下同时作业",
+          "抛掷"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.11",
+        "source_type": "normative_text",
+        "original_text": "拆除作业应按先装后拆、后装先拆的原则进行，应从顶层开始、逐层向下进行，不得上下同时作业，不应抛掷。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "拆除工艺",
+          "安全措施",
+          "技术交底"
+        ],
+        "keywords": [
+          "先装后拆",
+          "后装先拆",
+          "逐层向下",
+          "上下同时作业",
+          "抛掷"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-7.4.12-01",
+      "name": "分段拆除技术处理与稳定措施",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "any": [
+          {
+            "field": "dismantling_mode",
+            "operator": "==",
+            "value": "segmented"
+          },
+          {
+            "field": "dismantling_mode",
+            "operator": "==",
+            "value": "separate_elevation"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "分界处技术处理方案",
+          "分段后架体稳定措施"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "decision_mode": "semantic_with_evidence",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "7.4.12",
+        "source_type": "normative_text",
+        "original_text": "当分段或分立面拆除时，应确定分界处的技术处理方案，分段后架体应稳定。",
+        "physical_page": 38
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工工艺技术",
+          "支架构造",
+          "施工图"
+        ],
+        "keywords": [
+          "分段拆除技术处理与稳定措施"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "drawing"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "document_review_capability": "plan_requirement_only"
+    },
+    {
+      "rule_id": "HF-JGJT231-8.0.2-01",
+      "name": "支撑架分阶段检查验收触发矩阵",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "matrix_lookup",
+      "applicability": {
+        "all": [
+          {
+            "field": "scaffold_type",
+            "operator": "==",
+            "value": "shoring_scaffold"
+          }
+        ]
+      },
+      "requirement": {
+        "lookup_table": {
+          "table_id": "8.0.2",
+          "inputs": [
+            "event",
+            "support_height"
+          ],
+          "rows": [
+            {
+              "event": "foundation_completed_before_erection",
+              "required": true
+            },
+            {
+              "event": "erection_progress",
+              "when": "support_height>8m",
+              "interval": 6,
+              "unit": "m",
+              "required": true
+            },
+            {
+              "event": "design_height_reached",
+              "required": true
+            },
+            {
+              "event": "before_concrete_pouring",
+              "required": true
+            },
+            {
+              "event": "resume_after_suspension",
+              "when": "suspension>=1month",
+              "required": true
+            },
+            {
+              "event": "after_weather",
+              "when": "wind_force>=6 or heavy_rain or frozen_ground_thaw",
+              "required": true
+            }
+          ]
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "deterministic_lookup",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "8.0.2",
+        "source_type": "normative_text",
+        "original_text": "基础完工后及搭设前、超过8m的高支模每搭设完成6m、达到设计高度后和浇筑前、停用一个月以上恢复使用前、遇6级以上强风大雨及冻结地区解冻后，支撑架应检查和验收。",
+        "physical_page": 40
+      },
+      "evidence": {
+        "preferred_sections": [
+          "验收要求",
+          "验收计划",
+          "验收记录"
+        ],
+        "keywords": [
+          "分阶段验收",
+          "每搭设完成6m",
+          "混凝土浇筑前",
+          "停用一个月",
+          "6级以上强风"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "inspection_record",
+          "schedule"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-8.0.3-01",
+      "name": "支撑架检查验收内容",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "inspection_or_acceptance",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "基础平整坚实且无松动悬空",
+          "底座和支垫符合规定",
+          "架体搭设及斜杆剪刀撑符合设计和标准",
+          "托撑底座悬臂长度符合规定",
+          "水平杆斜杆插销销紧"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "8.0.3",
+        "source_type": "normative_text",
+        "original_text": "支撑架检查和验收应检查基础、底座支垫、架体搭设、斜杆剪刀撑、可调托撑与底座悬臂长度及插销销紧情况。",
+        "physical_page": 40
+      },
+      "evidence": {
+        "preferred_sections": [
+          "验收要求",
+          "验收记录"
+        ],
+        "keywords": [
+          "基础",
+          "斜杆",
+          "剪刀撑",
+          "悬臂长度",
+          "插销销紧"
+        ],
+        "expected_evidence_types": [
+          "inspection_record",
+          "table",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-8.0.6-01",
+      "name": "支撑架堆载预压方案与过程控制",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "conditional_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "preloading_required",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "专项支撑架堆载预压方案",
+          "预压前安全技术交底",
+          "模拟实际荷载分布",
+          "分级对称预压",
+          "预压监测"
+        ],
+        "external_reference": {
+          "standard_code": "JGJ/T 194",
+          "scope": "预压监测及加载分级",
+          "source_type": "external_reference"
+        }
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "8.0.6",
+        "source_type": "normative_text",
+        "original_text": "当支撑架需堆载预压时，应编制专项预压方案并交底；预压荷载布置应模拟实际荷载分布进行分级、对称预压，监测及加载分级执行JGJ/T 194。",
+        "physical_page": 41
+      },
+      "evidence": {
+        "preferred_sections": [
+          "预压方案",
+          "监测方案",
+          "技术交底"
+        ],
+        "keywords": [
+          "堆载预压",
+          "分级",
+          "对称",
+          "预压监测",
+          "JGJ/T 194"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "schedule",
+          "record",
+          "monitoring_plan"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "needs_review",
+      "validation_issues": [
+        "预压监测及加载分级的具体要求依赖外部规范JGJ/T 194"
+      ],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-8.0.7-01",
+      "name": "支撑架验收记录符合附录D",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "acceptance_completed",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "required_state": "形成支撑架验收记录",
+        "required_evidence_source": "Appendix D Table D.0.1"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "8.0.7",
+        "source_type": "normative_text",
+        "original_text": "支撑架和作业架验收后应形成记录，记录表应符合本标准附录D的要求；支撑架采用表D.0.1。",
+        "physical_page": 41
+      },
+      "evidence": {
+        "preferred_sections": [
+          "验收记录",
+          "附件"
+        ],
+        "keywords": [
+          "支撑架施工验收记录",
+          "表D.0.1",
+          "检查结论",
+          "验收结论"
+        ],
+        "expected_evidence_types": [
+          "inspection_record",
+          "table"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。",
+      "referenced_sources": [
+        {
+          "source_type": "appendix",
+          "article": "D.0.1",
+          "purpose": "支撑架施工验收记录表式"
+        }
+      ]
+    },
+    {
+      "rule_id": "HF-JGJT231-9.0.4-01",
+      "name": "施工荷载不得超过设计值",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "consistency_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "work_phase",
+            "operator": "==",
+            "value": "use"
+          }
+        ]
+      },
+      "requirement": {
+        "consistency_between": [
+          "actual_construction_load",
+          "construction_load_design_value"
+        ],
+        "operator": "<=",
+        "unit": "load-dependent"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "9.0.4",
+        "source_type": "normative_text",
+        "original_text": "应控制作业层上的施工荷载，不得超过设计值。",
+        "physical_page": 42
+      },
+      "evidence": {
+        "preferred_sections": [
+          "施工荷载控制",
+          "计算书",
+          "安全措施"
+        ],
+        "keywords": [
+          "施工荷载",
+          "设计值",
+          "限载"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "calculation",
+          "signage",
+          "record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-9.0.5-01",
+      "name": "预压荷载分布与设计方案一致",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "consistency_check",
+      "applicability": {
+        "all": [
+          {
+            "field": "preloading_required",
+            "operator": "==",
+            "value": true
+          }
+        ]
+      },
+      "requirement": {
+        "consistency_between": [
+          "actual_preload_distribution",
+          "design_plan_preload_distribution"
+        ],
+        "expected_state": "consistent"
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "9.0.5",
+        "source_type": "normative_text",
+        "original_text": "如需预压，荷载的分布应与设计方案一致。",
+        "physical_page": 42
+      },
+      "evidence": {
+        "preferred_sections": [
+          "预压方案",
+          "预压布置图",
+          "预压记录"
+        ],
+        "keywords": [
+          "预压",
+          "荷载分布",
+          "设计方案一致"
+        ],
+        "expected_evidence_types": [
+          "drawing",
+          "record",
+          "text"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-9.0.6-01",
+      "name": "受荷过程对称分层分级并监测",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "work_phase",
+            "operator": "==",
+            "value": "loading"
+          }
+        ]
+      },
+      "requirement": {
+        "required_evidence": [
+          "对称受荷",
+          "分层受荷",
+          "分级受荷",
+          "安全区域专人监测"
+        ],
+        "prohibited_actions": [
+          "集中堆载",
+          "集中卸载"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "high",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "9.0.6",
+        "source_type": "normative_text",
+        "original_text": "脚手架受荷过程中，应按对称、分层、分级的原则进行，不应集中堆载、卸载；并应派专人在安全区域内监测脚手架的工作状态。",
+        "physical_page": 42
+      },
+      "evidence": {
+        "preferred_sections": [
+          "混凝土浇筑方案",
+          "施工荷载控制",
+          "监测方案"
+        ],
+        "keywords": [
+          "对称",
+          "分层",
+          "分级",
+          "集中堆载",
+          "专人监测"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "schedule",
+          "monitoring_plan"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    },
+    {
+      "rule_id": "HF-JGJT231-9.0.7-01",
+      "name": "使用期间禁止擅自拆改和增设设施",
+      "domain": "high_formwork",
+      "scaffold_type": "shoring_scaffold",
+      "support_system": "disk_lock",
+      "rule_type": "semantic_requirement",
+      "applicability": {
+        "all": [
+          {
+            "field": "work_phase",
+            "operator": "==",
+            "value": "use"
+          }
+        ]
+      },
+      "requirement": {
+        "prohibited_actions": [
+          "擅自拆改架体结构杆件",
+          "在架体上增设其他设施"
+        ]
+      },
+      "requirement_level": "shall",
+      "review_severity": "medium",
+      "decision_mode": "semantic_with_evidence",
+      "source": {
+        "standard_code": "JGJ/T 231-2021",
+        "standard_name": "建筑施工承插型盘扣式钢管脚手架安全技术标准",
+        "article": "9.0.7",
+        "source_type": "normative_text",
+        "original_text": "脚手架使用期间，不得擅自拆改架体结构杆件或在架体上增设其他设施。",
+        "physical_page": 42
+      },
+      "evidence": {
+        "preferred_sections": [
+          "安全管理措施",
+          "使用维护要求",
+          "技术交底"
+        ],
+        "keywords": [
+          "擅自拆改",
+          "结构杆件",
+          "增设设施"
+        ],
+        "expected_evidence_types": [
+          "text",
+          "record"
+        ]
+      },
+      "review_policy": {
+        "parameter_missing": "UNCERTAIN",
+        "evidence_insufficient": "UNCERTAIN",
+        "parse_failure": "UNCERTAIN",
+        "violation": "ISSUE"
+      },
+      "status": "candidate",
+      "validation_status": "passed",
+      "validation_issues": [],
+      "severity_source": "ai_preliminary",
+      "review_target": "scheme_document",
+      "automation_level": "partial",
+      "execution_enabled": false,
+      "execution_pool": "B",
+      "document_review_capability": "plan_requirement_only",
+      "scheme_review_finding": "仅判断专项施工方案是否规定或描述该事项，不据此推断现场已实际执行。"
+    }
+  ],
+  "completeness_references": [
+    {
+      "article": "7.1.1",
+      "related_to_completeness": true,
+      "mapped_rules": [
+        "HF-COMP-002"
+      ],
+      "reason": "要求编制并审批专项施工方案"
+    },
+    {
+      "article": "7.2.1",
+      "related_to_completeness": true,
+      "mapped_rules": [
+        "HF-COMP-001",
+        "HF-COMP-002",
+        "HF-COMP-003",
+        "HF-COMP-004",
+        "HF-COMP-005",
+        "HF-COMP-006",
+        "HF-COMP-007",
+        "HF-COMP-008",
+        "HF-COMP-009",
+        "HF-COMP-010"
+      ],
+      "reason": "直接规定专项施工方案九类内容，不重复生成HF-COMPLY规则"
+    }
+  ],
+  "excluded_articles": [
+    {
+      "article": "1.0.1-2.2.10",
+      "excluded_reason": "definition_symbol_or_background"
+    },
+    {
+      "article": "4.1.3",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "4.1.5",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "4.2.2",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "4.2.5",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "5.1.3",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "5.4.1-5.4.4",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "6.3.1-6.3.7",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "7.1.4",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "7.5.1-7.5.12",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "8.0.4-8.0.5",
+      "excluded_reason": "operation_scaffold_only"
+    },
+    {
+      "article": "D.0.2",
+      "excluded_reason": "operation_scaffold_only"
+    }
+  ],
+  "manual_review_articles": [
+    {
+      "article": "4.2.4",
+      "reason": "风荷载体型系数涉及挡风系数、封闭状态及GB 50009桁架计算，需确认项目建模方式"
+    },
+    {
+      "article": "5.1.1",
+      "reason": "原则性引用多部外部设计规范，不安全复制外部阈值"
+    },
+    {
+      "article": "5.1.8及附录B/C",
+      "reason": "参数表作为公式输入数据源，需与构件材质和规格精确匹配后再自动化"
+    },
+    {
+      "article": "6.2.9",
+      "reason": "人行通道存在多分支构造、荷载计算及图纸视觉证据，适合后续图文联合复核"
+    },
+    {
+      "article": "9.0.10",
+      "reason": "安全距离和防雷措施依赖JGJ 46，不能从本标准生成具体阈值"
+    }
+  ],
+  "display_status_mapping": {
+    "PASS": "未发现明显问题",
+    "ISSUE": "发现规范偏差",
+    "UNCERTAIN": "需人工核验",
+    "NOT_APPLICABLE": "不适用"
+  },
+  "decision_status_note": "PASS仅表示在当前证据和候选规则下未发现明显问题，不是专家最终合格结论。",
+  "governance": {
+    "version": "V1.2",
+    "purpose": "候选规则规范化清洗、原子化、执行边界与成熟度治理",
+    "active_rules_only": false,
+    "formula_recalculation_available": false,
+    "severity_confirmation": "全部为AI初步分级，待专家确认",
+    "changes": [
+      "修正6.2.1-02超高宽比后抗倾覆措施缺失时的违规等级",
+      "明确6.2.7仅自动核验JGJ/T 231-2021自身规定的水平剪刀撑4~6标准步距设置间隔",
+      "JGJ 130具体构造要求继续作为未接入外部依赖"
+    ]
+  },
+  "cleanup_summary": {
+    "v1_rule_count": 53,
+    "split_net_increase": 5,
+    "removed_rules": 0,
+    "new_omission_rules": 7,
+    "v1_1_rule_count": 65
+  }
+}

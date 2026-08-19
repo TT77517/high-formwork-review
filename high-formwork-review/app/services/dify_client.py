@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -9,6 +10,9 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
+
+
+RETRYABLE_GATEWAY_STATUSES = {502, 503, 504}
 
 
 class DifyError(RuntimeError):
@@ -35,6 +39,8 @@ class DifyClient:
         api_key: str,
         *,
         timeout_seconds: float = 180.0,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 1.0,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         if not base_url.strip():
@@ -44,6 +50,12 @@ class DifyClient:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
+        if max_retries < 0:
+            raise DifyError("DIFY_MAX_RETRIES 不能小于 0")
+        if retry_backoff_seconds < 0:
+            raise DifyError("DIFY_RETRY_BACKOFF_SECONDS 不能小于 0")
+        self.max_retries = max_retries
+        self.retry_backoff_seconds = retry_backoff_seconds
         self._http_client = http_client
 
     @classmethod
@@ -56,10 +68,16 @@ class DifyClient:
             raise DifyError("DIFY_TIMEOUT_SECONDS 必须是有效数字") from exc
         if timeout_seconds <= 0:
             raise DifyError("DIFY_TIMEOUT_SECONDS 必须大于 0")
+        max_retries = _env_nonnegative_int("DIFY_MAX_RETRIES", 2)
+        retry_backoff_seconds = _env_nonnegative_float(
+            "DIFY_RETRY_BACKOFF_SECONDS", 1.0
+        )
         return cls(
             base_url=os.getenv("DIFY_BASE_URL", ""),
             api_key=os.getenv("DIFY_API_KEY", ""),
             timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
     async def run_workflow(
@@ -80,11 +98,22 @@ class DifyClient:
         owns_client = self._http_client is None
         client = self._http_client or httpx.AsyncClient(timeout=self.timeout_seconds)
         try:
-            response = await client.post(
-                f"{self.base_url}/workflows/run",
-                headers=headers,
-                json=request_body,
-            )
+            response = None
+            for attempt in range(self.max_retries + 1):
+                response = await client.post(
+                    f"{self.base_url}/workflows/run",
+                    headers=headers,
+                    json=request_body,
+                )
+                if (
+                    response.status_code not in RETRYABLE_GATEWAY_STATUSES
+                    or attempt >= self.max_retries
+                ):
+                    break
+                await asyncio.sleep(
+                    self.retry_backoff_seconds * (2 ** attempt)
+                )
+            assert response is not None
             try:
                 raw_response = response.json()
             except ValueError as exc:
@@ -335,3 +364,25 @@ def _strip_json_fence(value: str) -> str:
     cleaned = value.strip()
     match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL | re.IGNORECASE)
     return match.group(1).strip() if match else cleaned
+
+
+def _env_nonnegative_int(name: str, default: int) -> int:
+    value = os.getenv(name, str(default)).strip()
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise DifyError(f"{name} 必须是非负整数") from exc
+    if parsed < 0:
+        raise DifyError(f"{name} 不能小于 0")
+    return parsed
+
+
+def _env_nonnegative_float(name: str, default: float) -> float:
+    value = os.getenv(name, str(default)).strip()
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise DifyError(f"{name} 必须是非负数字") from exc
+    if parsed < 0:
+        raise DifyError(f"{name} 不能小于 0")
+    return parsed

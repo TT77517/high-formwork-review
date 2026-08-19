@@ -26,6 +26,41 @@ const HUMAN_DECISION_CN = {
   pending: '待复核', confirmed_pass: '确认已具备', confirmed_missing: '确认存在缺项',
   unable_to_verify: '暂无法核验', false_positive: '排除误报', need_supplement: '要求补充资料'
 };
+const REVIEW_MODES = {
+  smart: {
+    label: '智能预审（推荐）',
+    button: '开始智能预审',
+    hint: '当前选择：智能预审（推荐），将组合执行工程识别、完整性审查、当前已支持的规范符合性审查和人工复核汇总。'
+  },
+  completeness: {
+    label: '完整性审查',
+    button: '开始完整性审查',
+    hint: '当前选择：完整性审查。当前后端仍会复用解析和基础识别能力，页面重点呈现 10 项完整性审查结果。'
+  },
+  compliance: {
+    label: '规范符合性审查',
+    button: '开始规范符合性审查',
+    hint: '当前选择：规范符合性审查（部分可用）。仅执行少量已实现审查项，不宣称完整规范审查。'
+  },
+  calculation: {
+    label: '参数一致性检查',
+    button: '开始参数一致性检查',
+    hint: '当前选择：参数一致性检查。系统将重点展示正文/构造参数与计算书输入参数的一致性，不进行完整力学复算。'
+  },
+  drawing_consistency: {
+    label: '图文复核提示',
+    button: '开始图文复核提示',
+    hint: '当前选择：图文复核提示。系统将重点召回正文证据和相关图纸页，图纸尺寸与构造一致性需人工确认。'
+  }
+};
+const BUILDING_MODES = new Set([]);
+const MODE_TABS = {
+  smart: ['home', 'overview', 'qualification', 'document', 'review', 'substantive', 'consistency', 'drawing', 'manual', 'records'],
+  completeness: ['home', 'overview', 'qualification', 'document', 'review', 'manual', 'records'],
+  compliance: ['home', 'overview', 'qualification', 'document', 'substantive', 'manual', 'records'],
+  calculation: ['home', 'overview', 'qualification', 'document', 'consistency', 'manual', 'records'],
+  drawing_consistency: ['home', 'overview', 'qualification', 'document', 'drawing', 'manual', 'records']
+};
 
 function comparisonStatus(comp) {
   return comp?.comparison_status || null;
@@ -69,13 +104,75 @@ function isQuickConfirm(comp, rule) {
 let currentJobId = null;
 let reviewData = null;
 let comparisonData = null;
+let precheckData = null;
 let decisionsData = [];
 let difyErrorData = null;
 let documentMeta = null;
 let pollTimer = null;
 let currentManualIndex = 0;
+let selectedReviewMode = 'smart';
 
 // ---- 初始化 ----
+initializeFromQuery();
+
+$$('#reviewModeGrid .review-mode-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const mode = card.dataset.mode;
+    if (BUILDING_MODES.has(mode)) {
+      alert('能力建设中，暂不能触发后端任务。');
+      return;
+    }
+    selectedReviewMode = mode;
+    $$('#reviewModeGrid .review-mode-card').forEach(item => {
+      const active = item.dataset.mode === mode;
+      item.classList.toggle('selected', active);
+      item.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    $('#modeHint').textContent = REVIEW_MODES[mode].hint;
+    $('#submitButton').textContent = REVIEW_MODES[mode].button;
+    applyModeNavigation();
+  });
+});
+
+async function initializeFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const jobId = params.get('job_id');
+  if (!jobId || !/^[0-9a-f]{32}$/i.test(jobId)) {
+    applyModeNavigation();
+    return;
+  }
+  currentJobId = jobId.toLowerCase();
+  if (params.get('review_mode') && REVIEW_MODES[params.get('review_mode')]) {
+    selectedReviewMode = params.get('review_mode');
+  }
+  try {
+    const res = await fetch(`/api/jobs/${currentJobId}/status`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '演示任务读取失败');
+    selectedReviewMode = data.review_mode || selectedReviewMode;
+    renderSelectedReviewMode();
+    renderStatus(data);
+    if (data.status === 'completed' || data.status === 'completed_with_warning') {
+      await loadAllResults();
+    }
+  } catch (err) {
+    $('#uploadError').textContent = err.message;
+  }
+}
+
+function renderSelectedReviewMode() {
+  $$('#reviewModeGrid .review-mode-card').forEach(item => {
+    const active = item.dataset.mode === selectedReviewMode;
+    item.classList.toggle('selected', active);
+    item.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  if (REVIEW_MODES[selectedReviewMode]) {
+    $('#modeHint').textContent = REVIEW_MODES[selectedReviewMode].hint;
+    $('#submitButton').textContent = REVIEW_MODES[selectedReviewMode].button;
+  }
+  applyModeNavigation();
+}
+
 $('#pdfFile').addEventListener('change', (e) => {
   $('#fileLabel').textContent = e.target.files[0]?.name || '选择不超过 50MB 的 PDF 文件';
 });
@@ -88,11 +185,13 @@ $('#uploadForm').addEventListener('submit', async (e) => {
   $('#submitButton').disabled = true;
   const form = new FormData();
   form.append('file', file);
+  form.append('review_mode', selectedReviewMode);
   try {
     const res = await fetch('/api/jobs', { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || '上传失败');
     currentJobId = data.job_id;
+    selectedReviewMode = data.review_mode || selectedReviewMode;
     renderStatus(data);
     pollTimer = setInterval(pollStatus, 2000);
   } catch (err) {
@@ -142,28 +241,39 @@ function renderStatus(data) {
   if (data.error_stage) $('#uploadError').textContent = `失败阶段：${data.error_stage}。${data.message}`;
 }
 
-// ---- 标签页切换 ----
-$$('#navTabs .nav-tab').forEach(btn => {
+// ---- 左侧导航切换 ----
+$$('#sideNav .nav-tab').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
 function switchTab(name) {
-  $$('#navTabs .nav-tab').forEach(b => b.classList.remove('active'));
-  $(`#navTabs .nav-tab[data-tab="${name}"]`).classList.add('active');
+  $$('#sideNav .nav-tab').forEach(b => b.classList.remove('active'));
+  const navButton = $(`#sideNav .nav-tab[data-tab="${name}"]`);
+  if (navButton) navButton.classList.add('active');
   $$('.tab-panel').forEach(p => p.classList.add('hidden'));
   const panel = $(`#tab-${name}`);
   if (panel) panel.classList.remove('hidden');
 }
 
+function applyModeNavigation() {
+  const visibleTabs = new Set(MODE_TABS[selectedReviewMode] || MODE_TABS.smart);
+  $$('#sideNav .nav-tab').forEach(btn => {
+    const visible = visibleTabs.has(btn.dataset.tab);
+    btn.classList.toggle('mode-hidden', !visible);
+  });
+}
+
 // ---- 加载全部结果 ----
 async function loadAllResults() {
   try {
-    const [docRes, reviewRes] = await Promise.all([
+    const [docRes, reviewRes, precheckRes] = await Promise.all([
       fetch(`/api/jobs/${currentJobId}/document`),
-      fetch(`/api/jobs/${currentJobId}/review`)
+      fetch(`/api/jobs/${currentJobId}/review`),
+      fetch(`/api/jobs/${currentJobId}/precheck`)
     ]);
     const docData = await docRes.json();
     reviewData = await reviewRes.json();
+    precheckData = precheckRes.ok ? await precheckRes.json() : null;
     if (!docRes.ok || !reviewRes.ok) throw new Error('结果加载失败');
 
     documentMeta = docData;
@@ -182,13 +292,138 @@ async function loadAllResults() {
     } catch (_) { difyErrorData = null; }
 
     renderOverview();
+    renderQualification();
     renderDocument();
     renderReview();
+    renderSubstantive();
+    renderConsistency();
+    renderDrawingReview();
     renderManualReview();
     renderRecords();
+    applyModeNavigation();
+    switchTab(defaultResultTab());
   } catch (err) {
     console.error('加载结果失败:', err);
   }
+}
+
+function defaultResultTab() {
+  return {
+    smart: 'overview',
+    completeness: 'review',
+    compliance: 'substantive',
+    calculation: 'consistency',
+    drawing_consistency: 'drawing'
+  }[selectedReviewMode] || 'overview';
+}
+
+function renderQualification() {
+  const q = precheckData?.project_qualification;
+  if (!q) {
+    $('#qualificationPanel').innerHTML = '<div class="stat"><strong>未生成</strong><small>工程基础信息</small></div>';
+    return;
+  }
+  const params = q.identified_parameters || {};
+  const h = params.support_height || {};
+  const span = params.support_span || {};
+  const total = params.total_load_design || {};
+  const line = params.concentrated_line_load_design || {};
+  const rows = [
+    ['工程类型', q.project_type || '未识别'],
+    ['风险属性', q.risk_classification || '未识别'],
+    ['支撑体系', q.support_system_label || q.support_system || '未识别'],
+    ['支撑高度', valueWithUnit(h)],
+    ['跨度', valueWithUnit(span)],
+    ['总荷载', valueWithUnit(total)],
+    ['线荷载', valueWithUnit(line)],
+    ['适用规则包', (q.applicable_rule_packs || []).join('、') || '未识别'],
+    ['人工确认', q.requires_human_review ? '需要' : '暂不需要']
+  ];
+  $('#qualificationPanel').innerHTML = rows.map(([label, value]) =>
+    `<div class="stat"><strong>${esc(value || '未识别')}</strong><small>${esc(label)}</small></div>`).join('');
+  const evidence = [
+    ...(h.evidence || []),
+    ...(q.triggered_conditions || []).map(item => ({ quote: `${item.name}：${item.condition}`, section: item.source_clause }))
+  ];
+  $('#qualificationEvidence').innerHTML = evidence.length
+    ? evidence.map(renderEvidenceLine).join('')
+    : '<div class="explain">工程基础信息证据不足，需人工结合方案原文确认。</div>';
+}
+
+function renderSubstantive() {
+  const items = precheckData?.substantive_review || [];
+  const summary = precheckData?.summary || {};
+  $('#substantiveStats').innerHTML = [
+    ['审查项', summary.substantive_total ?? items.length],
+    ['支持通过', summary.substantive_pass ?? 0],
+    ['发现问题', summary.substantive_issue ?? 0],
+    ['需复核', summary.substantive_review ?? 0]
+  ].map(([label, value]) => `<div class="stat"><strong>${esc(value)}</strong><small>${esc(label)}</small></div>`).join('');
+  $('#substantiveRows').innerHTML = items.map(item => `
+    <tr>
+      <td>${esc(item.review_item_id)}</td>
+      <td><strong>${esc(item.title)}</strong><br><small>${esc(item.category || '')}</small></td>
+      <td><span class="status-chip status-${esc(item.status)}">${statusText(item.status)}</span></td>
+      <td>${actualText(item.actual)}</td>
+      <td>${esc(item.conclusion || '')}${evidenceDetails(item.evidence)}</td>
+      <td>${basisText(item.basis, item.requirement)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderConsistency() {
+  const items = precheckData?.consistency_review || [];
+  const summary = precheckData?.summary || {};
+  $('#consistencyStats').innerHTML = [
+    ['检查项', summary.consistency_total ?? items.length],
+    ['一致', summary.consistency_pass ?? 0],
+    ['不一致', summary.consistency_issue ?? 0],
+    ['需复核', summary.consistency_review ?? 0]
+  ].map(([label, value]) => `<div class="stat"><strong>${esc(value)}</strong><small>${esc(label)}</small></div>`).join('');
+  $('#consistencyRows').innerHTML = items.length ? items.map(item => `
+    <tr>
+      <td>${esc(item.review_item_id)}</td>
+      <td><strong>${esc(item.title)}</strong><br><small>${esc(item.parameter || '')}</small></td>
+      <td><span class="status-chip status-${esc(item.status)}">${statusText(item.status)}</span></td>
+      <td>${sideValueText(item.design_side)}</td>
+      <td>${sideValueText(item.calculation_side)}</td>
+      <td>${esc(item.conclusion || '')}${sideEvidenceDetails(item)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="6">暂无参数一致性检查结果。</td></tr>';
+}
+
+function renderDrawingReview() {
+  const items = precheckData?.drawing_review || [];
+  const summary = precheckData?.summary || {};
+  $('#drawingStats').innerHTML = [
+    ['复核卡片', summary.drawing_total ?? items.length],
+    ['需人工复核', summary.drawing_review ?? items.length],
+    ['自动级别', '证据召回'],
+    ['图纸判定', '人工确认']
+  ].map(([label, value]) => `<div class="stat"><strong>${esc(value)}</strong><small>${esc(label)}</small></div>`).join('');
+  $('#drawingCards').innerHTML = items.length ? items.map(item => {
+    const pages = (item.drawing_evidence || []).map(page => page.physical_page).filter(Boolean);
+    return `<article class="review-card">
+      <div class="review-card-head">
+        <div>
+          <strong>${esc(item.review_item_id)} · ${esc(item.title)}</strong>
+          <p>${esc(item.purpose || '')}</p>
+        </div>
+        <span class="status-chip status-${esc(item.status)}">${statusText(item.status)}</span>
+      </div>
+      <div class="review-card-body">
+        <div><small>召回图纸页</small><strong>${pages.length ? pages.join('、') : '未可靠召回'}</strong></div>
+        <div><small>正文证据</small><strong>${(item.text_evidence || []).length} 条</strong></div>
+        <div><small>自动化边界</small><strong>${esc(item.automation_level || 'evidence_recall_only')}</strong></div>
+      </div>
+      <p class="review-card-conclusion">${esc(item.conclusion || '')}</p>
+      <details class="inline-evidence"><summary>查看召回证据</summary>
+        ${(item.text_evidence || []).map(renderEvidenceLine).join('')}
+        ${(item.drawing_evidence || []).map(renderDrawingEvidenceLine).join('')}
+      </details>
+      <div class="boundary-note">${esc(item.boundary || '')}</div>
+    </article>`;
+  }).join('') : '<div class="explain">暂无图文复核提示结果。</div>';
 }
 
 // ========== Tab 1: 任务概览 ==========
@@ -215,40 +450,58 @@ function renderOverview() {
   const difyRequested = (comparisonData?.results || []).filter(item => item.requested_to_dify).length;
   const difyFailed = compSummary.dify_failed_count || 0;
   const difyNotRequested = compSummary.not_requested_count || 0;
+  const substantiveSummary = precheckData?.summary || {};
+  const substantiveTotal = substantiveSummary.substantive_total ?? (precheckData?.substantive_review || []).length;
+  const substantiveIssue = substantiveSummary.substantive_issue ?? 0;
+  const substantiveReview = substantiveSummary.substantive_review ?? 0;
+
+  const consistencyTotal = substantiveSummary.consistency_total ?? (precheckData?.consistency_review || []).length;
+  const consistencyPass = substantiveSummary.consistency_pass ?? 0;
+  const consistencyReview = substantiveSummary.consistency_review ?? 0;
+  const drawingTotal = substantiveSummary.drawing_total ?? (precheckData?.drawing_review || []).length;
+  const drawingReview = substantiveSummary.drawing_review ?? drawingTotal;
 
   const cards = [
-    { icon: '📄', title: '文档解析', value: documentMeta?.physical_page_count || '—', sub: `页 · ${documentMeta?.section_count || 0} 章节 · ${documentMeta?.block_count || 0} block` },
-    { icon: '🔍', title: '本地预审', value: summary.total_rules || 10, sub: `已识别 ${summary.pass_count || 0} · 疑似缺失 ${summary.missing_count || 0} · 无法核验 ${summary.uncertain_count || 0}` },
-    { icon: '🤖', title: 'Dify 审查', value: comparisonData ? compSummary.total_rules : '未启用', sub: difyErrorData ? 'Dify 调用失败，使用本地结果' : (comparisonData ? `一致 ${compSummary.agreement_count} · 不一致 ${compSummary.disagreement_count}` : '未配置 Dify 集成'), warn: !!difyErrorData || difyUnavailable },
-    { icon: '✅', title: '待人工复核', value: manualNeeded || decisions.length || '—', sub: `${quickConfirmNeeded ? `快速确认 ${quickConfirmNeeded} 条 · ` : ''}已保存 ${decisions.filter(d => d.human_decision !== 'pending').length} 条复核记录`, warn: manualNeeded > 0 }
+    { tab: 'qualification', title: '工程基础信息', value: precheckData?.project_qualification ? '已生成' : '未生成', sub: '用于确定预审范围和规则包，需人工确认' },
+    { tab: 'review', title: '完整性审查', value: `${summary.pass_count || 0}/${summary.total_rules || 10}`, sub: `疑似缺失 ${summary.missing_count || 0} · 无法核验 ${summary.uncertain_count || 0}` },
+    { tab: 'substantive', title: '规范符合性审查', value: `${substantiveSummary.substantive_pass ?? 0}/${substantiveTotal || 0}`, sub: `发现问题 ${substantiveIssue} · 需复核 ${substantiveReview}`, warn: substantiveIssue > 0 || substantiveReview > 0 },
+    { tab: 'consistency', title: '参数一致性检查', value: `${consistencyPass}/${consistencyTotal || 0}`, sub: `正文-计算书参数核对 · 需复核 ${consistencyReview}`, warn: consistencyReview > 0 },
+    { tab: 'drawing', title: '图文复核提示', value: `${drawingReview}/${drawingTotal || 0}`, sub: '召回正文证据与相关图纸页，人工确认尺寸' , warn: drawingReview > 0},
+    { tab: 'manual', title: '人工复核', value: precheckData?.human_review_queue?.length || manualNeeded || decisions.length || '—', sub: `${quickConfirmNeeded ? `快速确认 ${quickConfirmNeeded} 条 · ` : ''}已保存 ${decisions.filter(d => d.human_decision !== 'pending').length} 条复核记录`, warn: manualNeeded > 0 }
   ];
 
   if (comparisonData) {
-    cards[2].value = difyRequested;
+    cards.push({ tab: 'review', title: 'Dify 增强复核', value: difyRequested, sub: `一致 ${compSummary.agreement_count} · 不一致 ${compSummary.disagreement_count}`, warn: diffCount > 0 });
     if (difyErrorData) {
-      cards[2].sub = `Dify 调用失败，使用本地结果 · 失败 ${difyFailed} · 未请求 ${difyNotRequested}`;
+      cards[cards.length - 1].sub = `Dify 调用失败，使用本地结果 · 失败 ${difyFailed} · 未请求 ${difyNotRequested}`;
     }
   }
 
   if (difyUnavailable && !difyErrorData) {
-    cards[2].sub = 'Dify 未启用，仅展示本地审查结果';
+    cards.push({ tab: 'review', title: 'Dify 增强复核', value: '未启用', sub: '仅展示本地审查结果', warn: true });
   }
 
   $('#overviewCards').innerHTML = cards.map(c =>
-    `<div class="overview-card${c.warn ? ' card-warn' : ''}">
-      <div class="card-icon">${c.icon}</div>
+    `<button type="button" class="overview-card${c.warn ? ' card-warn' : ''}" data-go-tab="${esc(c.tab || 'overview')}">
       <div class="card-title">${c.title}</div>
       <div class="card-value">${c.value}</div>
       <div class="card-sub">${c.sub}</div>
-    </div>`).join('');
+      <span class="card-link">查看详情</span>
+    </button>`).join('');
+  $$('#overviewCards [data-go-tab]').forEach(card => {
+    card.addEventListener('click', () => switchTab(card.dataset.goTab));
+  });
 
   // 优先处理事项
   const priorities = [];
   if (difyErrorData) priorities.push('Dify 审查调用失败，请检查 Dify 服务配置和网络连接');
   if (difyUnavailable && !difyErrorData) priorities.push('Dify 审查未启用，当前仅展示本地预审结果');
-  if (summary.missing_count > 0) priorities.push(`${summary.missing_count} 条规则疑似存在缺项，请在"完整性检查"中逐项核实`);
+  if (summary.missing_count > 0) priorities.push(`${summary.missing_count} 条规则疑似存在缺项，请在"完整性审查"中逐项核实`);
   if (summary.uncertain_count > 0) priorities.push(`${summary.uncertain_count} 条规则无法自动核验，需要人工判断`);
-  if (diffCount > 0) priorities.push(`${diffCount} 条规则本地与 Dify 结果不一致，请在"完整性检查"中对比确认`);
+  if (substantiveIssue > 0 || substantiveReview > 0) priorities.push(`规范符合性审查当前有 ${substantiveIssue} 项问题、${substantiveReview} 项需复核，请结合条文人工确认`);
+  if (consistencyReview > 0) priorities.push(`参数一致性检查有 ${consistencyReview} 项需人工复核，当前不进行完整力学复算`);
+  if (drawingReview > 0) priorities.push(`图文复核提示已召回 ${drawingTotal} 项相关证据，图纸尺寸和节点构造需人工确认`);
+  if (diffCount > 0) priorities.push(`${diffCount} 条规则本地与 Dify 结果不一致，请在"完整性审查"中对比确认`);
   if (manualNeeded === 0 && decisions.length > 0) priorities.push('所有规则已完成人工复核');
   if (!priorities.length) priorities.push('暂无明显待处理事项');
 
@@ -368,7 +621,7 @@ $('#pageDetailPanel').addEventListener('click', (e) => {
   if (e.target === $('#pageDetailPanel')) $('#pageDetailPanel').classList.add('hidden');
 });
 
-// ========== Tab 3: 完整性检查 ==========
+// ========== Tab 3: 完整性审查 ==========
 function renderReview() {
   const results = reviewData?.results || [];
   const decisionsById = {};
@@ -379,7 +632,7 @@ function renderReview() {
     $('#difyWarning').textContent = `⚠ Dify 审查失败：${difyErrorData.message || '未知错误'}，仅展示本地结果`;
     $('#difyWarning').classList.remove('hidden');
   } else if (!comparisonData) {
-    $('#difyWarning').textContent = 'ℹ Dify 审查未启用，仅展示本地预审结果';
+    $('#difyWarning').textContent = 'ℹ Dify 审查未启用，仅展示本地完整性审查结果';
     $('#difyWarning').classList.remove('hidden');
   } else {
     $('#difyWarning').classList.add('hidden');
@@ -510,7 +763,7 @@ function openReviewDrawer(ruleId) {
       ${rule.requires_human_review ? ' <span class="review-yes">需人工复核</span>' : ''}</p>
     </div>
     <div class="detail-section">
-      <h4>本地预审结果</h4>
+      <h4>本地完整性审查结果</h4>
       <p>状态：<span class="status-chip status-${rule.status}">${localLabel}</span></p>
       <p>原因：${esc(rule.reason)}</p>
     </div>
@@ -820,4 +1073,76 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
   })[c]);
+}
+
+function valueWithUnit(item) {
+  if (!item || item.value === null || item.value === undefined) return item?.status === 'unknown' ? '未识别' : '需复核';
+  return `${formatValue(item.value)}${item.unit || ''}`;
+}
+
+function statusText(status) {
+  return { PASS: '支持通过', ISSUE: '发现问题', REVIEW: '需复核', NOT_APPLICABLE: '不适用' }[status] || status || '需复核';
+}
+
+function actualText(actual) {
+  if (!actual) return '未识别';
+  if (Array.isArray(actual.items)) {
+    const items = actual.items.length ? actual.items.join('、') : '未识别';
+    const missing = actual.missing_items?.length ? `<br><small>缺少：${esc(actual.missing_items.join('、'))}</small>` : '';
+    return `${esc(items)}${missing}`;
+  }
+  if (actual.label) return esc(actual.label);
+  if (actual.value !== undefined && actual.value !== null) return esc(`${formatValue(actual.value)}${actual.unit || ''}`);
+  return esc(actual.status || '未识别');
+}
+
+function sideValueText(side) {
+  if (!side || side.value === null || side.value === undefined) return '<span class="muted-text">未识别</span>';
+  return `<strong>${esc(formatValue(side.value))}</strong>${evidenceDetails(side.evidence)}`;
+}
+
+function sideEvidenceDetails(item) {
+  const evidence = [
+    ...(item.design_side?.evidence || []),
+    ...(item.calculation_side?.evidence || [])
+  ];
+  return evidenceDetails(evidence);
+}
+
+function formatValue(value) {
+  if (Array.isArray(value)) return value.map(formatValue).join('、');
+  if (value && typeof value === 'object') {
+    if (value.minimum !== undefined && value.maximum !== undefined) {
+      return `${value.minimum}~${value.maximum}`;
+    }
+    return JSON.stringify(value);
+  }
+  return String(value ?? '');
+}
+
+function basisText(basis, requirement) {
+  const basisText = (basis || []).map(item =>
+    `${item.standard || ''} ${item.clause || ''} ${item.rule_id || ''}`.trim()
+  ).filter(Boolean).join('<br>');
+  const requirementText = requirement?.description ? `<small>${esc(requirement.description)}</small>` : '';
+  return basisText ? `${esc(basisText)}<br>${requirementText}` : requirementText || '需人工确认';
+}
+
+function evidenceDetails(evidence) {
+  if (!evidence || !evidence.length) return '';
+  return `<details class="inline-evidence"><summary>查看证据</summary>${evidence.map(renderEvidenceLine).join('')}</details>`;
+}
+
+function renderEvidenceLine(item) {
+  return `<div class="evidence-block">
+    <div class="meta"><span>页码：${esc(item.page || item.physical_page || '未识别')}</span><span>章节：${esc(item.section || '未识别')}</span><span>block：${esc(item.block_id || '无')}</span></div>
+    <blockquote>${esc(item.quote || '无原文摘录')}</blockquote>
+  </div>`;
+}
+
+function renderDrawingEvidenceLine(item) {
+  return `<div class="evidence-block">
+    <div class="meta"><span>图纸页：${esc(item.physical_page || '未识别')}</span><span>类型：${esc(item.page_type || '图纸/混合页')}</span><span>状态：${esc(item.parse_status || '未识别')}</span></div>
+    <blockquote>${esc(item.reason || '命中相关图纸关键词，需人工复核。')}</blockquote>
+  </div>`;
 }

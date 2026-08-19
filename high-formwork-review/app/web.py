@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,7 +23,9 @@ from .completeness_review import (
     load_rules,
     review_completeness_with_details,
 )
+from .consistency_review import build_consistency_review
 from .dify_config import resolve_dify_completeness_mode
+from .drawing_review import build_drawing_review
 from .mineru_cache import (
     CACHE_ROOT,
     ParseCacheInfo,
@@ -35,6 +37,10 @@ from .mineru_cache import (
 )
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
+from .project_facts import build_project_facts
+from .project_qualification import build_project_qualification
+from .review_summary import build_review_results
+from .substantive_review import build_substantive_review
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -60,6 +66,7 @@ HUMAN_DECISIONS = {
 }
 AUTOMATIC_STATUSES = {"PASS", "MISSING", "UNCERTAIN"}
 ASSET_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+REVIEW_MODES = {"smart", "completeness", "compliance", "calculation", "drawing_consistency"}
 
 STAGE_PROGRESS = {
     "waiting": 0,
@@ -103,7 +110,10 @@ def index(request: Request):
 async def create_job(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    review_mode: str = Form(default="smart"),
 ) -> dict[str, Any]:
+    if review_mode not in REVIEW_MODES:
+        raise HTTPException(status_code=422, detail="审查方式暂不可用")
     original_name = _safe_filename(file.filename)
     if not original_name.lower().endswith(".pdf"):
         raise HTTPException(status_code=415, detail="只允许上传 PDF 文件")
@@ -158,6 +168,7 @@ async def create_job(
         "parser_config_version": PARSER_CONFIG_VERSION,
         "parse_cache_warning": None,
         "document_parse_message": None,
+        "review_mode": review_mode,
     }
     _atomic_write_json(job_dir / "status.json", status)
     background_tasks.add_task(_process_job, job_id)
@@ -251,6 +262,12 @@ def get_review(job_id: str) -> dict[str, Any]:
         "results": results,
         "decisions": decisions,
     }
+
+
+@app.get("/api/jobs/{job_id}/precheck")
+def get_precheck(job_id: str) -> dict[str, Any]:
+    job_dir = _completed_job_dir(job_id)
+    return _read_json(job_dir / "review_results.json", "智能预审汇总不存在")
 
 
 @app.get("/api/jobs/{job_id}/comparison")
@@ -428,8 +445,14 @@ def get_output_files(job_id: str) -> dict[str, Any]:
 
     file_descriptions = {
         "mineru_document.json": "MinerU 解析结构化文档",
-        "completeness_results.json": "完整性检查结果（10 条规则）",
-        "completeness_summary.json": "完整性检查汇总",
+        "project_facts.json": "工程事实识别结果",
+        "project_qualification.json": "工程基础信息与审查范围",
+        "completeness_results.json": "完整性审查结果（10 项）",
+        "completeness_summary.json": "完整性审查汇总",
+        "substantive_review.json": "规范符合性审查结果（部分可用）",
+        "consistency_review.json": "正文-计算书参数一致性检查结果",
+        "drawing_review.json": "图文复核提示结果",
+        "review_results.json": "智能预审统一汇总",
         "completeness_evidence_check.md": "证据核对报告（Markdown）",
         "decisions.json": "人工复核记录",
         "review_comparison.json": "本地与 Dify 审查对比",
@@ -529,6 +552,26 @@ def _process_job(job_id: str) -> None:
             enriched_results.append(item)
         _atomic_write_json(job_dir / "completeness_results.json", enriched_results)
         _atomic_write_json(job_dir / "completeness_summary.json", asdict(summary))
+        project_facts = build_project_facts(document)
+        project_qualification = build_project_qualification(document, project_facts)
+        substantive_review = build_substantive_review(project_qualification, project_facts)
+        consistency_review = build_consistency_review(project_facts, document)
+        drawing_review = build_drawing_review(document, project_facts)
+        _atomic_write_json(job_dir / "project_facts.json", project_facts)
+        _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
+        _atomic_write_json(job_dir / "substantive_review.json", substantive_review)
+        _atomic_write_json(job_dir / "consistency_review.json", consistency_review)
+        _atomic_write_json(job_dir / "drawing_review.json", drawing_review)
+        _atomic_write_json(
+            job_dir / "review_results.json",
+            build_review_results(
+                project_qualification,
+                asdict(summary),
+                substantive_review,
+                consistency_review=consistency_review,
+                drawing_review=drawing_review,
+            ),
+        )
         _atomic_write_text(
             job_dir / "completeness_evidence_check.md",
             build_evidence_check_markdown(document, summary, details),
@@ -573,6 +616,7 @@ def _process_job(job_id: str) -> None:
         else:
             _update_status(job_dir, "completed", "解析与完整性审查已完成")
         _write_review_comparison_if_ready(job_dir)
+        _write_precheck_summary_if_ready(job_dir)
     except Exception:
         _update_status(
             job_dir,
@@ -646,6 +690,33 @@ def _run_optional_dify_review(job_dir: Path, rules: list[dict[str, Any]]) -> Non
     from .main import _run_dify_review
 
     _run_dify_review(job_dir, rules)
+
+
+def _write_precheck_summary_if_ready(job_dir: Path) -> None:
+    paths = {
+        "qualification": job_dir / "project_qualification.json",
+        "completeness": job_dir / "completeness_summary.json",
+        "substantive": job_dir / "substantive_review.json",
+        "consistency": job_dir / "consistency_review.json",
+        "drawing": job_dir / "drawing_review.json",
+        "comparison": job_dir / "review_comparison.json",
+    }
+    if not all(paths[key].is_file() for key in ("qualification", "completeness", "substantive")):
+        return
+    comparison = _read_json(paths["comparison"], "") if paths["comparison"].is_file() else None
+    consistency = _read_json(paths["consistency"], "") if paths["consistency"].is_file() else None
+    drawing = _read_json(paths["drawing"], "") if paths["drawing"].is_file() else None
+    _atomic_write_json(
+        job_dir / "review_results.json",
+        build_review_results(
+            _read_json(paths["qualification"], ""),
+            _read_json(paths["completeness"], ""),
+            _read_json(paths["substantive"], ""),
+            comparison=comparison,
+            consistency_review=consistency,
+            drawing_review=drawing,
+        ),
+    )
 
 
 def _job_dir(job_id: str) -> Path:

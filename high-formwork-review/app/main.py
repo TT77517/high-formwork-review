@@ -24,9 +24,15 @@ from .dify_config import (
     resolve_dify_completeness_mode,
     resolve_dify_review_config,
 )
+from .consistency_review import build_consistency_review
+from .drawing_review import build_drawing_review
 from .mineru_cache import parse_pdf_with_cache
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
+from .project_facts import build_project_facts
+from .project_qualification import build_project_qualification
+from .review_summary import build_review_results
+from .substantive_review import build_substantive_review
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,6 +81,26 @@ def main(argv: list[str] | None = None) -> int:
             [asdict(result) for result in summary.results],
         )
         _write_json(output_dir / "completeness_summary.json", asdict(summary))
+        project_facts = build_project_facts(document)
+        project_qualification = build_project_qualification(document, project_facts)
+        substantive_review = build_substantive_review(project_qualification, project_facts)
+        consistency_review = build_consistency_review(project_facts, document)
+        drawing_review = build_drawing_review(document, project_facts)
+        _write_json(output_dir / "project_facts.json", project_facts)
+        _write_json(output_dir / "project_qualification.json", project_qualification)
+        _write_json(output_dir / "substantive_review.json", substantive_review)
+        _write_json(output_dir / "consistency_review.json", consistency_review)
+        _write_json(output_dir / "drawing_review.json", drawing_review)
+        _write_json(
+            output_dir / "review_results.json",
+            build_review_results(
+                project_qualification,
+                summary,
+                substantive_review,
+                consistency_review=consistency_review,
+                drawing_review=drawing_review,
+            ),
+        )
         (output_dir / "completeness_evidence_check.md").write_text(
             build_evidence_check_markdown(document, summary, details),
             encoding="utf-8",
@@ -94,12 +120,15 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             _run_dify_review(output_dir, rules)
             _write_review_comparison_if_ready(output_dir)
+            _write_review_results_if_ready(output_dir)
         except (OSError, RuntimeError, ValueError) as exc:
             _write_review_comparison_if_ready(output_dir)
+            _write_review_results_if_ready(output_dir)
             print(f"Dify 错误：{exc}", file=sys.stderr)
             return 1
     else:
         _write_review_comparison_if_ready(output_dir)
+        _write_review_results_if_ready(output_dir)
     return 0
 
 
@@ -863,6 +892,33 @@ def _write_review_comparison_if_ready(
     _write_json(output_dir / "review_comparison.json", comparison)
 
 
+def _write_review_results_if_ready(output_dir: Path) -> None:
+    required = [
+        output_dir / "project_qualification.json",
+        output_dir / "completeness_summary.json",
+        output_dir / "substantive_review.json",
+    ]
+    if not all(path.is_file() for path in required):
+        return
+    project_qualification = json.loads(required[0].read_text(encoding="utf-8"))
+    completeness = json.loads(required[1].read_text(encoding="utf-8"))
+    substantive = json.loads(required[2].read_text(encoding="utf-8"))
+    consistency = _read_optional_json_list(output_dir / "consistency_review.json")
+    drawing = _read_optional_json_list(output_dir / "drawing_review.json")
+    comparison = _read_optional_json(output_dir / "review_comparison.json")
+    _write_json(
+        output_dir / "review_results.json",
+        build_review_results(
+            project_qualification,
+            completeness,
+            substantive,
+            comparison=comparison,
+            consistency_review=consistency,
+            drawing_review=drawing,
+        ),
+    )
+
+
 def _read_optional_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
@@ -871,6 +927,18 @@ def _read_optional_json(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def _read_optional_json_list(path: Path) -> list[dict[str, Any]] | None:
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(value, list):
+        return None
+    return [item for item in value if isinstance(item, dict)]
 
 
 def _write_dify_selection(
