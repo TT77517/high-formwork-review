@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from dotenv import load_dotenv
+
 from .services.dify_client import (
     DifyError,
     validate_review_result_with_warnings,
@@ -21,7 +23,11 @@ from .services.dify_client import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CACHE_ROOT = PROJECT_ROOT / "data" / "cache" / "dify"
+load_dotenv(PROJECT_ROOT / ".env")
+DATA_ROOT = Path(os.getenv("DATA_ROOT", PROJECT_ROOT / "data")).expanduser()
+if not DATA_ROOT.is_absolute():
+    DATA_ROOT = PROJECT_ROOT / DATA_ROOT
+CACHE_ROOT = DATA_ROOT / "cache" / "dify"
 _CACHE_KEY_SAFE = re.compile(r"[^A-Za-z0-9_.-]+")
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()

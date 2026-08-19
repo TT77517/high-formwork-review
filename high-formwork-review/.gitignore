@@ -12,6 +12,9 @@ __pycache__/
 venv/
 env/
 
+# Node / frontend dependencies
+node_modules/
+
 # Secrets
 .env
 .env.*
@@ -29,11 +32,14 @@ Thumbs.db
 
 # Runtime and temporary files
 logs/
+*.log
 tmp/
 temp/
 uploads/
+cache/
 
 # Web jobs and generated task data
+data/
 data/jobs/
 data/web/jobs/
 data/cache/
@@ -61,3 +67,23 @@ data/.pytest_tmp*/
 **/dify_error.json
 **/dify_call_audit.json
 **/review_comparison.json
+
+# Local model, vector database, and large data artifacts
+*.bin
+*.gguf
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.sqlite
+*.sqlite3
+*.db
+*.faiss
+*.index
+chroma/
+chromadb/
+faiss/
+vector_db/
+vectors/
+models/
+model_cache/

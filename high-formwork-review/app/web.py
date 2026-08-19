@@ -38,7 +38,11 @@ from .mineru_parser import parse_mineru
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-JOBS_ROOT = PROJECT_ROOT / "data" / "web" / "jobs"
+load_dotenv(PROJECT_ROOT / ".env")
+DATA_ROOT = Path(os.getenv("DATA_ROOT", PROJECT_ROOT / "data")).expanduser()
+if not DATA_ROOT.is_absolute():
+    DATA_ROOT = PROJECT_ROOT / DATA_ROOT
+JOBS_ROOT = DATA_ROOT / "web" / "jobs"
 MINERU_CACHE_ROOT = CACHE_ROOT
 RULES_PATH = PROJECT_ROOT / "config" / "completeness_rules.json"
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024

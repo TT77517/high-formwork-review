@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from dotenv import load_dotenv
+
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
 from .models import (
@@ -27,7 +29,11 @@ from .models import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CACHE_ROOT = PROJECT_ROOT / "data" / "cache" / "mineru"
+load_dotenv(PROJECT_ROOT / ".env")
+DATA_ROOT = Path(os.getenv("DATA_ROOT", PROJECT_ROOT / "data")).expanduser()
+if not DATA_ROOT.is_absolute():
+    DATA_ROOT = PROJECT_ROOT / DATA_ROOT
+CACHE_ROOT = DATA_ROOT / "cache" / "mineru"
 PARSER_NAME = "app.mineru_parser.parse_mineru"
 PARSER_VERSION = "mineru-parser-v1"
 PARSER_CONFIG_VERSION = "mineru-config-v1"
