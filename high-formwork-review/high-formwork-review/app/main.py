@@ -34,6 +34,7 @@ from .project_qualification import build_project_qualification
 from .review_summary import build_review_results
 from .report_generator import build_review_report_from_job_dir
 from .rule_engine import run_rule_engine_safe
+from .semantic_engine import run_semantic_engine_safe
 from .substantive_review import build_substantive_review
 
 
@@ -86,12 +87,14 @@ def main(argv: list[str] | None = None) -> int:
         project_facts = build_project_facts(document)
         project_qualification = build_project_qualification(document, project_facts)
         rule_engine_result = run_rule_engine_safe(document, project_facts)
+        semantic_result = run_semantic_engine_safe(document, project_facts)
         substantive_review = build_substantive_review(project_qualification, project_facts)
         consistency_review = build_consistency_review(project_facts, document)
         drawing_review = build_drawing_review(document, project_facts)
         _write_json(output_dir / "project_facts.json", project_facts)
         _write_json(output_dir / "project_qualification.json", project_qualification)
         _write_json(output_dir / "rule_engine_results.json", rule_engine_result)
+        _write_json(output_dir / "semantic_results.json", semantic_result)
         _write_json(output_dir / "substantive_review.json", substantive_review)
         _write_json(output_dir / "consistency_review.json", consistency_review)
         _write_json(output_dir / "drawing_review.json", drawing_review)

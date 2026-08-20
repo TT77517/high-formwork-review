@@ -23,7 +23,7 @@ const MODE_TABS = {
   drawing: ['home','overview','qualification','document','drawing','manual','rule-library','records'],
   calculation: ['home','overview','qualification','document','calculation','manual','rule-library','records']
 };
-let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null;
+let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null;
 
 initFromQuery();
 $$('#reviewModeGrid .mode-card').forEach(c => c.addEventListener('click', () => {
@@ -116,6 +116,7 @@ async function loadAll() {
     try { const cr = await fetch(`/api/jobs/${curJob}/comparison`); if (cr.ok) compData = await cr.json(); } catch(_){}
     try { const er = await fetch(`/api/jobs/${curJob}/dify-error`); if (er.ok) difyErr = await er.json(); } catch(_){}
     try { const re = await fetch(`/api/jobs/${curJob}/rule-engine`); if (re.ok) ruleEngineData = await re.json(); } catch(_){}
+    try { const sm = await fetch(`/api/jobs/${curJob}/semantic`); if (sm.ok) semanticData = await sm.json(); } catch(_){}
     loadRuleLibrary('', '', '', '', '');  // Load rule library in background
     renderOverview(); renderQualification(); renderDocument(); renderRuleEngine(); renderReview();
     renderSemantic(); renderDrawing(); renderCalculation(); renderManual(); renderRecords();
@@ -130,7 +131,7 @@ function renderOverview() {
   const cards = [
     { tab:'qualification', title:'工程基础信息', value: preData?.project_qualification?'已生成':'未生成', sub:'确定预审范围和规则包' },
     { tab:'review', title:'完整性审查', value: `${s.pass_count||0}/${s.total_rules||10}`, sub:`缺失 ${s.missing_count||0} · 无法核验 ${s.uncertain_count||0}` },
-    { tab:'semantic', title:'规范语义审查', value: `${ss.rule_engine_compliant||0}/${ss.rule_engine_total||0}`, sub:`违规 ${ss.rule_engine_violated||0} · 无法判定 ${ss.rule_engine_uncertain||0}`, warn: (ss.rule_engine_violated||0)>0 },
+    { tab:'semantic', title:'规范语义审查', value: `${(ss.rule_engine_compliant||0)+(semanticData?.compliant||0)}/${(ss.rule_engine_total||0)+(semanticData?.total_rules||0)}`, sub:`违规 ${(ss.rule_engine_violated||0)+(semanticData?.violated||0)} · 无法判定 ${(ss.rule_engine_uncertain||0)+(semanticData?.uncertain||0)}`, warn: ((ss.rule_engine_violated||0)+(semanticData?.violated||0))>0 },
     { tab:'drawing', title:'图文一致性校验', value: `${ss.drawing_total||0}`, sub:`需复核 ${ss.drawing_review||0}`, warn: (ss.drawing_review||0)>0 },
     { tab:'calculation', title:'计算校核', value: `${ss.consistency_pass||0}/${ss.consistency_total||0}`, sub:`不一致 ${ss.consistency_issue||0}`, warn: (ss.consistency_issue||0)>0 },
     { tab:'manual', title:'人工复核', value: decisions.filter(d=>d.human_decision!=='pending').length, sub:`共 ${decisions.length} 条`, warn: decisions.filter(d=>d.human_decision==='pending').length>0 }
@@ -303,37 +304,53 @@ function openReviewDrawer(rid) {
 
 // ===== Semantic Review (规范语义审查) =====
 function renderSemantic() {
-  const re = ruleEngineData; if (!re) { $('#semanticStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规范语义审查未运行</div></div>'; $('#semanticRows').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>'; return; }
+  // Combine deterministic (ruleEngineData) and semantic (semanticData) results
+  const detResults = ruleEngineData?.results || [];
+  const semResults = semanticData?.results || [];
+  const allResults = [...detResults, ...semResults];
+  const detTotal = ruleEngineData?.total_rules || 0;
+  const semTotal = semanticData?.total_rules || 0;
+  const total = detTotal + semTotal;
+  const compliant = (ruleEngineData?.compliant||0) + (semanticData?.compliant||0);
+  const violated = (ruleEngineData?.violated||0) + (semanticData?.violated||0);
+  const uncertain = (ruleEngineData?.uncertain||0) + (semanticData?.uncertain||0);
+  const notApp = (ruleEngineData?.not_applicable||0) + (semanticData?.not_applicable||0);
+  if (!total) {
+    $('#semanticStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规范语义审查未运行</div></div>';
+    $('#semanticRows').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>';
+    return;
+  }
   $('#semanticStats').innerHTML = [
-    ['总规则数', re.total_rules], ['合规', re.compliant], ['违规', re.violated], ['无法判定', re.uncertain], ['不适用', re.not_applicable]
+    ['总规则数', total], ['合规', compliant], ['违规', violated], ['无法判定', uncertain], ['不适用', notApp]
   ].map(([l,v]) => `<div class="stat-card${l==='违规'&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  const mods = [...new Set((re.results||[]).map(r => r.module))].filter(Boolean);
+  // Populate module filter from all results
+  const mods = [...new Set(allResults.map(r => r.module))].filter(Boolean);
   const sel = $('#semanticModuleFilter');
   if (sel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); }); }
-  renderSemanticTable('all','all');
-  $('#semanticModuleFilter').onchange = function() { renderSemanticTable(this.value, $('#semanticStatusFilter').value); };
-  $('#semanticStatusFilter').onchange = function() { renderSemanticTable($('#semanticModuleFilter').value, this.value); };
+  renderSemanticTable('all','all', allResults);
+  $('#semanticModuleFilter').onchange = function() { renderSemanticTable(this.value, $('#semanticStatusFilter').value, allResults); };
+  $('#semanticStatusFilter').onchange = function() { renderSemanticTable($('#semanticModuleFilter').value, this.value, allResults); };
   const drawer = $('#semanticDetailPanel');
   drawer.querySelector('.drawer-close').addEventListener('click', () => drawer.classList.add('hidden'));
   drawer.addEventListener('click', e => { if (e.target === drawer) drawer.classList.add('hidden'); });
 }
-function renderSemanticTable(modF, stF) {
-  const re = ruleEngineData; if (!re) return;
-  const results = (re.results||[]).filter(r => (modF==='all'||r.module===modF) && (stF==='all'||r.status===stF));
+function renderSemanticTable(modF, stF, allResults) {
+  const results = (allResults||[]).filter(r => (modF==='all'||r.module===modF) && (stF==='all'||r.status===stF));
   $('#semanticRows').innerHTML = results.length ? results.map(r => {
     const th = r.threshold||{}; const thStr = th.value!==undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
     const valStr = r.actual_value!==null && r.actual_value!==undefined ? `${r.actual_value}${th.unit||''}` : '—';
-    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${valStr}</td><td>${thStr}</td><td><small>${esc(r.reason||'')}</small></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
+    const typeTag = r.check_type==='semantic' ? '<span class="tag-blue">语义</span>' : '<span class="tag-default">确定性</span>';
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${typeTag}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${valStr}</td><td>${thStr}</td><td><small>${esc(r.reason||'')}</small></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}" data-type="${esc(r.check_type||'')}">详情</button></td></tr>`;
   }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
-  $$('#semanticRows .btn-detail').forEach(b => b.addEventListener('click', () => openSemanticDrawer(b.dataset.rule)));
+  $$('#semanticRows .btn-detail').forEach(b => b.addEventListener('click', () => openSemanticDrawer(b.dataset.rule, b.dataset.type, allResults)));
 }
-function openSemanticDrawer(rid) {
-  const re = ruleEngineData; if (!re) return;
-  const rule = (re.results||[]).find(r => r.rule_id===rid); if (!rule) return;
+function openSemanticDrawer(rid, rtype, allResults) {
+  const rule = (allResults||[]).find(r => r.rule_id===rid); if (!rule) return;
   const th = rule.threshold||{}; const ev = rule.evidence||[];
   const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
+  const sjHtml = rule.semantic_judgment ? `<div class="detail-section"><h4>语义判断指引</h4><p>${esc(rule.semantic_judgment)}</p></div>` : '';
   $('#semanticDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
-  $('#semanticDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'未提取到'}</div><div><b>阈值要求</b><br>${esc(`${th.operator||''} ${th.value}${th.unit||''}`)}</div></div></div><div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
+  $('#semanticDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'—'}</div><div><b>阈值要求</b><br>${th.value!==undefined?esc(`${th.operator||''} ${th.value}${th.unit||''}`):'—'}</div></div></div>${sjHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
   $('#semanticDetailPanel').classList.remove('hidden');
 }
 
