@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook — 强制 AI Agent 遵守协作协议
+#
+# 拦截规则：
+# 1. 如果提交包含 .py 代码变更，但 PROGRESS.md 没变 → 警告
+# 2. 如果 PROGRESS.md 不存在或为空 → 拒绝
+# 3. commit message 必须有 feat:/fix:/docs:/chore: 前缀（由 commit-msg hook 检查）
+#
+# 安装：git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+PROGRESS_FILE="PROGRESS.md"
+CODE_CHANGED=false
+PROGRESS_CHANGED=false
+
+# 检查暂存区里有哪些文件变更
+while IFS= read -r file; do
+  if [[ "$file" == *.py ]]; then
+    CODE_CHANGED=true
+  fi
+  if [[ "$file" == "$PROGRESS_FILE" ]]; then
+    PROGRESS_CHANGED=true
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+# 规则1：PROGRESS.md 必须存在
+if [ ! -f "$PROGRESS_FILE" ]; then
+  echo "❌ pre-commit: PROGRESS.md 不存在！所有 agent 必须维护此文件。"
+  echo "   请阅读 AGENTS.md 了解协作协议。"
+  exit 1
+fi
+
+# 规则2：改了代码但没更新 PROGRESS.md → 警告（不阻断，但提醒）
+if [ "$CODE_CHANGED" = true ] && [ "$PROGRESS_CHANGED" = false ]; then
+  cat <<'WARN'
+⚠️  pre-commit 警告：你修改了代码但没有更新 PROGRESS.md！
+
+   按照协作协议（见 AGENTS.md），每次代码变更都应同步更新 PROGRESS.md：
+   - 完成的任务 → 标记为 [x]
+   - 新发现的任务 → 加到待完成列表
+   - 底部 Handoff Log → 追加签退记录
+
+   如果这次提交只是无关紧要的改动（格式化等），
+   可以用 git commit --no-verify 跳过此检查。
+   但正式功能/修复提交必须更新 PROGRESS.md。
+WARN
+  exit 1
+fi
+
+echo "✅ pre-commit: 协议检查通过"

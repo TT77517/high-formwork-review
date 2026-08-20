@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# commit-msg hook — 强制 commit message 规范
+#
+# 检查 commit message 第一行是否以规定前缀开头：
+#   feat: / fix: / docs: / chore: / refactor: / test: / style:
+#
+set -euo pipefail
+
+commit_regex='^(feat|fix|docs|chore|refactor|test|style|ci|build|perf)(\(.+\))?: .+'
+error_msg="❌ commit-msg: 提交信息不符合规范！
+
+   格式要求：<type>: <描述> 或 <type>(<scope>): <描述>
+   允许的 type：feat, fix, docs, chore, refactor, test, style, ci, build, perf
+
+   示例：
+     feat: 新增图纸参数提取模块
+     fix: 修复规范筛选不生效问题
+     docs: 更新 PROGRESS.md 进度看板
+
+   跳过检查（仅限紧急情况）：git commit --no-verify -m \"...\"
+"
+
+if ! grep -qE "$commit_regex" "$1"; then
+  echo "$error_msg"
+  exit 1
+fi

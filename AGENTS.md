@@ -8,24 +8,30 @@
 
 ## 🚪 入口协议（每次会话必做）
 
+> **这不是建议，是硬性要求。pre-commit hook 会拦截不遵守的提交。**
+
 1. **读本文件** — 了解项目约定
 2. **读 `PROGRESS.md`** — 了解当前进度和下一任务
 3. **读 `CODEX_CONTEXT.md`** — 了解技术架构和阶段划分
 4. **读 `high-formwork-review/README.md`** — 了解详细技术文档
-5. **签到** — 在 `PROGRESS.md` 底部 Handoff Log 追加一行：
+5. **签到** — 运行 `make checkin AGENT=<你的名字> TASK="<任务>"` 或手动在 `PROGRESS.md` 底部 Handoff Log 追加：
    ```
    - [YYYY-MM-DD HH:MM] <agent名称> 签到 — 开始处理：<任务描述>
    ```
 
 ## 🚪 离场协议（结束工作前必做）
 
+> **pre-commit hook 会检查：改了 .py 代码但没更新 PROGRESS.md → 拒绝提交。**
+
 1. **更新 `PROGRESS.md`** — 把你完成的任务状态改掉，追加新发现的任务
-2. **签退** — 在 `PROGRESS.md` 底部 Handoff Log 追加：
+2. **签退** — 运行 `make checkout AGENT=<你的名字> DONE="<完成描述>" NEXT="<下一步建议>"` 或手动追加：
    ```
    - [YYYY-MM-DD HH:MM] <agent名称> 签退 — 完成了：<任务描述>；下一步建议：<...>
    ```
-3. **提交** — git add + commit + push，commit message 以 `feat:` / `fix:` / `docs:` 等前缀开头
-4. 如果有未解决问题，在 PROGRESS.md 的"当前阻塞"区写清楚
+3. **跑测试** — `make test`
+4. **提交** — git add + commit + push，commit message 以 `feat:` / `fix:` / `docs:` 等前缀开头
+   （commit-msg hook 会拦截不规范 message）
+5. 如果有未解决问题，在 PROGRESS.md 的"当前阻塞"区写清楚
 
 ## 📁 关键文件指引
 
@@ -65,3 +71,48 @@
 - 签到时注明你用的是哪个工具（dewuclaw / dewucode / codex / claude）
 - 如果发现架构问题或需要重构，先在 PROGRESS.md 记录讨论，不要直接大改
 - **所有 agent 的产出都走 git** — 不依赖任何 agent 的私有记忆
+
+## 🔒 自动化 Enforcement 机制
+
+以下机制确保协议不只是"建议"，而是被强制执行：
+
+### 1. Git Hooks（硬拦截）
+
+| Hook | 位置 | 作用 |
+|------|------|------|
+| `pre-commit` | `.githooks/pre-commit` | 改了 `.py` 代码但 PROGRESS.md 没更新 → **拒绝提交** |
+| `commit-msg` | `.githooks/commit-msg` | commit message 不符合 `<type>: <desc>` → **拒绝提交** |
+
+**安装方式**（新 clone 后需执行一次）：
+```bash
+make hooks
+# 或手动
+git config core.hooksPath .githooks
+```
+
+**跳过检查**（仅限格式化等无关紧要的改动）：
+```bash
+git commit --no-verify -m "style: ..."
+```
+
+### 2. 辅助脚本（降低遗忘率）
+
+| 命令 | 作用 |
+|------|------|
+| `make checkin AGENT=dewucode TASK="修复xxx"` | 签到，自动追加到 PROGRESS.md |
+| `make checkout AGENT=dewucode DONE="修复了xxx" NEXT="下一步"` | 签退，自动追加到 PROGRESS.md |
+| `make test` | 跑测试 |
+| `make hooks` | 安装 git hooks |
+
+### 3. 约定文件覆盖
+
+不同 AI 工具认不同的入口文件，本项目同时部署了：
+
+| 文件 | 工具 | 自动读取 |
+|------|------|---------|
+| `AGENTS.md` | dewuclaw | ✅ 系统注入 |
+| `CLAUDE.md` | Claude Code | ✅ 自动读 |
+| `.cursorrules` | Cursor | ✅ 自动读 |
+| `CODEX_CONTEXT.md` | Codex / dewucode | 需在工具配置中指定 |
+
+**如果你用的工具不在以上列表** — 在 AGENTS.md 入口协议顶部加一行指向本文件即可。
