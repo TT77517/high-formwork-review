@@ -345,6 +345,93 @@ class RuleUpdateInput(BaseModel):
     value: Any = None
 
 
+class RuleCreateInput(BaseModel):
+    rule_id: str = Field(min_length=1, max_length=64)
+    rule_name: str = Field(min_length=1, max_length=200)
+    module: str = Field(min_length=1, max_length=64)
+    category: str = Field(default="", max_length=64)
+    check_type: str = Field(default="deterministic", max_length=32)
+    severity: str = Field(default="B-required", max_length=32)
+    risk_level: str = Field(default="medium", max_length=32)
+    applicable_types: list[str] = Field(default_factory=lambda: ["universal"])
+    code_ref: dict[str, Any] = Field(default_factory=dict)
+    check_content: str = Field(default="", max_length=2000)
+    check_logic: dict[str, Any] = Field(default_factory=dict)
+    threshold: Any = Field(default=None)
+    remedy_suggestion: str = Field(default="", max_length=2000)
+    typical_violation: str = Field(default="", max_length=2000)
+    manual_review: bool = Field(default=False)
+    notes: str = Field(default="", max_length=2000)
+
+
+_MODULE_FILE_MAP = {
+    "01_procedure_compliance": "module_01_procedure_compliance.json",
+    "02_load_values": "module_02_load_values.json",
+    "03_structural_calculation": "module_03_structural_calculation.json",
+    "04_construction_requirements": "module_04_construction_requirements.json",
+    "05_material_requirements": "module_05_material_requirements.json",
+    "06_safety_measures": "module_06_safety_measures.json",
+}
+
+
+@app.post("/api/rules", status_code=201)
+def create_rule(payload: RuleCreateInput) -> dict[str, Any]:
+    """新增规则到指定模块 JSON。"""
+    module = payload.module
+    filename = _MODULE_FILE_MAP.get(module)
+    if not filename:
+        raise HTTPException(status_code=422, detail=f"模块 {module} 不存在")
+    path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
+    if not path.is_file():
+        raise HTTPException(status_code=500, detail="规则文件不存在")
+    rules = json.loads(path.read_text(encoding="utf-8"))
+    for existing in rules:
+        if existing.get("rule_id") == payload.rule_id:
+            raise HTTPException(status_code=409, detail=f"规则 {payload.rule_id} 已存在")
+    rule = {
+        "rule_id": payload.rule_id,
+        "rule_name": payload.rule_name,
+        "module": module,
+        "category": payload.category or module.split("_", 1)[1] if "_" in module else "",
+        "check_type": payload.check_type,
+        "severity": payload.severity,
+        "risk_level": payload.risk_level,
+        "applicable_types": payload.applicable_types,
+        "code_ref": payload.code_ref,
+        "legacy_code_ref": None,
+        "check_content": payload.check_content,
+        "check_logic": payload.check_logic,
+        "threshold": payload.threshold,
+        "remedy_suggestion": payload.remedy_suggestion,
+        "typical_violation": payload.typical_violation,
+        "manual_review": payload.manual_review,
+        "notes": payload.notes,
+        "status": "active",
+    }
+    rules.append(rule)
+    path.write_text(json.dumps(rules, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"rule_id": payload.rule_id, "created": True}
+
+
+@app.delete("/api/rules/{rule_id}")
+def delete_rule(rule_id: str) -> dict[str, Any]:
+    """删除规则（软删除：status→deprecated）。"""
+    for filename in _MODULE_FILE_MAP.values():
+        path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
+        if not path.is_file():
+            continue
+        rules = json.loads(path.read_text(encoding="utf-8"))
+        for rule in rules:
+            if rule.get("rule_id") == rule_id:
+                rule["status"] = "deprecated"
+                path.write_text(
+                    json.dumps(rules, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return {"rule_id": rule_id, "deleted": True, "status": "deprecated"}
+    raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
+
+
 @app.patch("/api/rules/{rule_id}")
 def update_rule(rule_id: str, payload: RuleUpdateInput) -> dict[str, Any]:
     """编辑单条规则的指定字段。

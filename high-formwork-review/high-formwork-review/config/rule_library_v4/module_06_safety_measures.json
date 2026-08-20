@@ -1299,5 +1299,30 @@
     "manual_review": true,
     "notes": "语义判断规则。31号文附件第六项明确要求方案包含'施工管理及作业人员配备和分工'",
     "status": "active"
+  },
+  {
+    "rule_id": "9.99",
+    "rule_name": "测试规则",
+    "module": "06_safety_measures",
+    "category": "safety_measures",
+    "check_type": "deterministic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55023-2022",
+      "original_text": "测试"
+    },
+    "legacy_code_ref": null,
+    "check_content": "测试内容",
+    "check_logic": {},
+    "threshold": null,
+    "remedy_suggestion": "",
+    "typical_violation": "",
+    "manual_review": false,
+    "notes": "",
+    "status": "deprecated"
   }
 ]

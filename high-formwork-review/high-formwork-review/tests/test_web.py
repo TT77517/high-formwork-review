@@ -319,7 +319,7 @@ def test_home_page_shows_modular_review_modes(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
-    for label in ("智能预审", "完整性审查", "规范符合性审查", "参数一致性检查", "图文复核提示"):
+    for label in ("智能预审", "完整性审查", "规范语义审查", "图文一致性校验", "计算校核"):
         assert label in text
     assert "工程识别</button>" not in text
     assert "工程基础信息" in text

@@ -11,18 +11,17 @@ const SEVERITY_CN = { 'A-mandatory':'A级强制','B-required':'B级应执行','C
 const MODULE_CN = { '01_procedure_compliance':'程序合规','02_load_values':'荷载取值','03_structural_calculation':'结构计算','04_construction_requirements':'构造要求','05_material_requirements':'材料要求','06_safety_measures':'安全措施' };
 const MODES = {
   smart: { label:'智能预审', button:'开始智能预审', hint:'当前选择：智能预审（推荐），组合执行全部审查能力。' },
-  rule_engine: { label:'规则引擎审查', button:'开始规则引擎审查', hint:'当前选择：规则引擎审查，基于v4.0规则库自动比对参数阈值。' },
   completeness: { label:'完整性审查', button:'开始完整性审查', hint:'当前选择：完整性审查。' },
-  compliance: { label:'规范符合性', button:'开始规范符合性审查', hint:'当前选择：规范符合性（部分可用）。' },
-  calculation: { label:'参数一致性', button:'开始参数一致性检查', hint:'当前选择：参数一致性检查。' }
+  semantic: { label:'规范语义审查', button:'开始规范语义审查', hint:'当前选择：规范语义审查，基于v4.0规则库比对方案与规范条款。' },
+  drawing: { label:'图文一致性校验', button:'开始图文校验', hint:'当前选择：图文一致性校验，识别节点详图并与文本交叉验证。' },
+  calculation: { label:'计算校核', button:'开始计算校核', hint:'当前选择：计算校核，针对力学计算书进行逻辑复核。' }
 };
 const MODE_TABS = {
-  smart: ['home','overview','qualification','document','rule-engine','review','substantive','consistency','drawing','manual','rule-library','records'],
-  rule_engine: ['home','overview','qualification','document','rule-engine','manual','rule-library','records'],
+  smart: ['home','overview','qualification','document','review','semantic','drawing','calculation','manual','rule-library','records'],
   completeness: ['home','overview','qualification','document','review','manual','rule-library','records'],
-  compliance: ['home','overview','qualification','document','substantive','manual','rule-library','records'],
-  calculation: ['home','overview','qualification','document','consistency','manual','rule-library','records'],
-  drawing_consistency: ['home','overview','qualification','document','drawing','manual','rule-library','records']
+  semantic: ['home','overview','qualification','document','semantic','manual','rule-library','records'],
+  drawing: ['home','overview','qualification','document','drawing','manual','rule-library','records'],
+  calculation: ['home','overview','qualification','document','calculation','manual','rule-library','records']
 };
 let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null;
 
@@ -96,7 +95,7 @@ function switchTab(name) {
   const nb = $(`#sideNav .menu-item[data-tab="${name}"]`); if (nb) nb.classList.add('active');
   $$('.tab-panel').forEach(p => p.classList.add('hidden'));
   const pn = $(`#tab-${name}`); if (pn) pn.classList.remove('hidden');
-  const titles = { home:'首页上传',overview:'任务概览',qualification:'工程基础信息',document:'文档解析','rule-engine':'规则引擎审查',review:'完整性审查',substantive:'规范符合性审查',consistency:'参数一致性检查',drawing:'图文复核提示',manual:'人工复核','rule-library':'规则库管理',records:'审查记录' };
+  const titles = { home:'首页上传',overview:'任务概览',qualification:'工程基础信息',document:'文档解析',review:'完整性审查',semantic:'规范语义审查',drawing:'图文一致性校验',calculation:'计算校核',manual:'人工复核','rule-library':'规则库管理',records:'审查记录' };
   $('#pageTitle').textContent = titles[name]||'';
   if (name === 'rule-library' && !ruleLibraryData) loadRuleLibrary();
 }
@@ -119,21 +118,21 @@ async function loadAll() {
     try { const re = await fetch(`/api/jobs/${curJob}/rule-engine`); if (re.ok) ruleEngineData = await re.json(); } catch(_){}
     loadRuleLibrary();  // Load rule library in background
     renderOverview(); renderQualification(); renderDocument(); renderRuleEngine(); renderReview();
-    renderSubstantive(); renderConsistency(); renderDrawing(); renderManual(); renderRecords();
+    renderSemantic(); renderDrawing(); renderCalculation(); renderManual(); renderRecords();
     applyNav(); switchTab(defTab());
   } catch(e) { console.error('加载失败:', e); }
 }
-function defTab() { return { smart:'overview',rule_engine:'rule-engine',completeness:'review',compliance:'substantive',calculation:'consistency' }[selMode]||'overview'; }
+function defTab() { return { smart:'overview',completeness:'review',semantic:'semantic',drawing:'drawing',calculation:'calculation' }[selMode]||'overview'; }
 
 // ===== Overview =====
 function renderOverview() {
   const s = revData?.summary||{}; const ss = preData?.summary||{};
   const cards = [
     { tab:'qualification', title:'工程基础信息', value: preData?.project_qualification?'已生成':'未生成', sub:'确定预审范围和规则包' },
-    { tab:'rule-engine', title:'规则引擎审查', value: `${ss.rule_engine_compliant||0}/${ss.rule_engine_total||0}`, sub:`违规 ${ss.rule_engine_violated||0} · 无法判定 ${ss.rule_engine_uncertain||0}`, warn: (ss.rule_engine_violated||0)>0 },
     { tab:'review', title:'完整性审查', value: `${s.pass_count||0}/${s.total_rules||10}`, sub:`缺失 ${s.missing_count||0} · 无法核验 ${s.uncertain_count||0}` },
-    { tab:'substantive', title:'规范符合性', value: `${ss.substantive_pass||0}/${ss.substantive_total||0}`, sub:`问题 ${ss.substantive_issue||0}`, warn: (ss.substantive_issue||0)>0 },
-    { tab:'consistency', title:'参数一致性', value: `${ss.consistency_pass||0}/${ss.consistency_total||0}`, sub:`需复核 ${ss.consistency_review||0}`, warn: (ss.consistency_review||0)>0 },
+    { tab:'semantic', title:'规范语义审查', value: `${ss.rule_engine_compliant||0}/${ss.rule_engine_total||0}`, sub:`违规 ${ss.rule_engine_violated||0} · 无法判定 ${ss.rule_engine_uncertain||0}`, warn: (ss.rule_engine_violated||0)>0 },
+    { tab:'drawing', title:'图文一致性校验', value: `${ss.drawing_total||0}`, sub:`需复核 ${ss.drawing_review||0}`, warn: (ss.drawing_review||0)>0 },
+    { tab:'calculation', title:'计算校核', value: `${ss.consistency_pass||0}/${ss.consistency_total||0}`, sub:`不一致 ${ss.consistency_issue||0}`, warn: (ss.consistency_issue||0)>0 },
     { tab:'manual', title:'人工复核', value: decisions.filter(d=>d.human_decision!=='pending').length, sub:`共 ${decisions.length} 条`, warn: decisions.filter(d=>d.human_decision==='pending').length>0 }
   ];
   $('#overviewCards').innerHTML = cards.map(c => `<button class="stat-card${c.warn?' warn':''}" onclick="switchTab('${c.tab}')">
@@ -302,18 +301,47 @@ function openReviewDrawer(rid) {
   $('#reviewDetailPanel').classList.remove('hidden');
 }
 
-// ===== Substantive =====
-function renderSubstantive() {
-  const items = preData?.substantive_review||[]; const s = preData?.summary||{};
-  $('#substantiveStats').innerHTML = [['审查项',s.substantive_total??items.length],['支持通过',s.substantive_pass??0],['发现问题',s.substantive_issue??0],['需复核',s.substantive_review??0]].map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  $('#substantiveRows').innerHTML = items.map(i => `<tr><td>${esc(i.review_item_id)}</td><td><b>${esc(i.title)}</b></td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td>${actTxt(i.actual)}</td><td>${esc(i.conclusion||'')}</td><td><small>${esc(i.basis?.[0]?.standard||'')}</small></td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无结果</td></tr>';
+// ===== Semantic Review (规范语义审查) =====
+function renderSemantic() {
+  const re = ruleEngineData; if (!re) { $('#semanticStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规范语义审查未运行</div></div>'; $('#semanticRows').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>'; return; }
+  $('#semanticStats').innerHTML = [
+    ['总规则数', re.total_rules], ['合规', re.compliant], ['违规', re.violated], ['无法判定', re.uncertain], ['不适用', re.not_applicable]
+  ].map(([l,v]) => `<div class="stat-card${l==='违规'&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+  const mods = [...new Set((re.results||[]).map(r => r.module))].filter(Boolean);
+  const sel = $('#semanticModuleFilter');
+  if (sel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); }); }
+  renderSemanticTable('all','all');
+  $('#semanticModuleFilter').onchange = function() { renderSemanticTable(this.value, $('#semanticStatusFilter').value); };
+  $('#semanticStatusFilter').onchange = function() { renderSemanticTable($('#semanticModuleFilter').value, this.value); };
+  const drawer = $('#semanticDetailPanel');
+  drawer.querySelector('.drawer-close').addEventListener('click', () => drawer.classList.add('hidden'));
+  drawer.addEventListener('click', e => { if (e.target === drawer) drawer.classList.add('hidden'); });
+}
+function renderSemanticTable(modF, stF) {
+  const re = ruleEngineData; if (!re) return;
+  const results = (re.results||[]).filter(r => (modF==='all'||r.module===modF) && (stF==='all'||r.status===stF));
+  $('#semanticRows').innerHTML = results.length ? results.map(r => {
+    const th = r.threshold||{}; const thStr = th.value!==undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
+    const valStr = r.actual_value!==null && r.actual_value!==undefined ? `${r.actual_value}${th.unit||''}` : '—';
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${valStr}</td><td>${thStr}</td><td><small>${esc(r.reason||'')}</small></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
+  }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
+  $$('#semanticRows .btn-detail').forEach(b => b.addEventListener('click', () => openSemanticDrawer(b.dataset.rule)));
+}
+function openSemanticDrawer(rid) {
+  const re = ruleEngineData; if (!re) return;
+  const rule = (re.results||[]).find(r => r.rule_id===rid); if (!rule) return;
+  const th = rule.threshold||{}; const ev = rule.evidence||[];
+  const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
+  $('#semanticDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
+  $('#semanticDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'未提取到'}</div><div><b>阈值要求</b><br>${esc(`${th.operator||''} ${th.value}${th.unit||''}`)}</div></div></div><div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
+  $('#semanticDetailPanel').classList.remove('hidden');
 }
 
-// ===== Consistency =====
-function renderConsistency() {
+// ===== Calculation Review (计算校核) =====
+function renderCalculation() {
   const items = preData?.consistency_review||[]; const s = preData?.summary||{};
-  $('#consistencyStats').innerHTML = [['检查项',s.consistency_total??items.length],['一致',s.consistency_pass??0],['不一致',s.consistency_issue??0],['需复核',s.consistency_review??0]].map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  $('#consistencyRows').innerHTML = items.length ? items.map(i => `<tr><td>${esc(i.review_item_id)}</td><td><b>${esc(i.title)}</b></td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td>${sideTxt(i.design_side)}</td><td>${sideTxt(i.calculation_side)}</td><td>${esc(i.conclusion||'')}</td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无结果</td></tr>';
+  $('#calcStats').innerHTML = [['检查项',s.consistency_total??items.length],['一致',s.consistency_pass??0],['不一致',s.consistency_issue??0],['需复核',s.consistency_review??0]].map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+  $('#calcRows').innerHTML = items.length ? items.map(i => `<tr><td>${esc(i.review_item_id)}</td><td><b>${esc(i.title)}</b></td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td>${sideTxt(i.design_side)}</td><td>${sideTxt(i.calculation_side)}</td><td>${esc(i.conclusion||'')}</td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无计算校核结果</td></tr>';
 }
 
 // ===== Drawing =====
@@ -380,39 +408,31 @@ function renderRuleLibrary() {
   if (!ruleLibraryData) return;
   const rules = ruleLibraryData.rules || [];
   const total = ruleLibraryData.total || 0;
-  // Stats
   const typeCount = { deterministic:0, semantic:0, calculation:0 };
   const sevCount = { 'A-mandatory':0, 'B-required':0, 'C-recommended':0 };
   rules.forEach(r => { typeCount[r.check_type]=(typeCount[r.check_type]||0)+1; sevCount[r.severity]=(sevCount[r.severity]||0)+1; });
   $('#ruleLibraryStats').innerHTML = [
     ['总规则数', total], ['确定性', typeCount.deterministic||0], ['语义', typeCount.semantic||0], ['计算', typeCount.calculation||0], ['A级强制', sevCount['A-mandatory']||0], ['B级应执行', sevCount['B-required']||0]
   ].map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-
   // Populate module filter
   const mods = [...new Set(rules.map(r => r.module))].filter(Boolean);
   const sel = $('#rlModuleFilter');
-  if (sel.options.length <= 1) {
-    mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); });
-  }
-
+  if (sel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); }); }
+  // Populate standard filter
+  const stds = [...new Set(rules.map(r => { const s=r.code_ref?.standard||''; const m=s.match(/(GB[\d\s]*\d+|JGJ[/T]*\s*\d+|住建部|建办质|建质)/); return m?m[0].replace(/\s/g,''):''; }).filter(Boolean))];
+  const stdSel = $('#rlStandardFilter');
+  if (stdSel.options.length <= 1) { stds.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; stdSel.appendChild(o); }); }
   // Render table
   $('#ruleLibraryRows').innerHTML = rules.length ? rules.map(r => {
     const typeLabel = { deterministic:'确定性', semantic:'语义', calculation:'计算' }[r.check_type]||r.check_type;
     const sevClass = r.severity==='A-mandatory'?'orange':'default';
     const sevLabel = SEVERITY_CN[r.severity]||r.severity;
-    return `<tr>
-      <td><b>${esc(r.rule_id)}</b></td>
-      <td>${esc(r.rule_name)}</td>
-      <td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td>
-      <td>${typeLabel}</td>
-      <td><span class="tag-${sevClass}">${sevLabel}</span></td>
-      <td><span class="tag-${r.risk_level==='high'?'orange':'default'}">${esc(r.risk_level||'')}</span></td>
-      <td><small>${esc(r.check_type||'')}</small></td>
-      <td>${r.status==='active'?'<span class="tag-green">启用</span>':'<span class="tag-default">停用</span>'}</td>
-      <td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td>
-    </tr>`;
-  }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
-  $$('#ruleLibraryRows .btn-detail').forEach(b => b.addEventListener('click', () => openRuleLibraryDrawer(b.dataset.rule)));
+    const stdText = (r.code_ref?.standard||'').substring(0,15);
+    const actions = r.status==='active'
+      ? `<button class="btn-small" onclick="editRule('${esc(r.rule_id)}')">编辑</button> <button class="btn-small" style="color:var(--error)" onclick="deleteRule('${esc(r.rule_id)}')">删除</button>`
+      : '<span class="tag-default">已停用</span>';
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td>${typeLabel}</td><td><span class="tag-${sevClass}">${sevLabel}</span></td><td><small>${esc(stdText)}</small></td><td>${r.status==='active'?'<span class="tag-green">启用</span>':'<span class="tag-default">停用</span>'}</td><td>${actions}</td></tr>`;
+  }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
 }
 
 async function openRuleLibraryDrawer(rid) {
@@ -426,44 +446,91 @@ async function openRuleLibraryDrawer(rid) {
       : `${th.param||''} ${th.operator||''} ${th.value||''}${th.unit||''}`)
       : '无';
     const cl = rule.check_logic || {};
-    const clStr = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
-      <div><b>描述</b><br>${esc(cl.description||'')}</div>
-      <div><b>提取关键词</b><br>${esc((cl.extraction_keywords||[]).join('、')||'无')}</div>
-      <div><b>操作符</b><br>${esc(cl.operator||'')}</div>
-      <div><b>判定条件</b><br>${esc(cl.fail_condition||cl.expected_value||'')}</div>
-    </div>`;
+    const clStr = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px"><div><b>描述</b><br>${esc(cl.description||'')}</div><div><b>提取关键词</b><br>${esc((cl.extraction_keywords||[]).join('、')||'无')}</div><div><b>操作符</b><br>${esc(cl.operator||'')}</div><div><b>判定条件</b><br>${esc(cl.fail_condition||cl.expected_value||'')}</div></div>`;
     $('#rlDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
-    $('#rlDrawerBody').innerHTML = `
-      <div class="detail-section"><h4>基本信息</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
-          <div><b>模块</b><br>${esc(MODULE_CN[rule.module]||rule.module)}</div>
-          <div><b>检查方式</b><br>${esc(rule.check_type)}</div>
-          <div><b>强制等级</b><br>${esc(SEVERITY_CN[rule.severity]||rule.severity)}</div>
-          <div><b>风险等级</b><br>${esc(rule.risk_level||'')}</div>
-          <div><b>适用类型</b><br>${esc((rule.applicable_types||[]).join('、'))}</div>
-          <div><b>状态</b><br>${esc(rule.status)}</div>
-        </div></div>
-      <div class="detail-section"><h4>审查内容</h4><p>${esc(rule.check_content||'')}</p></div>
-      <div class="detail-section"><h4>判定逻辑</h4>${clStr}</div>
-      <div class="detail-section"><h4>阈值</h4><p>${thStr}</p></div>
-      <div class="detail-section"><h4>规范依据</h4>
-        <p><b>${esc(rule.code_ref?.standard||'')}</b></p>
-        <p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div>
-      <div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div>
-      <div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div>
-      <div class="detail-section"><h4>备注</h4><p>${esc(rule.notes||'')}</p></div>`;
+    $('#rlDrawerBody').innerHTML = `<div class="detail-section"><h4>基本信息</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px"><div><b>模块</b><br>${esc(MODULE_CN[rule.module]||rule.module)}</div><div><b>检查方式</b><br>${esc(rule.check_type)}</div><div><b>强制等级</b><br>${esc(SEVERITY_CN[rule.severity]||rule.severity)}</div><div><b>风险等级</b><br>${esc(rule.risk_level||'')}</div><div><b>适用类型</b><br>${esc((rule.applicable_types||[]).join('、'))}</div><div><b>状态</b><br>${esc(rule.status)}</div></div></div><div class="detail-section"><h4>审查内容</h4><p>${esc(rule.check_content||'')}</p></div><div class="detail-section"><h4>判定逻辑</h4>${clStr}</div><div class="detail-section"><h4>阈值</h4><p>${thStr}</p></div><div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>备注</h4><p>${esc(rule.notes||'')}</p></div>`;
     $('#ruleLibraryDetailPanel').classList.remove('hidden');
   } catch(e) { console.error('规则详情加载失败:', e); }
 }
 
-// Rule library init
+// Rule CRUD: add/edit/delete
+window.editRule = function(rid) {
+  // Open edit modal
+  const modal = $('#ruleEditModal');
+  $('#ruleEditTitle').textContent = `编辑规则 ${rid}`;
+  fetch(`/api/rules/${encodeURIComponent(rid)}`).then(r => r.json()).then(rule => {
+    $('#ruleEditBody').innerHTML = renderRuleEditForm(rule);
+    modal.classList.remove('hidden');
+  });
+};
+window.deleteRule = async function(rid) {
+  if (!confirm(`确定删除规则 ${rid}？（将标记为已停用）`)) return;
+  try {
+    const r = await fetch(`/api/rules/${encodeURIComponent(rid)}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('删除失败');
+    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value);
+  } catch(e) { alert('删除失败: '+e.message); }
+};
+
+function renderRuleEditForm(rule) {
+  const fields = [
+    ['rule_id', '规则编号', 'text'], ['rule_name', '规则名称', 'text'],
+    ['module', '模块', 'text'], ['category', '分类', 'text'],
+    ['check_type', '检查方式', 'text'], ['severity', '强制等级', 'text'],
+    ['risk_level', '风险等级', 'text'], ['check_content', '审查内容', 'textarea'],
+    ['remedy_suggestion', '整改建议', 'textarea'], ['typical_violation', '典型违规表现', 'textarea'],
+    ['notes', '备注', 'textarea'],
+  ];
+  return fields.map(([key, label, type]) => {
+    const val = rule[key] || '';
+    if (type === 'textarea') return `<div class="manual-body" style="margin-bottom:12px"><div class="field full-width"><label>${label}</label><textarea id="ef_${key}" class="manual-note" maxlength="2000">${esc(String(val))}</textarea></div></div>`;
+    return `<div class="manual-body" style="margin-bottom:12px"><div class="field"><label>${label}</label><input id="ef_${key}" type="text" class="manual-note" value="${esc(String(val))}"></div></div>`;
+  }).join('');
+}
+
+$('#addRuleBtn')?.addEventListener('click', () => {
+  $('#ruleEditTitle').textContent = '新增规则';
+  $('#ruleEditBody').innerHTML = renderRuleEditForm({ rule_id:'', rule_name:'', module:'04_construction_requirements', category:'', check_type:'deterministic', severity:'B-required', risk_level:'medium', check_content:'', remedy_suggestion:'', typical_violation:'', notes:'' });
+  $('#ruleEditModal').classList.remove('hidden');
+});
+$('#ruleEditCancel')?.addEventListener('click', () => $('#ruleEditModal').classList.add('hidden'));
+$('#ruleEditSave')?.addEventListener('click', async () => {
+  const data = {};
+  ['rule_id','rule_name','module','category','check_type','severity','risk_level','check_content','remedy_suggestion','typical_violation','notes'].forEach(k => {
+    const el = $(`#ef_${k}`);
+    if (el) data[k] = el.value.trim();
+  });
+  const rid = data.rule_id;
+  if (!rid) { alert('规则编号不能为空'); return; }
+  try {
+    // Try create first, if exists will get 409
+    const r = await fetch('/api/rules', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
+    if (r.status === 409) {
+      // Exists, update via patch for each field
+      for (const [k,v] of Object.entries(data)) {
+        if (k === 'rule_id') continue;
+        await fetch(`/api/rules/${encodeURIComponent(rid)}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({field:k, value:v}) });
+      }
+    } else if (!r.ok) {
+      throw new Error((await r.json()).detail || '保存失败');
+    }
+    $('#ruleEditModal').classList.add('hidden');
+    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value);
+  } catch(e) { alert('保存失败: '+e.message); }
+});
+
+// Rule library filters
 $('#rlModuleFilter').addEventListener('change', function() { loadRuleLibrary(this.value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value); });
 $('#rlTypeFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, this.value, $('#rlSeverityFilter').value, $('#rlSearch').value); });
 $('#rlSeverityFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, this.value, $('#rlSearch').value); });
+$('#rlStandardFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value); });
 $('#rlSearch').addEventListener('input', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, this.value); });
 const rlDrawer = $('#ruleLibraryDetailPanel');
 rlDrawer.querySelector('.drawer-close').addEventListener('click', () => rlDrawer.classList.add('hidden'));
 rlDrawer.addEventListener('click', e => { if (e.target === rlDrawer) rlDrawer.classList.add('hidden'); });
+const ruleEditModal = $('#ruleEditModal');
+ruleEditModal.querySelector('.drawer-close').addEventListener('click', () => ruleEditModal.classList.add('hidden'));
+ruleEditModal.addEventListener('click', e => { if (e.target === ruleEditModal) ruleEditModal.classList.add('hidden'); });
 
 // ===== Records =====
 function renderRecords() {
