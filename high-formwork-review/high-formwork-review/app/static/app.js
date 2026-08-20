@@ -430,8 +430,8 @@ function renderRuleLibrary() {
     const sevLabel = SEVERITY_CN[r.severity]||r.severity;
     const stdText = (r.code_ref?.standard||'').substring(0,15);
     const actions = r.status==='active'
-      ? `<button class="btn-small" onclick="editRule('${esc(r.rule_id)}')">编辑</button> <button class="btn-small" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button> <button class="btn-small" style="color:var(--error)" onclick="deleteRule('${esc(r.rule_id)}')">删除</button>`
-      : '<span class="tag-default">已停用</span>';
+      ? `<button class="btn-small btn-detail" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button>`
+      : `<button class="btn-small btn-detail" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button>`;
     return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td>${typeLabel}</td><td><span class="tag-${sevClass}">${sevLabel}</span></td><td><small>${esc(stdText)}</small></td><td>${r.status==='active'?'<span class="tag-green">启用</span>':'<span class="tag-default">停用</span>'}</td><td>${actions}</td></tr>`;
   }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
 }
@@ -449,7 +449,29 @@ async function openRuleLibraryDrawer(rid) {
     const cl = rule.check_logic || {};
     const clStr = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px"><div><b>描述</b><br>${esc(cl.description||'')}</div><div><b>提取关键词</b><br>${esc((cl.extraction_keywords||[]).join('、')||'无')}</div><div><b>操作符</b><br>${esc(cl.operator||'')}</div><div><b>判定条件</b><br>${esc(cl.fail_condition||cl.expected_value||'')}</div></div>`;
     $('#rlDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
-    $('#rlDrawerBody').innerHTML = `<div class="detail-section"><h4>基本信息</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px"><div><b>模块</b><br>${esc(MODULE_CN[rule.module]||rule.module)}</div><div><b>检查方式</b><br>${esc(rule.check_type)}</div><div><b>强制等级</b><br>${esc(SEVERITY_CN[rule.severity]||rule.severity)}</div><div><b>风险等级</b><br>${esc(rule.risk_level||'')}</div><div><b>适用类型</b><br>${esc((rule.applicable_types||[]).join('、'))}</div><div><b>状态</b><br>${esc(rule.status)}</div></div></div><div class="detail-section"><h4>审查内容</h4><p>${esc(rule.check_content||'')}</p></div><div class="detail-section"><h4>判定逻辑</h4>${clStr}</div><div class="detail-section"><h4>阈值</h4><p>${thStr}</p></div><div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>备注</h4><p>${esc(rule.notes||'')}</p></div><div class="action-row" style="padding:0"><button class="btn-primary" onclick="editRule('${esc(rid)}')">编辑此规则</button></div>`;
+    $('#rlDrawerBody').innerHTML = `
+      <div class="detail-section"><h4>规则信息</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+          <div><b>所属模块</b><br>${esc(MODULE_CN[rule.module]||rule.module)}</div>
+          <div><b>审查方式</b><br>${esc(rule.check_type)}</div>
+          <div><b>强制等级</b><br>${esc(SEVERITY_CN[rule.severity]||rule.severity)}</div>
+          <div><b>风险等级</b><br>${esc(rule.risk_level||'')}</div>
+          <div><b>适用支架类型</b><br>${esc((rule.applicable_types||[]).join('、'))}</div>
+          <div><b>规则状态</b><br>${esc(rule.status)}</div>
+        </div></div>
+      <div class="detail-section"><h4>审查内容</h4><p>${esc(rule.check_content||'')}</p></div>
+      <div class="detail-section"><h4>判定逻辑</h4>${clStr}</div>
+      <div class="detail-section"><h4>限值参数</h4><p>${thStr}</p></div>
+      <div class="detail-section"><h4>规范依据</h4>
+        <p><b>${esc(rule.code_ref?.standard||'')}</b></p>
+        <p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div>
+      <div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div>
+      <div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div>
+      <div class="detail-section"><h4>备注</h4><p>${esc(rule.notes||'')}</p></div>
+      <div class="action-row" style="padding:0">
+        <button class="btn-primary" onclick="editRule('${esc(rid)}')">编辑</button>
+        <button class="btn-default" style="color:var(--error);border-color:var(--error)" onclick="if(confirm('确定删除此规则？（将标记为已停用）')) deleteRule('${esc(rid)}')">删除</button>
+      </div>`;
     $('#ruleLibraryDetailPanel').classList.remove('hidden');
   } catch(e) { console.error('规则详情加载失败:', e); }
 }
@@ -478,8 +500,8 @@ window.deleteRule = async function(rid) {
 function renderRuleEditForm(rule) {
   const fields = [
     ['rule_id', '规则编号', 'text'], ['rule_name', '规则名称', 'text'],
-    ['module', '模块', 'text'], ['category', '分类', 'text'],
-    ['check_type', '检查方式', 'text'], ['severity', '强制等级', 'text'],
+    ['module', '所属模块', 'text'], ['category', '规则分类', 'text'],
+    ['check_type', '审查方式', 'text'], ['severity', '强制等级', 'text'],
     ['risk_level', '风险等级', 'text'], ['check_content', '审查内容', 'textarea'],
     ['remedy_suggestion', '整改建议', 'textarea'], ['typical_violation', '典型违规表现', 'textarea'],
     ['notes', '备注', 'textarea'],
