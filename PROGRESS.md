@@ -57,6 +57,17 @@
 
 - [2026-08-20 19:30] dewucode 签退 — 完成了：样例PDF上传测试和系统功能验证；下一步建议：修复代码结构问题和配置问题
 
+- [2026-08-20 19:45] claude 签到 — 开始处理：合并两个 app 目录，统一代码结构
+
+## 📋 代码结构合并记录（2026-08-20 19:45）
+
+### 合并操作
+1. 从嵌套目录 `high-formwork-review/high-formwork-review/app/` 复制更新的文件到主目录 `high-formwork-review/app/`
+2. 已复制的文件：
+   - `main.py` - 添加规则引擎和报告生成器的导入和调用
+   - `parameter_definitions.py` - 添加 v4.0 确定性规则扩展参数
+3. 待删除：冗余的嵌套目录 `high-formwork-review/high-formwork-review/`
+
 ## 📋 测试报告（2026-08-20 19:30）
 
 ### 测试环境
