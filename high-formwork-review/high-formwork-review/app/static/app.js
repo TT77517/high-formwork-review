@@ -475,6 +475,12 @@ function renderRecords() {
   }).catch(()=>{});
 }
 
+// Report download
+$('#downloadReportBtn')?.addEventListener('click', () => {
+  if (!curJob) return;
+  window.open(`/api/jobs/${curJob}/report/download`, '_blank');
+});
+
 // ===== Utils =====
 function isPriority(c, r) { return c?.review_priority==='priority_review' || (!c && (r.status==='MISSING'||r.status==='UNCERTAIN'||r.requires_human_review)); }
 function isQuick(c, r) { return c?.review_priority==='quick_confirm' || Boolean(c?.comparison_status==='NOT_REQUESTED'&&r.status==='PASS'&&typeof r.confidence==='number'&&r.confidence>=0.8&&!r.requires_human_review&&!r.needs_semantic_review); }

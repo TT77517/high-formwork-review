@@ -32,6 +32,7 @@ from .mineru_parser import parse_mineru
 from .project_facts import build_project_facts
 from .project_qualification import build_project_qualification
 from .review_summary import build_review_results
+from .report_generator import build_review_report_from_job_dir
 from .rule_engine import run_rule_engine_safe
 from .substantive_review import build_substantive_review
 
@@ -109,6 +110,12 @@ def main(argv: list[str] | None = None) -> int:
             build_evidence_check_markdown(document, summary, details),
             encoding="utf-8",
         )
+        # Generate full review report
+        try:
+            report = build_review_report_from_job_dir(output_dir)
+            (output_dir / "review_report.md").write_text(report, encoding="utf-8")
+        except Exception:
+            pass
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"错误：{exc}", file=sys.stderr)
         return 1

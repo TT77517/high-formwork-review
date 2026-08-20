@@ -40,6 +40,7 @@ from .mineru_parser import parse_mineru
 from .project_facts import build_project_facts
 from .project_qualification import build_project_qualification
 from .review_summary import build_review_results
+from .report_generator import build_review_report_from_job_dir
 from .rule_engine import load_rule_library, run_rule_engine_safe
 from .substantive_review import build_substantive_review
 
@@ -276,6 +277,28 @@ def get_rule_engine(job_id: str) -> dict[str, Any]:
     """返回 v4.0 规则引擎确定性规则审查结果。"""
     job_dir = _completed_job_dir(job_id)
     return _read_json(job_dir / "rule_engine_results.json", "规则引擎结果不存在")
+
+
+@app.get("/api/jobs/{job_id}/report")
+def get_review_report(job_id: str) -> dict[str, Any]:
+    """生成并返回审查报告（Markdown 格式）。"""
+    job_dir = _completed_job_dir(job_id)
+    report_path = job_dir / "review_report.md"
+    if not report_path.is_file():
+        report = build_review_report_from_job_dir(job_dir)
+        report_path.write_text(report, encoding="utf-8")
+    return {"job_id": job_id, "format": "markdown", "content": report_path.read_text(encoding="utf-8")}
+
+
+@app.get("/api/jobs/{job_id}/report/download")
+def download_review_report(job_id: str) -> FileResponse:
+    """下载审查报告 Markdown 文件。"""
+    job_dir = _completed_job_dir(job_id)
+    report_path = job_dir / "review_report.md"
+    if not report_path.is_file():
+        report = build_review_report_from_job_dir(job_dir)
+        report_path.write_text(report, encoding="utf-8")
+    return FileResponse(report_path, filename=f"审查报告_{job_id[:8]}.md")
 
 
 # ===== 规则库管理 API =====
@@ -550,6 +573,7 @@ def get_output_files(job_id: str) -> dict[str, Any]:
         "completeness_summary.json": "完整性审查汇总",
         "substantive_review.json": "规范符合性审查结果（部分可用）",
         "rule_engine_results.json": "v4.0规则引擎确定性审查结果",
+        "review_report.md": "完整审查报告（Markdown）",
         "consistency_review.json": "正文-计算书参数一致性检查结果",
         "drawing_review.json": "图文复核提示结果",
         "review_results.json": "智能预审统一汇总",
@@ -719,6 +743,12 @@ def _process_job(job_id: str) -> None:
             _update_status(job_dir, "completed", "解析与完整性审查已完成")
         _write_review_comparison_if_ready(job_dir)
         _write_precheck_summary_if_ready(job_dir)
+        # Generate review report
+        try:
+            report = build_review_report_from_job_dir(job_dir)
+            _atomic_write_text(job_dir / "review_report.md", report)
+        except Exception:
+            pass
     except Exception:
         _update_status(
             job_dir,
