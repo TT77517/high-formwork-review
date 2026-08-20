@@ -67,6 +67,7 @@
    - `main.py` - 添加规则引擎和报告生成器的导入和调用
    - `parameter_definitions.py` - 添加 v4.0 确定性规则扩展参数
 3. 待删除：冗余的嵌套目录 `high-formwork-review/high-formwork-review/`
+4. 已删除：使用 `git rm -r` 删除嵌套目录，统一代码结构
 
 ## 📋 测试报告（2026-08-20 19:30）
 
