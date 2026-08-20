@@ -70,7 +70,7 @@ HUMAN_DECISIONS = {
 }
 AUTOMATIC_STATUSES = {"PASS", "MISSING", "UNCERTAIN"}
 ASSET_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
-REVIEW_MODES = {"smart", "completeness", "compliance", "calculation", "drawing_consistency"}
+REVIEW_MODES = {"smart", "completeness", "semantic", "drawing", "calculation"}
 
 STAGE_PROGRESS = {
     "waiting": 0,

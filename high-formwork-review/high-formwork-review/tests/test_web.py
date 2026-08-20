@@ -349,7 +349,7 @@ def test_file_over_50mb_is_rejected(
 def test_upload_creates_job(client: TestClient) -> None:
     response = client.post(
         "/api/jobs",
-        data={"review_mode": "compliance"},
+        data={"review_mode": "semantic"},
         files={"file": ("方案.pdf", b"%PDF-1.7\n%%EOF", "application/pdf")},
     )
     assert response.status_code == 202
@@ -357,7 +357,7 @@ def test_upload_creates_job(client: TestClient) -> None:
     job_dir = web.JOBS_ROOT / data["job_id"]
     assert (job_dir / "source.pdf").is_file()
     assert data["status"] == "uploaded"
-    assert data["review_mode"] == "compliance"
+    assert data["review_mode"] == "semantic"
 
 
 def test_parameter_consistency_review_mode_is_accepted(client: TestClient) -> None:
