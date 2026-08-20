@@ -309,6 +309,7 @@ def list_rules(
     check_type: str | None = None,
     severity: str | None = None,
     status: str | None = None,
+    standard: str | None = None,
 ) -> dict[str, Any]:
     """浏览/筛选规则库（164条）。"""
     rules = load_rule_library()
@@ -320,6 +321,14 @@ def list_rules(
         rules = [r for r in rules if r.get("severity") == severity]
     if status:
         rules = [r for r in rules if r.get("status") == status]
+    if standard:
+        import re
+        # Remove spaces from both pattern and target for tolerant matching
+        std_norm = standard.replace(" ", "").replace("/", "")
+        rules = [
+            r for r in rules
+            if std_norm in (r.get("code_ref", {}).get("standard", "") or "").replace(" ", "").replace("/", "")
+        ]
     modules_summary: dict[str, int] = {}
     for r in rules:
         m = r.get("module", "unknown")

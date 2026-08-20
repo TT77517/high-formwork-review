@@ -97,7 +97,7 @@ function switchTab(name) {
   const pn = $(`#tab-${name}`); if (pn) pn.classList.remove('hidden');
   const titles = { home:'首页上传',overview:'任务概览',qualification:'工程基础信息',document:'文档解析',review:'完整性审查',semantic:'规范语义审查',drawing:'图文一致性校验',calculation:'计算校核',manual:'人工复核','rule-library':'规则库管理',records:'审查记录' };
   $('#pageTitle').textContent = titles[name]||'';
-  if (name === 'rule-library' && !ruleLibraryData) loadRuleLibrary();
+  if (name === 'rule-library' && !ruleLibraryData) loadRuleLibrary('', '', '', '', '');
 }
 function applyNav() {
   const vis = new Set(MODE_TABS[selMode]||MODE_TABS.smart);
@@ -116,7 +116,7 @@ async function loadAll() {
     try { const cr = await fetch(`/api/jobs/${curJob}/comparison`); if (cr.ok) compData = await cr.json(); } catch(_){}
     try { const er = await fetch(`/api/jobs/${curJob}/dify-error`); if (er.ok) difyErr = await er.json(); } catch(_){}
     try { const re = await fetch(`/api/jobs/${curJob}/rule-engine`); if (re.ok) ruleEngineData = await re.json(); } catch(_){}
-    loadRuleLibrary();  // Load rule library in background
+    loadRuleLibrary('', '', '', '', '');  // Load rule library in background
     renderOverview(); renderQualification(); renderDocument(); renderRuleEngine(); renderReview();
     renderSemantic(); renderDrawing(); renderCalculation(); renderManual(); renderRecords();
     applyNav(); switchTab(defTab());
@@ -390,12 +390,13 @@ async function saveAllDecisions() {
 // ===== Rule Library Management =====
 let ruleLibraryData = null;
 
-async function loadRuleLibrary(mod='', type='', sev='', search='') {
+async function loadRuleLibrary(mod='', type='', sev='', search='', std='') {
   const params = new URLSearchParams();
   if (mod) params.set('module', mod);
   if (type) params.set('check_type', type);
   if (sev) params.set('severity', sev);
   if (search) params.set('search', search);
+  if (std) params.set('standard', std);
   try {
     const r = await fetch(`/api/rules?${params}`);
     if (!r.ok) throw new Error('加载失败');
@@ -468,7 +469,7 @@ window.deleteRule = async function(rid) {
   try {
     const r = await fetch(`/api/rules/${encodeURIComponent(rid)}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('删除失败');
-    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value);
+    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, rlStd());
   } catch(e) { alert('删除失败: '+e.message); }
 };
 
@@ -515,16 +516,17 @@ $('#ruleEditSave')?.addEventListener('click', async () => {
       throw new Error((await r.json()).detail || '保存失败');
     }
     $('#ruleEditModal').classList.add('hidden');
-    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value);
+    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, rlStd());
   } catch(e) { alert('保存失败: '+e.message); }
 });
 
 // Rule library filters
-$('#rlModuleFilter').addEventListener('change', function() { loadRuleLibrary(this.value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value); });
-$('#rlTypeFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, this.value, $('#rlSeverityFilter').value, $('#rlSearch').value); });
-$('#rlSeverityFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, this.value, $('#rlSearch').value); });
-$('#rlStandardFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value); });
-$('#rlSearch').addEventListener('input', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, this.value); });
+function rlStd() { return $('#rlStandardFilter').value; }
+$('#rlModuleFilter').addEventListener('change', function() { loadRuleLibrary(this.value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, rlStd()); });
+$('#rlTypeFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, this.value, $('#rlSeverityFilter').value, $('#rlSearch').value, rlStd()); });
+$('#rlSeverityFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, this.value, $('#rlSearch').value, rlStd()); });
+$('#rlStandardFilter').addEventListener('change', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, this.value); });
+$('#rlSearch').addEventListener('input', function() { loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, this.value, rlStd()); });
 const rlDrawer = $('#ruleLibraryDetailPanel');
 rlDrawer.querySelector('.drawer-close').addEventListener('click', () => rlDrawer.classList.add('hidden'));
 rlDrawer.addEventListener('click', e => { if (e.target === rlDrawer) rlDrawer.classList.add('hidden'); });
