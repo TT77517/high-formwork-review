@@ -1,0 +1,878 @@
+[
+  {
+    "rule_id": "2.1",
+    "rule_name": "模板自重标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 50666-2011 第4.1.1条 / JGJ 162-2016 第4.2.1条",
+      "clause": "",
+      "original_text": "模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0kN/m²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0kN/m²",
+    "check_logic": {
+      "description": "模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0kN/m²",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB 50666-2011 第4.1.1条 / JGJ 162-2016 第4.2.1条要求修改方案，确保满足模板自重标准值的具体规定：模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0k",
+    "typical_violation": "方案不满足模板自重标准值的要求",
+    "manual_review": true,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.2",
+    "rule_name": "新浇混凝土自重标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "deterministic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "JGJ162-2016",
+      "clause": "第4.1.1条第2款",
+      "original_text": "新浇筑混凝土自重标准值(G2k)，对普通混凝土可采用24kN/m³",
+      "threshold": {
+        "param": "G2k",
+        "operator": "==",
+        "value": 24,
+        "unit": "kN/m³"
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "普通钢筋混凝土自重标准值取24~25kN/m³；素混凝土取24kN/m³；重骨料混凝土按实际取值",
+    "check_logic": {
+      "description": "普通混凝土G2k=24kN/m³",
+      "extraction_keywords": [
+        "混凝土自重",
+        "G2k",
+        "重力密度",
+        "γc"
+      ],
+      "operator": "==",
+      "expected_value": 24,
+      "unit": "kN/m³"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按JGJ162-2016要求修改方案，确保满足新浇混凝土自重标准值的具体规定：普通钢筋混凝土自重标准值取24~25kN/m³；素混凝土取24kN/m³；重骨料混凝土按实际取值",
+    "typical_violation": "方案不满足新浇混凝土自重标准值的要求",
+    "manual_review": false,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.3",
+    "rule_name": "钢筋自重标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "deterministic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "JGJ162-2016",
+      "clause": "第4.1.1条第3款",
+      "original_text": "钢筋自重标准值(G3k)：梁为1.5kN/m³，板为1.1kN/m³",
+      "threshold": {
+        "beam": 1.5,
+        "slab": 1.1,
+        "unit": "kN/m³"
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "一般情况：楼板取1.0kN/m³混凝土体积，梁取1.5kN/m³混凝土体积；特殊情况应根据设计图纸实际配筋计算",
+    "check_logic": {
+      "description": "梁钢筋G3k=1.5kN/m³，板钢筋G3k=1.1kN/m³",
+      "extraction_keywords": [
+        "钢筋自重",
+        "G3k",
+        "梁钢筋",
+        "板钢筋"
+      ],
+      "operator": "==",
+      "expected_values": {
+        "beam": 1.5,
+        "slab": 1.1
+      },
+      "unit": "kN/m³"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按JGJ162-2016要求修改方案，确保满足钢筋自重标准值的具体规定：一般情况：楼板取1.0kN/m³混凝土体积，梁取1.5kN/m³混凝土体积；特殊情况应根据设计图纸实际配筋计算",
+    "typical_violation": "方案不满足钢筋自重标准值的要求",
+    "manual_review": false,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.4",
+    "rule_name": "施工人员及设备荷载标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "deterministic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55023-2022",
+      "clause": "第4.2.4条 表4.2.4",
+      "original_text": "混凝土结构模板支撑脚手架施工荷载标准值：一般2.5kN/m²；有水平泵管设置4.0kN/m²",
+      "threshold": {
+        "一般": 2.5,
+        "有水平泵管": 4.0,
+        "unit": "kN/m²"
+      },
+      "is_mandatory": true
+    },
+    "legacy_code_ref": null,
+    "check_content": "均布活荷载取1.0kN/m²（当模板面≤150m²时）或2.0kN/m²（当模板面>150m²时）；集中荷载取2.0kN；均布与集中荷载取较大值参与计算",
+    "check_logic": {
+      "description": "混凝土模板支撑脚手架施工荷载：一般≥2.5kN/m²；有水平泵管≥4.0kN/m²",
+      "extraction_keywords": [
+        "施工荷载",
+        "施工人员",
+        "设备荷载",
+        "泵管",
+        "Q1k"
+      ],
+      "operator": ">=",
+      "expected_value": 2.5,
+      "unit": "kN/m²",
+      "fail_condition": "取值低于规范要求"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB55023-2022要求修改方案，确保满足施工人员及设备荷载标准值的具体规定：均布活荷载取1.0kN/m²（当模板面≤150m²时）或2.0kN/m²（当模板面>150m²时）；集中荷载取2.0kN",
+    "typical_violation": "方案不满足施工人员及设备荷载标准值的要求",
+    "manual_review": false,
+    "notes": "全文强制。方案1取3.0kN/m²偏保守✓。注意有泵管时须取4.0",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.5",
+    "rule_name": "振捣混凝土产生的荷载标准值-水平面",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 50666-2011 第4.1.5条 / JGJ 162-2016 第4.2.4条",
+      "clause": "",
+      "original_text": "对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²",
+    "check_logic": {
+      "description": "对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB 50666-2011 第4.1.5条 / JGJ 162-2016 第4.2.4条要求修改方案，确保满足振捣混凝土产生的荷载标准值-水平面的具体规定：对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²",
+    "typical_violation": "方案不满足振捣混凝土产生的荷载标准值-水平面的要求",
+    "manual_review": true,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.6",
+    "rule_name": "振捣混凝土产生的荷载标准值-垂直面",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 50666-2011 第4.1.5条 / JGJ 162-2016 第4.2.4条",
+      "clause": "",
+      "original_text": "对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²",
+    "check_logic": {
+      "description": "对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB 50666-2011 第4.1.5条 / JGJ 162-2016 第4.2.4条要求修改方案，确保满足振捣混凝土产生的荷载标准值-垂直面的具体规定：对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²",
+    "typical_violation": "方案不满足振捣混凝土产生的荷载标准值-垂直面的要求",
+    "manual_review": true,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.7",
+    "rule_name": "倾倒混凝土冲击荷载标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 50666-2011 第4.1.6条 / JGJ 162-2016 第4.2.5条",
+      "clause": "",
+      "original_text": "向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.2~0.8m³取4kN/m²，料斗>0.8m³取6kN/m²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.2~0.8m³取4kN/m²，料斗>0.8m³取6kN/m²",
+    "check_logic": {
+      "description": "向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.2~0.8m³取4kN/m²，料斗>0.8m³取6kN/m²",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB 50666-2011 第4.1.6条 / JGJ 162-2016 第4.2.5条要求修改方案，确保满足倾倒混凝土冲击荷载标准值的具体规定：向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.",
+    "typical_violation": "方案不满足倾倒混凝土冲击荷载标准值的要求",
+    "manual_review": true,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.8",
+    "rule_name": "混凝土侧压力计算公式",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "JGJ162-2016",
+      "clause": "第4.1.3条",
+      "original_text": "新浇混凝土侧压力标准值F=0.22γct0β1β2v^(1/2)且F≤γcH；其中γc=24kN/m³",
+      "formula": "F = min(0.22·γc·t0·β1·β2·V^0.5, γc·H)"
+    },
+    "legacy_code_ref": null,
+    "check_content": "新浇混凝土对模板的最大侧压力应按下列两式计算取较小值：F=0.22γtβ1β2V^0.5 和 F=γH；其中γ为混凝土重力密度，t为新浇混凝土初凝时间，β1为外加剂影响系数，β2为坍落度影响系数，V为浇筑速度，H为混凝土侧压力计算位置至顶部高度",
+    "check_logic": {
+      "description": "①侧压力取两者较小值；②γc=24kN/m³；③β1、β2取值合理",
+      "extraction_keywords": [
+        "侧压力",
+        "G4k",
+        "β1",
+        "β2",
+        "初凝时间",
+        "浇筑速度"
+      ],
+      "operator": "formula_verification",
+      "verification_steps": [
+        "确认γc=24kN/m³",
+        "确认t0（初凝时间）取值合理",
+        "确认β1（外加剂系数）取值合理",
+        "确认β2（坍落度系数）取值合理",
+        "确认V（浇筑速度）取值合理",
+        "确认取两式较小值"
+      ]
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：新浇混凝土对模板的最大侧压力应按下列两式计算取较小值：F=0.22γtβ1β2V^0.5 和 F=γH；其中γ为混凝土重。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少混凝土侧压力计算公式验算过程，或验算结果不满足规范要求",
+    "manual_review": false,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.9",
+    "rule_name": "混凝土侧压力限值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "JGJ 162-2016 第4.2.6条 / GB 50666-2011 第4.1.7条",
+      "clause": "",
+      "original_text": "混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²",
+    "check_logic": {
+      "description": "混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "修改方案使其满足：混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²",
+    "typical_violation": "方案中存在违反'混凝土侧压力限值'要求的情况：混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m...",
+    "manual_review": true,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.10",
+    "rule_name": "恒载分项系数",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "deterministic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55001-2021",
+      "clause": "第3.1.13条第1款",
+      "original_text": "永久作用，当对结构不利时，不应小于1.3，当对结构有利时，不应大于1.0",
+      "threshold": {
+        "param": "γG",
+        "operator": ">=",
+        "value": 1.3
+      },
+      "is_mandatory": true,
+      "effective_date": "2022-01-01"
+    },
+    "legacy_code_ref": {
+      "standard": "JGJ162-2016",
+      "clause": "第4.2.3条",
+      "old_value": 1.2,
+      "note": "旧版1.2已被GB55001-2021取代"
+    },
+    "check_content": "当其效应对结构不利时，恒载（自重类）分项系数不应小于1.3；当对结构有利时不应大于1.0",
+    "check_logic": {
+      "description": "永久荷载分项系数γG≥1.3（不利时）",
+      "extraction_keywords": [
+        "永久荷载分项系数",
+        "γG",
+        "恒载分项系数"
+      ],
+      "operator": ">=",
+      "expected_value": 1.3,
+      "fail_condition": "γG<1.3"
+    },
+    "threshold": null,
+    "remedy_suggestion": "修改方案使其满足：当其效应对结构不利时，恒载（自重类）分项系数不应小于1.3；当对结构有利时不应大于1.0",
+    "typical_violation": "方案中存在违反'恒载分项系数'要求的情况：当其效应对结构不利时，恒载（自重类）分项系数不应小于1.3；当对结构有利时不应大于1.0...",
+    "manual_review": false,
+    "notes": "方案1取1.3✓。方案编制时间早于2022年1月1日时引用1.2不宜直接判违规",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.11",
+    "rule_name": "活载分项系数",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 55001-2021 第3.1.13条(全文强制)",
+      "clause": "",
+      "original_text": "施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0"
+    },
+    "legacy_code_ref": null,
+    "check_content": "施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0",
+    "check_logic": {
+      "description": "施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "修改方案使其满足：施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0",
+    "typical_violation": "方案中存在违反'活载分项系数'要求的情况：施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0...",
+    "manual_review": true,
+    "notes": "旧版JGJ130/JGJ162的1.4已被GB55001取代为1.5。JGJ/T231-2021已更新为1.5",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.12",
+    "rule_name": "承载力极限状态荷载组合",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 55001-2021 第3.1.13条(强制) / GB 50009-2012 第3.2节",
+      "clause": "",
+      "original_text": "承载力验算时荷载基本组合设计值S=1.3×SGk+1.5×SQk；永久荷载控制时S=1.35×SGk+1.5×ψc×SQk（ψc为组合值系数，一般取0.7）"
+    },
+    "legacy_code_ref": null,
+    "check_content": "承载力验算时荷载基本组合设计值S=1.3×SGk+1.5×SQk；永久荷载控制时S=1.35×SGk+1.5×ψc×SQk（ψc为组合值系数，一般取0.7）",
+    "check_logic": {
+      "description": "承载力验算时荷载基本组合设计值S=1.3×SGk+1.5×SQk；永久荷载控制时S=1.35×SGk+1.5×ψc×SQk（ψc为组合值系数，一般取0.7）",
+      "extraction_keywords": [],
+      "formula": "S = 1.3·SGk + 1.5·SQk 或 S = 1.35·SGk + 1.5·0.7·SQk"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：S = 1.3·SGk + 1.5·SQk 或 S = 1.35·SGk + 1.5·0.7·SQk。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少承载力极限状态荷载组合验算过程，或验算结果不满足规范要求",
+    "manual_review": false,
+    "notes": "旧版系数1.2/1.4已被GB55001取代为1.3/1.5。可变作用组合系数0.9",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.13",
+    "rule_name": "正常使用极限状态荷载组合",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 55001-2021 第3.1.8条(强制) / GB 50009-2012 第3.2节",
+      "clause": "",
+      "original_text": "挠度验算时采用荷载标准组合S=SGk+SQk，不考虑分项系数"
+    },
+    "legacy_code_ref": null,
+    "check_content": "挠度验算时采用荷载标准组合S=SGk+SQk，不考虑分项系数",
+    "check_logic": {
+      "description": "挠度验算时采用荷载标准组合S=SGk+SQk，不考虑分项系数",
+      "extraction_keywords": [],
+      "formula": "S = SGk + SQk"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：S = SGk + SQk。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少正常使用极限状态荷载组合验算过程，或验算结果不满足规范要求",
+    "manual_review": false,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.14",
+    "rule_name": "风荷载取值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "calculation",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 55023-2022 第4.2.5条 / JGJ/T231-2021 第4.2.3条 / GB 50009-2012 第8.1条",
+      "clause": "",
+      "original_text": "高度≥5m的模板支架应考虑风荷载影响；风压标准值wk=μs·μz·w0，其中基本风压w0按当地10年一遇取值，不小于0.3kN/m²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "高度≥5m的模板支架应考虑风荷载影响；风压标准值wk=μs·μz·w0，其中基本风压w0按当地10年一遇取值，不小于0.3kN/m²",
+    "check_logic": {
+      "description": "高度≥5m的模板支架应考虑风荷载影响；风压标准值wk=μs·μz·w0，其中基本风压w0按当地10年一遇取值，不小于0.3kN/m²",
+      "extraction_keywords": [],
+      "formula": "wk = μs·μz·w0"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：wk = μs·μz·w0。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少风荷载取值验算过程，或验算结果不满足规范要求",
+    "manual_review": false,
+    "notes": "GB55023风荷载不含βz(脉动增大系数),特殊结构才计入。基本风压不小于0.3kN/m²(JGJ/T231)",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.15",
+    "rule_name": "荷载组合-模板及支架承载力",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 55001-2021 第3.1.7条(强制) / GB 50666-2011 第4.3节 / JGJ 162-2016 第4.3节",
+      "clause": "",
+      "original_text": "模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重+混凝土重+施工荷载）"
+    },
+    "legacy_code_ref": null,
+    "check_content": "模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重+混凝土重+施工荷载）",
+    "check_logic": {
+      "description": "模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重+混凝土重+施工荷载）",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB 55001-2021 第3.1.7条(强制) / GB 50666-2011 第4.3节 / JGJ 162-2016 第4.3节要求修改方案，确保满足荷载组合-模板及支架承载力的具体规定：模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重",
+    "typical_violation": "方案不满足荷载组合-模板及支架承载力的要求",
+    "manual_review": true,
+    "notes": "",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.16",
+    "rule_name": "可变荷载调整系数γL",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55001-2021",
+      "clause": "第3.1.16条",
+      "original_text": "房屋建筑的可变荷载考虑设计工作年限的调整系数γL：设计工作年限50年→1.0；设计工作年限5年→0.9",
+      "threshold": {
+        "50yr": 1.0,
+        "5yr": 0.9
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "脚手架属临时结构（设计工作年限5年），可变荷载考虑设计工作年限的调整系数γL应取0.9",
+    "check_logic": {
+      "description": "设计工作年限为50年时γL应取1.0；若取0.9需说明依据",
+      "extraction_keywords": [
+        "可变荷载调整系数",
+        "γL",
+        "设计工作年限"
+      ],
+      "operator": "context_check",
+      "fail_condition": "γL取值与设计工作年限不匹配且无说明"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB55001-2021要求修改方案，确保满足可变荷载调整系数γL的具体规定：脚手架属临时结构（设计工作年限5年），可变荷载考虑设计工作年限的调整系数γL应取0.9",
+    "typical_violation": "方案不满足可变荷载调整系数γL的要求",
+    "manual_review": true,
+    "notes": "方案1取γL=0.9对应5年设计工作年限（临时结构），合理",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.17",
+    "rule_name": "结构重要性系数γ₀",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55001-2021",
+      "clause": "第3.1.12条",
+      "original_text": "结构重要性系数γ0：安全等级一级不应小于1.1，二级不应小于1.0，三级不应小于0.9",
+      "threshold": {
+        "level1": 1.1,
+        "level2": 1.0,
+        "level3": 0.9
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "高支模(搭设高度>8m或荷载>15kN/m²)安全等级为I级，结构重要性系数γ₀=1.1；一般支撑架(≤8m且荷载≤15kN/m²)为II级，γ₀=1.0",
+    "check_logic": {
+      "description": "脚手架安全等级为I级时γ0=1.0（对应GB51210-2016规定）",
+      "extraction_keywords": [
+        "结构重要性系数",
+        "γ0",
+        "安全等级"
+      ],
+      "operator": "context_check",
+      "fail_condition": "γ0取值低于对应安全等级要求"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB55001-2021要求修改方案，确保满足结构重要性系数γ₀的具体规定：高支模(搭设高度>8m或荷载>15kN/m²)安全等级为I级，结构重要性系数γ₀=1.1；一般支撑架(≤8m且荷载≤15",
+    "typical_violation": "方案不满足结构重要性系数γ₀的要求",
+    "manual_review": true,
+    "notes": "临时支架与永久结构取值标准不同，GB51210对脚手架有专门规定",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.18",
+    "rule_name": "支撑脚手架施工荷载标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB 55023-2022 表4.2.4-2(强制)",
+      "clause": "",
+      "original_text": "支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算"
+    },
+    "legacy_code_ref": null,
+    "check_content": "支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算",
+    "check_logic": {
+      "description": "支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算",
+      "extraction_keywords": []
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB 55023-2022 表4.2.4-2(强制)要求修改方案，确保满足支撑脚手架施工荷载标准值的具体规定：支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算",
+    "typical_violation": "方案不满足支撑脚手架施工荷载标准值的要求",
+    "manual_review": true,
+    "notes": "GB55023细化泵管场景。JGJ130引用JGJ162,无泵管区分。以GB55023为准",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.19",
+    "rule_name": "混凝土侧压力标准值计算(GB50666版)",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "calculation",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB50666-2011",
+      "clause": "附录A.0.4",
+      "original_text": "采用插入式振动器且浇筑速度不大于10m/h、坍落度不大于180mm时，侧压力标准值按下列公式计算取较小值：F=0.22γc·t0·β1·β2·V^0.5 且 F=γc·H",
+      "formula": "F = min(0.22·γc·t0·β1·β2·V^0.5, γc·H)",
+      "threshold": {
+        "浇筑速度_max": "10m/h",
+        "坍落度_max": "180mm"
+      }
+    },
+    "legacy_code_ref": {
+      "standard": "JGJ162-2008/2016",
+      "clause": "第4.1.3条",
+      "note": "JGJ162与GB50666公式形式一致，但GB50666为附录A.0.4"
+    },
+    "check_content": "①浇筑速度V≤10m/h时用公式A.0.4；②取两式较小值；③t0=200/(T+15)无实测时；④V>10m/h或坍落度>180mm时按F=γc·H计算",
+    "check_logic": {
+      "description": "①浇筑速度V≤10m/h时用公式A.0.4；②取两式较小值；③t0=200/(T+15)无实测时；④V>10m/h或坍落度>180mm时按F=γc·H计算",
+      "extraction_keywords": [
+        "侧压力",
+        "G4k",
+        "F",
+        "浇筑速度",
+        "初凝时间",
+        "t0",
+        "β1",
+        "β2",
+        "坍落度"
+      ],
+      "operator": "formula_verification",
+      "verification_steps": [
+        "确认γc=24kN/m³",
+        "确认t0取值合理(无实测时t0=200/(T+15))",
+        "确认β1(外加剂系数)、β2(坍落度系数)取值合理",
+        "确认V(浇筑速度)取值合理",
+        "确认取两式较小值",
+        "V>10m/h或坍落度>180mm时按F=γc·H计算"
+      ]
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少混凝土侧压力标准值计算(GB50666版)验算过程，或验算结果不满足规范要求",
+    "manual_review": false,
+    "notes": "[原三方映射ID: G-01] 与L-05规则内容关联但规范来源不同：L-05引用JGJ162，本规则引用GB50666",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.20",
+    "rule_name": "荷载组合项完整性(GB50666版)",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB50666-2011",
+      "clause": "第4.3.7条",
+      "original_text": "参与组合的永久荷载应包括G1(模板及支架自重)、G2(新浇混凝土自重)、G3(钢筋自重)、G4(混凝土侧压力)；参与组合的可变荷载宜包括Q1(施工人员及设备)、Q2(混凝土下料水平荷载)、Q3(泵送或不均匀堆载附加水平荷载)、Q4(风荷载)",
+      "threshold": {
+        "required_permanent": [
+          "G1",
+          "G2",
+          "G3",
+          "G4"
+        ],
+        "recommended_variable": [
+          "Q1",
+          "Q2",
+          "Q3",
+          "Q4"
+        ]
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "①永久荷载G1~G4均应参与组合；②可变荷载Q1~Q4宜参与组合并采用最不利组合；③整体稳定验算应考虑Q3和Q4",
+    "check_logic": {
+      "description": "①永久荷载G1~G4均应参与组合；②可变荷载Q1~Q4宜参与组合并采用最不利组合；③整体稳定验算应考虑Q3和Q4",
+      "extraction_keywords": [
+        "荷载组合",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+        "泵送",
+        "附加水平荷载"
+      ],
+      "operator": "semantic_check",
+      "fail_condition": "缺少必要荷载项或未采用最不利组合"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB50666-2011要求修改方案，确保满足荷载组合项完整性(GB50666版)的具体规定：",
+    "typical_violation": "方案不满足荷载组合项完整性(GB50666版)的要求",
+    "manual_review": true,
+    "notes": "[原三方映射ID: G-02] Q3(泵送附加水平荷载)和Q4(风荷载)在整体稳定验算中重要，但多数方案仅含Q1",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.21",
+    "rule_name": "可变荷载分项系数",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "deterministic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55001-2021",
+      "clause": "第3.1.13条第4款",
+      "original_text": "除第3款之外的可变作用，当对结构不利时不应小于1.5，当对结构有利时，应取为0",
+      "threshold": {
+        "param": "γQ",
+        "operator": ">=",
+        "value": 1.5
+      },
+      "is_mandatory": true,
+      "effective_date": "2022-01-01"
+    },
+    "legacy_code_ref": {
+      "standard": "JGJ162-2016",
+      "clause": "第4.2.3条",
+      "old_value": 1.4,
+      "note": "旧版1.4已被GB55001-2021取代"
+    },
+    "check_content": "可变荷载分项系数γQ≥1.5",
+    "check_logic": {
+      "description": "可变荷载分项系数γQ≥1.5",
+      "extraction_keywords": [
+        "可变荷载分项系数",
+        "γQ",
+        "活载分项系数"
+      ],
+      "operator": ">=",
+      "expected_value": 1.5,
+      "fail_condition": "γQ<1.5"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB55001-2021要求修改方案，确保满足可变荷载分项系数的具体规定：",
+    "typical_violation": "方案不满足可变荷载分项系数的要求",
+    "manual_review": false,
+    "notes": "[原三方映射ID: L-02] 方案1取1.5✓",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.22",
+    "rule_name": "施工荷载标准值",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "JGJ162-2016",
+      "clause": "第4.1.2条第1款",
+      "original_text": "施工人员及设备荷载标准值(Q1k)：当计算模板及直接支承模板的小楞时取2.0kN/m²，计算其他构件时取1.5kN/m²",
+      "threshold": {
+        "small_beam": 2.0,
+        "other": 1.5,
+        "unit": "kN/m²"
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "Q1k取值应区分计算对象：小楞取2.0，其他取1.5",
+    "check_logic": {
+      "description": "Q1k取值应区分计算对象：小楞取2.0，其他取1.5",
+      "extraction_keywords": [
+        "施工荷载",
+        "Q1k",
+        "施工人员",
+        "设备荷载"
+      ],
+      "operator": "context_check",
+      "fail_condition": "取值低于规范对应构件要求"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按JGJ162-2016要求修改方案，确保满足施工荷载标准值的具体规定：",
+    "typical_violation": "方案不满足施工荷载标准值的要求",
+    "manual_review": true,
+    "notes": "[原三方映射ID: L-06] 方案1取3.0kN/m²偏保守（计算软件默认值），取大值不违反规范",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.23",
+    "rule_name": "荷载组合正确性",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "universal"
+    ],
+    "code_ref": {
+      "standard": "GB55001-2021",
+      "clause": "第2.4.6条、第3.1.7条",
+      "original_text": "基本组合、偶然组合、地震组合、标准组合、频遇组合、准永久组合",
+      "related_standard": "JGJ162-2016",
+      "related_clause": "第4.3.1条",
+      "related_text": "承载能力极限状态S=γ0[γG×SGk+γQ×SQk]"
+    },
+    "legacy_code_ref": null,
+    "check_content": "承载能力极限状态用设计值（含分项系数），正常使用极限状态用标准值（不含分项系数）",
+    "check_logic": {
+      "description": "承载能力极限状态用设计值（含分项系数），正常使用极限状态用标准值（不含分项系数）",
+      "extraction_keywords": [
+        "S承",
+        "S正",
+        "荷载组合",
+        "承载能力极限状态",
+        "正常使用极限状态"
+      ],
+      "operator": "formula_verification",
+      "verification_steps": [
+        "确认承载能力极限状态使用了分项系数",
+        "确认正常使用极限状态未使用分项系数",
+        "确认荷载组合包含了所有必要荷载项",
+        "确认分项系数取值符合GB55001-2021"
+      ]
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB55001-2021要求修改方案，确保满足荷载组合正确性的具体规定：",
+    "typical_violation": "方案不满足荷载组合正确性的要求",
+    "manual_review": false,
+    "notes": "[原三方映射ID: L-09] 方案1公式1.3×(G1k+(G2k+G3k)×h)+1.5×γL×Q1k正确体现GB55001分项系数",
+    "status": "active"
+  }
+]

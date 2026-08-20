@@ -1,0 +1,85 @@
+{
+  "module_id": "triangular_mapping_gb50666",
+  "name": "三方映射-GB50666混凝土施工规范专项规则",
+  "description": "基于GB50666-2011混凝土结构工程施工规范精读后提取的审查规则，覆盖侧压力计算、荷载组合、地基承载力、起拱、拆模、长细比、扣件力矩、抗倾覆等",
+  "methodology": "设计方案4.3节十步法+4.4节反向建立检查项；规则基于GB50666-2011 MD原文提取",
+  "rules": [
+    {
+      "rule_id": "G-01",
+      "rule_name": "混凝土侧压力标准值计算(GB50666版)",
+      "category": "load",
+      "severity": "B-required",
+      "applicable_types": ["universal"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "calculation",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "新浇混凝土侧压力标准值G4k",
+        "plan1_value": "min{0.22γct0β1β2v^0.5, γcH}=29.868kN/m²",
+        "plan1_location": "计算书梁侧模板/墙模板（第70页）",
+        "plan2_value": "未提取",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "附录A.0.4",
+        "original_text": "采用插入式振动器且浇筑速度不大于10m/h、坍落度不大于180mm时，侧压力标准值按下列公式计算取较小值：F=0.22γc·t0·β1·β2·V^0.5 且 F=γc·H",
+        "formula": "F = min(0.22·γc·t0·β1·β2·V^0.5, γc·H)",
+        "threshold": {"浇筑速度_max": "10m/h", "坍落度_max": "180mm"}
+      },
+      "legacy_code_ref": {
+        "standard": "JGJ162-2008/2016",
+        "clause": "第4.1.3条",
+        "note": "JGJ162与GB50666公式形式一致，但GB50666为附录A.0.4"
+      },
+      "check_logic": {
+        "description": "①浇筑速度V≤10m/h时用公式A.0.4；②取两式较小值；③t0=200/(T+15)无实测时；④V>10m/h或坍落度>180mm时按F=γc·H计算",
+        "extraction_keywords": ["侧压力", "G4k", "F", "浇筑速度", "初凝时间", "t0", "β1", "β2", "坍落度"],
+        "operator": "formula_verification",
+        "verification_steps": [
+          "确认γc=24kN/m³",
+          "确认t0取值合理(无实测时t0=200/(T+15))",
+          "确认β1(外加剂系数)、β2(坍落度系数)取值合理",
+          "确认V(浇筑速度)取值合理",
+          "确认取两式较小值",
+          "V>10m/h或坍落度>180mm时按F=γc·H计算"
+        ]
+      },
+      "notes": "与L-05规则内容关联但规范来源不同：L-05引用JGJ162，本规则引用GB50666"
+    },
+    {
+      "rule_id": "G-02",
+      "rule_name": "荷载组合项完整性(GB50666版)",
+      "category": "load",
+      "severity": "B-required",
+      "applicable_types": ["universal"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "semantic",
+      "risk_level": "medium",
+      "plan_facts": {
+        "param_name": "荷载组合项(G1~G4, Q1~Q4)",
+        "plan1_value": "G1(模板自重)+G2(混凝土自重)+G3(钢筋自重)+G4(侧压力)+Q1(施工荷载)",
+        "plan1_location": "计算书荷载设计表（各页）",
+        "plan2_value": "未提取",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.3.7条",
+        "original_text": "参与组合的永久荷载应包括G1(模板及支架自重)、G2(新浇混凝土自重)、G3(钢筋自重)、G4(混凝土侧压力)；参与组合的可变荷载宜包括Q1(施工人员及设备)、Q2(混凝土下料水平荷载)、Q3(泵送或不均匀堆载附加水平荷载)、Q4(风荷载)",
+        "threshold": {"required_permanent": ["G1","G2","G3","G4"], "recommended_variable": ["Q1","Q2","Q3","Q4"]}
+      },
+      "check_logic": {
+        "description": "①永久荷载G1~G4均应参与组合；②可变荷载Q1~Q4宜参与组合并采用最不利组合；③整体稳定验算应考虑Q3和Q4",
+        "extraction_keywords": ["荷载组合", "G1", "G2", "G3", "G4", "Q1", "Q2", "Q3", "Q4", "泵送", "附加水平荷载"],
+        "operator": "semantic_check",
+        "fail_condition": "缺少必要荷载项或未采用最不利组合"
+      },
+      "notes": "Q3(泵送附加水平荷载)和Q4(风荷载)在整体稳定验算中重要，但多数方案仅含Q1"
+    }
+  ]
+}

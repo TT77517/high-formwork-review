@@ -1,0 +1,196 @@
+{
+  "module_id": "module_03_structural_calculation",
+  "name": "结构计算审查",
+  "description": "审查模板面板、楞木、立杆等构件的承载力与变形计算，包括抗弯、抗剪、挠度、稳定性验算",
+  "applicable_types": ["扣件式钢管脚手架", "碗扣式钢管脚手架", "盘扣式钢管支架", "木支撑"],
+  "rules": [
+    {
+      "rule_id": "3.1",
+      "rule_name": "面板抗弯承载力验算",
+      "check_content": "模板面板抗弯承载力应满足σ=M/W≤f，其中M为弯矩设计值，W为截面模量，f为材料抗弯强度设计值",
+      "formula": "σ = M/W ≤ f",
+      "code_ref": "JGJ 162-2016 第5.2节 / GB 50666-2011 第5.1节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.2",
+      "rule_name": "面板抗剪承载力验算",
+      "check_content": "模板面板抗剪承载力应满足τ=VS/(Itw)≤fv，其中V为剪力设计值，S为截面面积矩，I为截面惯性矩，tw为腹板厚度",
+      "formula": "τ = VS/(I·tw) ≤ fv",
+      "code_ref": "JGJ 162-2016 第5.2节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.3",
+      "rule_name": "面板挠度验算",
+      "check_content": "模板面板挠度应满足ω≤[ω]：结构表面外露l/400，结构表面隐蔽l/250；脚手板/水平杆l/150与10mm取小；模板支撑受弯杆件l/400",
+      "formula": "ω ≤ [ω]：外露l/400, 隐蔽l/250, 脚手板l/150与10取小, 支撑受弯l/400",
+      "code_ref": "GB 55023-2022 表4.3.5(强制) / JGJ 162-2016 第4.4.1条",
+      "notes": "GB55023区分脚手板(l/150与10取小)和模板支撑受弯(l/400)。JGJ162外露l/400/隐蔽l/250/支架l/1000。按构件用途分别取用",
+      "severity": "major"
+    },
+    {
+      "rule_id": "3.4",
+      "rule_name": "次楞抗弯承载力验算",
+      "check_content": "次楞（次龙骨）抗弯承载力应满足σ=M/W≤f",
+      "formula": "σ = M/W ≤ f",
+      "code_ref": "JGJ 162-2016 第5.3节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.5",
+      "rule_name": "次楞挠度验算",
+      "check_content": "次楞挠度应满足ω≤l/150（外露）或l/250（隐蔽）",
+      "formula": "ω ≤ l/150 或 l/250",
+      "code_ref": "JGJ 162-2016 第5.3节",
+      "severity": "major"
+    },
+    {
+      "rule_id": "3.6",
+      "rule_name": "主楞抗弯承载力验算",
+      "check_content": "主楞（主龙骨）抗弯承载力应满足σ=M/W≤f",
+      "formula": "σ = M/W ≤ f",
+      "code_ref": "JGJ 162-2016 第5.3节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.7",
+      "rule_name": "主楞挠度验算",
+      "check_content": "主楞挠度应满足ω≤l/150（外露）或l/250（隐蔽）",
+      "formula": "ω ≤ l/150 或 l/250",
+      "code_ref": "JGJ 162-2016 第5.3节",
+      "severity": "major"
+    },
+    {
+      "rule_id": "3.8",
+      "rule_name": "立杆轴力设计值计算-扣件式",
+      "check_content": "扣件式支架立杆轴向力设计值N=1.3ΣNGk+1.5ΣNQk（不组合风载时）；组合风载时N=1.3ΣNGk+0.9×1.5(ΣNQk+Mw/W)A",
+      "formula": "N = 1.3·ΣNGk + 1.5·ΣNQk（无风）; N = 1.3·ΣNGk + 0.9·1.5·(ΣNQk + Mw/W)·A（有风）",
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "GB 55001-2021 第3.1.13条(强制) / JGJ 130-2011 第5.4.4条(公式框架)",
+      "notes": "旧版JGJ130系数1.2/1.4已被GB55001取代为1.3/1.5。可变作用组合系数0.9",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.8a",
+      "rule_name": "立杆轴力设计值计算-盘扣式",
+      "check_content": "盘扣式支架立杆轴向力设计值：无风时N=γG·ΣNGk+γQ·ΣNQk；有风时N=γG·ΣNGk+0.9×γQ·ΣNQk（γG=1.3, γQ=1.5）",
+      "formula": "N = 1.3·ΣNGk + 1.5·ΣNQk (无风); N = 1.3·ΣNGk + 0.9×1.5·ΣNQk (有风)",
+      "applicable": "盘扣式钢管支架",
+      "code_ref": "JGJ/T231-2021 第5.3.1条(式5.3.1-1/5.3.1-2) / 第4.3.1条(分项系数表)",
+      "notes": "新版JGJ/T231-2021分项系数γG=1.3/γQ=1.5(旧版2010为1.2/1.4)",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.9",
+      "rule_name": "立杆稳定性验算-扣件式",
+      "check_content": "扣件式支架立杆稳定性应满足N/(φA)≤f，其中φ为轴心受压构件稳定系数（按长细比λ查表），A为立杆截面面积，f为钢材抗压强度设计值（Q235取205N/mm²）",
+      "formula": "N/(φ·A) ≤ f",
+      "param_note": "f=205N/mm²(Q235), A=489mm²(Φ48.3×3.6)",
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "JGJ 130-2011 第5.6.2条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.10",
+      "rule_name": "立杆计算长度-扣件式",
+      "check_content": "扣件式支架立杆计算长度l0=k·μ·h，其中k=1.155（附加偏心影响系数），μ为立杆计算长度系数（按步距和连接情况查表取值），h为立杆步距",
+      "formula": "l0 = k·μ·h, k=1.155",
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "JGJ 130-2011 第5.6.2条/附录D",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.11",
+      "rule_name": "长细比限值-扣件式",
+      "check_content": "扣件式支架立杆长细比λ=l0/i应满足λ≤[λ]=210（支撑架）",
+      "formula": "λ = l0/i ≤ 210",
+      "param_note": "i=15.8mm(Φ48.3×3.6钢管回转半径)",
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "JGJ 130-2011 第5.6.2条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.12",
+      "rule_name": "立杆稳定性验算-盘扣式",
+      "check_content": "盘扣式支架立杆稳定性应满足N/(φA)≤f（无风）或N/(φA)+Mw/W≤f（有风），稳定系数φ按附录C查取",
+      "formula": "N/(φ·A) ≤ f 或 N/(φ·A) + Mw/W ≤ f",
+      "param_note": "f按附录B表B.0.1; A按附录B表B.0.2; φ按附录C",
+      "applicable": "盘扣式钢管支架",
+      "code_ref": "JGJ/T231-2021 第5.3.3条(式5.3.3-1/5.3.3-2)",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.13",
+      "rule_name": "立杆计算长度-盘扣式",
+      "check_content": "盘扣式支架立杆计算长度取两公式较大值：l0=βH·η·h 与 l0=βH·γ·h'+2ka，其中βH为搭设高度调整系数(表5.3.2)，η为计算长度修正系数，k=0.6",
+      "formula": "l0 = max(βH·η·h, βH·γ·h'+2ka), k=0.6",
+      "param_note": "η:h=0.5/1.0m取1.5, h=1.5m取1.05; γ:h'=1.0/1.5m取0.9, h'=0.5m取1.5; βH按表5.3.2",
+      "applicable": "盘扣式钢管支架",
+      "code_ref": "JGJ/T231-2021 第5.3.2条(式5.3.2-1/5.3.2-2)",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.14",
+      "rule_name": "长细比限值-盘扣式",
+      "check_content": "盘扣式支撑架立杆几何长细比λ=l0/i应满足λ≤150（JGJ/T231-2021第5.1.6条）；作业架≤210；受压杆件≤230；受拉杆件≤350",
+      "formula": "λ = l0/i ≤ 150(支撑架)",
+      "applicable": "盘扣式钢管支架",
+      "code_ref": "JGJ/T231-2021 第5.1.6条",
+      "notes": "旧版JGJ231-2010无此条, 新版2021新增支撑架≤150",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.15",
+      "rule_name": "立杆稳定性验算-碗扣式",
+      "check_content": "碗扣式支架立杆稳定性应满足N/(φA)≤f，φ按碗扣式构件表查取；Q235钢材f取205N/mm²",
+      "formula": "N/(φ·A) ≤ f",
+      "applicable": "碗扣式钢管脚手架",
+      "code_ref": "JGJ 166-2016 第5.5条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.16",
+      "rule_name": "扣件抗滑移承载力验算",
+      "check_content": "扣件抗滑移承载力应满足R≤Rc，直角扣件和旋转扣件抗滑承载力设计值Rc=8.0kN/个；当使用双扣件时Rc=12.0kN",
+      "formula": "R ≤ Rc = 8.0kN(单扣件) / 12.0kN(双扣件)",
+      "code_ref": "JGJ 130-2011 第5.6.3条 / JGJ 162-2016 第5.4节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.17",
+      "rule_name": "可调托撑承载力验算",
+      "check_content": "可调托撑（顶托）承载力应满足N≤Nd，其中Nd为可调托撑螺杆受压承载力设计值，一般取40kN（Q235材质Φ38丝杆）",
+      "formula": "N ≤ Nd = 40kN",
+      "param_note": "丝杆直径≥36mm时取40kN；具体按厂家参数",
+      "code_ref": "JGJ 130-2011 第5.6.4条 / JGJ 162-2016 第5.4节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.18",
+      "rule_name": "连墙件计算",
+      "check_content": "连墙件轴向力设计值Nl=Nlw+N0，其中Nlw为风荷载产生的连墙件轴向力，N0为连墙件约束脚手架平面外变形所产生的轴向力（取3kN）；应满足Nl/(φA)≤f",
+      "formula": "Nl = Nlw + N0 (N0=3kN), Nl/(φ·A) ≤ f",
+      "code_ref": "JGJ 130-2011 第5.6.5条",
+      "severity": "major"
+    },
+    {
+      "rule_id": "3.19",
+      "rule_name": "地基承载力验算",
+      "check_content": "立杆底部地基承载力应满足P≤fa，其中P=N/A（立杆底座面积），fa为地基承载力特征值；垫板面积不应小于0.01m²（即100cm²）",
+      "formula": "P = N/A底 ≤ fa, A底 ≥ 0.01m²",
+      "code_ref": "JGJ 130-2011 第5.6.6条 / JGJ 162-2016 第5.5节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "3.20",
+      "rule_name": "抗倾覆验算",
+      "check_content": "支撑架应按混凝土浇筑前和浇筑时两种工况进行整体抗倾覆计算，抗倾覆稳定性应满足MR≥γ0·MT",
+      "formula": "MR ≥ γ0·MT",
+      "param_note": "MR为抗倾覆力矩, MT为倾覆力矩, γ0为结构重要性系数(I级=1.1, II级=1.0)",
+      "code_ref": "JGJ/T231-2021 第5.3.4条(式5.3.4)",
+      "notes": "GB55023无直接公式, JGJ/T231独有。当高宽比>3时为必查项。两种工况均需满足",
+      "severity": "critical"
+    }
+  ]
+}

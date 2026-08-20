@@ -1,0 +1,35 @@
+{
+  "document_id": "web-demo",
+  "source_file_name": "source.pdf",
+  "source_sha256": "abc",
+  "physical_page_count": 1,
+  "pages": [
+    {
+      "physical_page": 1,
+      "source_page_index": 0,
+      "width": 100,
+      "height": 100,
+      "printed_page": "1",
+      "page_type": "text",
+      "parse_status": "complete",
+      "text": "工程概况",
+      "blocks": [],
+      "warnings": [],
+      "requires_human_review": false
+    }
+  ],
+  "sections": [
+    {
+      "section_id": "s1",
+      "title": "1. 工程概况",
+      "level": 1,
+      "path": [
+        "1. 工程概况"
+      ],
+      "physical_page_start": 1,
+      "physical_page_end": 1
+    }
+  ],
+  "warnings": [],
+  "requires_human_review": false
+}

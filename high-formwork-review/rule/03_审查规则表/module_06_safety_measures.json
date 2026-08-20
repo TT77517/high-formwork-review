@@ -1,0 +1,224 @@
+{
+  "module_id": "module_06_safety_measures",
+  "name": "安全措施审查",
+  "description": "审查方案中的安全防护措施、监测措施、应急预案、混凝土浇筑工艺等安全保障内容",
+  "rules": [
+    {
+      "rule_id": "6.1",
+      "rule_name": "安全网设置",
+      "check_content": "高支模支架外侧应设置密目安全网，随架体升高同步设置；安全网应为阻燃型，网目密度不应低于800目/100cm²",
+      "code_ref": "JGJ 130-2011 第9.0.8条 / JGJ 59-2011",
+      "severity": "major"
+    },
+    {
+      "rule_id": "6.2",
+      "rule_name": "作业面防护栏杆",
+      "check_content": "作业面（模板操作平台）应设置防护栏杆和挡脚板；上栏杆高1.2m，中栏杆高0.6m，挡脚板高度不应小于180mm",
+      "threshold": [
+        { "param": "上栏杆高度", "operator": ">=", "value": 1.2, "unit": "m" },
+        { "param": "中栏杆高度", "operator": ">=", "value": 0.6, "unit": "m" },
+        { "param": "挡脚板高度", "operator": ">=", "value": 180, "unit": "mm" }
+      ],
+      "code_ref": "JGJ 80-2016 第7.1节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.3",
+      "rule_name": "登高设施",
+      "check_content": "高支模应设置专用登高设施（斜道/梯道/电梯），严禁攀爬模板支架杆件登高；斜道坡度不应大于1:3，宽度不应小于1m，每4m设休息平台",
+      "threshold": [
+        { "param": "斜道坡度", "operator": "<=", "value_str": "1:3" },
+        { "param": "斜道宽度", "operator": ">=", "value": 1, "unit": "m" }
+      ],
+      "code_ref": "JGJ 80-2016 第5.3节 / JGJ 130-2011 第6.7节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.4",
+      "rule_name": "混凝土浇筑顺序与方向",
+      "check_content": "方案应明确混凝土浇筑顺序，采用对称、分层、均匀浇筑方式；严禁集中堆积混凝土或单向长距离浇筑造成不对称荷载",
+      "code_ref": "GB 50666-2011 第8.4节 / JGJ 162-2016 第7.1节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.5",
+      "rule_name": "混凝土分层厚度",
+      "check_content": "混凝土分层浇筑厚度不应大于500mm（泵送混凝土）；振捣时应避免振捣棒直接触碰模板和钢筋",
+      "threshold": { "param": "分层厚度", "operator": "<=", "value": 500, "unit": "mm" },
+      "code_ref": "GB 50666-2011 第8.4.3条",
+      "severity": "major"
+    },
+    {
+      "rule_id": "6.6",
+      "rule_name": "混凝土浇筑速度控制",
+      "check_content": "方案应明确混凝土浇筑速度，控制浇筑速度不大于混凝土侧压力计算假定的浇筑速度V；一般墙柱浇筑速度不大于2m/h",
+      "threshold": { "param": "浇筑速度", "operator": "<=", "value": 2, "unit": "m/h", "note": "具体按侧压力计算确定" },
+      "code_ref": "GB 50666-2011 第4.1.7条 / JGJ 162-2016 第4.2.6条",
+      "severity": "major"
+    },
+    {
+      "rule_id": "6.7",
+      "rule_name": "监测措施-监测点设置",
+      "check_content": "高支模应设置变形监测点；监测点应布置在主梁下方立杆顶部、大跨度区域中部、高跨变化处等关键部位；间距不大于10m且每片支架不少于3个监测点",
+      "threshold": { "param": "监测点间距", "operator": "<=", "value": 10, "unit": "m" },
+      "code_ref": "住建部37号令-第十四条 / JGJ 300-2013 第8.2节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.8",
+      "rule_name": "监测项目与预警值",
+      "check_content": "监测项目应包括：立杆顶部沉降、立杆水平位移、架体整体倾斜；预警值：沉降预警值10mm，水平位移预警值8mm，倾斜预警值H/1000且不大于15mm",
+      "threshold": [
+        { "param": "沉降预警值", "operator": "<=", "value": 10, "unit": "mm" },
+        { "param": "水平位移预警值", "operator": "<=", "value": 8, "unit": "mm" },
+        { "param": "倾斜预警值", "operator": "<=", "value_str": "H/1000且≤15mm" }
+      ],
+      "code_ref": "JGJ 300-2013 第8.2节 / JGJ 162-2016 第8.1节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.9",
+      "rule_name": "监测频率",
+      "check_content": "混凝土浇筑过程中应实施连续监测，监测频率不低于每30分钟一次；浇筑完成后至混凝土终凝前应持续监测",
+      "threshold": { "param": "监测频率", "operator": ">=", "value_str": "每30分钟1次" },
+      "code_ref": "JGJ 300-2013 第8.2节",
+      "severity": "major"
+    },
+    {
+      "rule_id": "6.10",
+      "rule_name": "应急预案",
+      "check_content": "方案应包含应急救援预案，内容包括：应急救援组织机构及职责、应急救援人员及联系方式、应急救援物资储备、应急响应流程、应急医疗救护措施",
+      "code_ref": "住建部37号令-第十一条 / JGJ 59-2011",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.11",
+      "rule_name": "安全技术交底",
+      "check_content": "高支模施工前应对作业人员进行安全技术交底，交底内容应包括施工工艺、操作规程、安全注意事项、应急措施；交底应由技术人员签字确认并留存记录",
+      "code_ref": "住建部37号令-第十五条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.12",
+      "rule_name": "拆模条件审批",
+      "check_content": "拆模前应满足混凝土强度要求：板底模拆除时混凝土强度≥设计值的75%（跨度≤2m）或≥100%（跨度>2m）；梁底模≥75%（≤8m）或≥100%（>8m）；拆除前应经项目技术负责人审批",
+      "threshold": [
+        { "param": "板底模强度", "operator": ">=", "value": 75, "unit": "%", "note": "跨度≤2m" },
+        { "param": "板底模强度", "operator": ">=", "value": 100, "unit": "%", "note": "跨度>2m" },
+        { "param": "梁底模强度", "operator": ">=", "value": 75, "unit": "%", "note": "跨度≤8m" },
+        { "param": "梁底模强度", "operator": ">=", "value": 100, "unit": "%", "note": "跨度>8m" }
+      ],
+      "code_ref": "GB 50666-2011 第9.1节 / JGJ 162-2016 第7.2节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.13",
+      "rule_name": "拆模顺序",
+      "check_content": "拆模应按后支先拆、先支后拆的顺序；先拆非承重模板（侧模），后拆承重模板（底模）；拆除时严禁将拆下的构配件抛掷至地面",
+      "code_ref": "JGJ 162-2016 第7.2节 / GB 50666-2011 第9.1节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.14",
+      "rule_name": "雨天与大风停工措施",
+      "check_content": "遇有六级及以上大风、大雨、大雾、雷电等恶劣天气时，应停止露天高处作业；雨后作业应采取防滑措施",
+      "threshold": { "param": "风力等级", "operator": ">=", "value": 6, "unit": "级" },
+      "code_ref": "JGJ 80-2016 第3.0.5条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.15",
+      "rule_name": "架体检查验收",
+      "check_content": "高支模搭设完成后、浇筑混凝土前，应组织检查验收，参加人员包括施工单位技术负责人、安全员、监理工程师；验收合格并签字后方可进行下道工序",
+      "code_ref": "住建部37号令-第十六条 / JGJ 130-2011 第9.0.1条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.16",
+      "rule_name": "巡查制度",
+      "check_content": "混凝土浇筑过程中应设专人看模，发现异常情况（变形、异响、松动）应立即停浇并撤离人员，待排查处理后方可恢复",
+      "code_ref": "JGJ 162-2016 第8.1节 / 住建部37号令-第十六条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "6.17",
+      "rule_name": "浇筑时架下禁人-GB55023强制",
+      "check_content": "支撑脚手架在浇筑混凝土、工程结构件安装等施加荷载的过程中，架体下严禁有人",
+      "code_ref": "GB 55023-2022 第5.3.7条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.18",
+      "rule_name": "个人防护用品-GB55023强制",
+      "check_content": "搭设和拆除脚手架作业应有相应的安全措施，操作人员应佩戴个人防护用品，应穿防滑鞋；应设置安全警戒线、警戒标志，并由专人监护，严禁非作业人员入内",
+      "code_ref": "GB 55023-2022 第5.1.1条、第5.1.2条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.19",
+      "rule_name": "临时用电与防雷-GB55023强制",
+      "check_content": "在脚手架上架设临时施工用电线路时，应有绝缘措施，操作人员应穿绝缘防滑鞋；脚手架与架空输电线路之间应设有安全距离，并应设置接地、防雷设施",
+      "code_ref": "GB 55023-2022 第5.1.3条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.20",
+      "rule_name": "防护设施同步安装-GB55023强制",
+      "check_content": "脚手架安全防护网和防护栏杆等防护设施应随架体搭设同步安装到位",
+      "code_ref": "GB 55023-2022 第5.2.4条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.21",
+      "rule_name": "恶劣天气停工-GB55023强制",
+      "check_content": "雷雨天气、6级及以上大风天气应停止架上作业；雨、雪、雾天气应停止脚手架的搭设和拆除作业；雨、雪、霜后上架作业应采取有效的防滑措施，雪天应清除积雪",
+      "code_ref": "GB 55023-2022 第5.3.2条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.22",
+      "rule_name": "分段检查验收-GB55023强制",
+      "check_content": "脚手架搭设过程中应在以下阶段进行检查，检查合格后方可使用：1基础完工后及搭设前；2首层水平杆搭设后；3每搭设一个楼层高度；4支撑脚手架高度每2步~4步或不大于6m。不合格应整改，整改合格后方可使用",
+      "code_ref": "GB 55023-2022 第6.0.4条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.23",
+      "rule_name": "终验要求-GB55023强制",
+      "check_content": "脚手架搭设达到设计高度或安装就位后应进行验收，验收不合格的不得使用。验收应包括：1材料与构配件质量；2搭设场地、支承结构件的固定；3架体搭设质量；4专项施工方案、产品合格证、检测报告、检查记录等技术资料",
+      "code_ref": "GB 55023-2022 第6.0.5条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.24",
+      "rule_name": "拆模强度试件-GB55008强制",
+      "check_content": "模板拆除时，同条件养护的混凝土试件应达到规定强度后方可拆除",
+      "code_ref": "GB 55008-2021 第5.1.4条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.25",
+      "rule_name": "浇筑禁加水-GB55008强制",
+      "check_content": "混凝土运输、输送、浇筑过程中严禁加水；运输、输送、浇筑过程中散落的混凝土严禁用于结构浇筑",
+      "code_ref": "GB 55008-2021 第5.4.1条（全文强制）",
+      "severity": "critical",
+      "applies_to": ["universal"]
+    },
+    {
+      "rule_id": "6.26",
+      "rule_name": "浇筑密实与养护-GB55008强制",
+      "check_content": "结构混凝土浇筑应密实，浇筑后应及时进行养护",
+      "code_ref": "GB 55008-2021 第5.4.3条（全文强制）",
+      "severity": "major",
+      "applies_to": ["universal"]
+    }
+  ]
+}

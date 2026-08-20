@@ -1,0 +1,144 @@
+{
+  "module_id": "triangular_mapping_gb50666_p2",
+  "name": "三方映射-GB50666专项规则(构造与安全)",
+  "rules": [
+    {
+      "rule_id": "G-03",
+      "rule_name": "地基承载力与垫板要求",
+      "category": "safety",
+      "severity": "B-required",
+      "applicable_types": ["universal"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "semantic",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "支架地基处理方式",
+        "plan1_value": "需查方案具体描述",
+        "plan1_location": "方案构造要求章节",
+        "plan2_value": "需查方案具体描述",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.4.4条",
+        "original_text": "支架立柱和竖向模板安装在土层上时：1应设置具有足够强度和支承面积的垫板；2土层应坚实并有排水措施；3对软土地基可采用堆载预压调整高度",
+        "threshold": {"垫板": "足够强度和支承面积", "排水": "必须有", "软土": "堆载预压"}
+      },
+      "check_logic": {
+        "description": "①土层上安装支架须设垫板；②土层须坚实且有排水措施；③软土地基须采取处理措施",
+        "extraction_keywords": ["地基", "垫板", "垫木", "基础", "土层", "排水", "软土", "预压"],
+        "operator": "semantic_check",
+        "fail_condition": "土层地基未设垫板或无排水措施"
+      }
+    },
+    {
+      "rule_id": "G-04",
+      "rule_name": "起拱要求",
+      "category": "safety",
+      "severity": "C-recommended",
+      "applicable_types": ["universal"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "deterministic",
+      "risk_level": "low",
+      "plan_facts": {
+        "param_name": "模板起拱高度",
+        "plan1_value": "需查方案",
+        "plan1_location": "方案构造要求章节",
+        "plan2_value": "需查方案",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.4.6条",
+        "original_text": "对跨度不小于4m的梁、板，其模板施工起拱高度宜为梁、板跨度的1/1000~3/1000。起拱不得减少构件的截面高度",
+        "threshold": {"min_span": 4, "unit": "m", "range": "1/1000~3/1000"}
+      },
+      "check_logic": {
+        "description": "跨度≥4m的梁板模板应起拱，起拱高度为跨度的1/1000~3/1000",
+        "extraction_keywords": ["起拱", "拱度", "跨度", "预拱", "起拱高度"],
+        "operator": "range_check",
+        "expected_range": ["1/1000", "3/1000"],
+        "fail_condition": "跨度≥4m未起拱或起拱值超范围"
+      }
+    },
+    {
+      "rule_id": "G-05",
+      "rule_name": "拆模混凝土强度要求",
+      "category": "safety",
+      "severity": "A-mandatory",
+      "applicable_types": ["universal"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "deterministic",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "拆模时混凝土强度达标率",
+        "plan1_value": "需查方案拆模章节",
+        "plan1_location": "方案拆模要求章节",
+        "plan2_value": "需查方案",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.5.2条",
+        "original_text": "底模及支架应在混凝土强度达到设计要求后拆除；设计无要求时同条件养护试件抗压强度应满足：板≤2m→≥50%, 板2~8m→≥75%, 板>8m→≥100%; 梁≤8m→≥75%, 梁>8m→≥100%; 悬臂→≥100%",
+        "threshold": {
+          "板_≤2m": 50, "板_2~8m": 75, "板_>8m": 100,
+          "梁_≤8m": 75, "梁_>8m": 100,
+          "悬臂": 100,
+          "unit": "%"
+        }
+      },
+      "check_logic": {
+        "description": "拆模时混凝土强度须达到表4.5.2要求(按构件类型和跨度)",
+        "extraction_keywords": ["拆模", "拆除", "混凝土强度", "抗压强度", "同条件养护", "试件"],
+        "operator": "multi_threshold",
+        "fail_condition": "拆模时混凝土强度未达标"
+      }
+    },
+    {
+      "rule_id": "G-06",
+      "rule_name": "支架立柱长细比(GB50666版)",
+      "category": "safety",
+      "severity": "B-required",
+      "applicable_types": ["universal"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "calculation",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "受压立柱长细比λ",
+        "plan1_value": "λ=113.208(同S-04)",
+        "plan1_location": "计算书第88页",
+        "plan2_value": "未提取",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.3.12条 表4.3.12",
+        "original_text": "支架结构钢构件容许长细比：受压构件的支架立柱及桁架≤180；受压斜撑、剪刀撑≤200；受拉构件≤350",
+        "threshold": {"立柱": 180, "斜撑剪刀撑": 200, "受拉": 350}
+      },
+      "legacy_code_ref": {
+        "standard": "JGJ231-2010/2021",
+        "clause": "第5.1.9条",
+        "old_threshold": {"立柱": 150},
+        "note": "JGJ231限值150更严，GB50666限值180。按方案引用规范选择适用限值"
+      },
+      "check_logic": {
+        "description": "受压立柱长细比≤180(GB50666)或≤150(JGJ231)，按方案引用规范选择",
+        "extraction_keywords": ["长细比", "λ", "容许长细比", "[λ]"],
+        "operator": "<=",
+        "expected_value": 180,
+        "fail_condition": "λ>180(GB50666)或λ>150(JGJ231)"
+      },
+      "notes": "⚠️ 双限值规则：盘扣式支架引用JGJ231时限值150，其他支架引用GB50666时限值180"
+    }
+  ]
+}

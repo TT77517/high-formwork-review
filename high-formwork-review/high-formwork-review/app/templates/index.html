@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>高支模方案智能审查系统</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+<div class="layout">
+  <!-- Sider -->
+  <aside class="sider">
+    <div class="sider-logo">
+      <span class="logo-text">高支模审查</span>
+    </div>
+    <nav class="sider-menu" id="sideNav">
+      <div class="menu-group">
+        <div class="menu-group-title">概览</div>
+        <button class="menu-item active" data-tab="home"><span class="mi-icon">▶</span><span>首页上传</span></button>
+        <button class="menu-item" data-tab="overview"><span class="mi-icon">▦</span><span>任务概览</span></button>
+      </div>
+      <div class="menu-group">
+        <div class="menu-group-title">解析</div>
+        <button class="menu-item" data-tab="qualification"><span class="mi-icon">◆</span><span>工程基础信息</span></button>
+        <button class="menu-item" data-tab="document"><span class="mi-icon">▤</span><span>文档解析</span></button>
+      </div>
+      <div class="menu-group">
+        <div class="menu-group-title">审查</div>
+        <button class="menu-item" data-tab="rule-engine"><span class="mi-icon">⚙</span><span>规则引擎审查</span></button>
+        <button class="menu-item" data-tab="review"><span class="mi-icon">✓</span><span>完整性审查</span></button>
+        <button class="menu-item" data-tab="substantive"><span class="mi-icon">§</span><span>规范符合性</span></button>
+        <button class="menu-item" data-tab="consistency"><span class="mi-icon">↔</span><span>参数一致性</span></button>
+        <button class="menu-item" data-tab="drawing"><span class="mi-icon">▦</span><span>图文复核</span></button>
+      </div>
+      <div class="menu-group">
+        <div class="menu-group-title">管理</div>
+        <button class="menu-item" data-tab="rule-library"><span class="mi-icon">☰</span><span>规则库管理</span></button>
+      </div>
+      <div class="menu-group">
+        <div class="menu-group-title">复核</div>
+        <button class="menu-item" data-tab="manual"><span class="mi-icon">✎</span><span>人工复核</span></button>
+        <button class="menu-item" data-tab="records"><span class="mi-icon">⏱</span><span>审查记录</span></button>
+      </div>
+    </nav>
+    <div class="sider-footer">
+      <div class="status-mini">
+        <span id="statusBadge" class="badge-neutral">等待上传</span>
+        <span id="jobIdBadge" class="job-id">—</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Header -->
+    <header class="main-header">
+      <h1 class="header-title" id="pageTitle">首页上传</h1>
+      <div class="header-extra">
+        <span class="header-tag" id="uploadStage">等待上传</span>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="main-content">
+      <!-- Upload -->
+      <section class="panel tab-panel" id="tab-home">
+        <div class="section-header">
+          <h2>选择审查方式</h2>
+        </div>
+        <div class="review-mode-grid" id="reviewModeGrid" role="radiogroup" aria-label="选择审查方式">
+          <button class="mode-card selected" type="button" data-mode="smart">
+            <div class="mode-card-head"><strong>智能预审</strong><span class="tag-green">推荐</span></div>
+            <p>组合执行工程识别、规则引擎、完整性审查、规范符合性和人工复核汇总。</p>
+          </button>
+          <button class="mode-card" type="button" data-mode="rule_engine">
+            <div class="mode-card-head"><strong>规则引擎审查</strong><span class="tag-blue">v4.0</span></div>
+            <p>基于 v4.0 规则库 164 条规则，自动比对参数阈值，输出合规/违规判定。</p>
+          </button>
+          <button class="mode-card" type="button" data-mode="completeness">
+            <div class="mode-card-head"><strong>完整性审查</strong><span class="tag-default">10项</span></div>
+            <p>检查方案 10 项必备内容是否齐全，输出 PASS / MISSING / UNCERTAIN。</p>
+          </button>
+          <button class="mode-card" type="button" data-mode="compliance">
+            <div class="mode-card-head"><strong>规范符合性</strong><span class="tag-orange">部分可用</span></div>
+            <p>当前支持少量已实现审查项，不宣称完整规范审查。</p>
+          </button>
+          <button class="mode-card" type="button" data-mode="calculation">
+            <div class="mode-card-head"><strong>参数一致性</strong><span class="tag-orange">部分可用</span></div>
+            <p>核对正文/构造参数与计算书输入参数一致性。</p>
+          </button>
+        </div>
+        <p id="modeHint" class="mode-hint">当前选择：智能预审（推荐）</p>
+        <div class="upload-area">
+          <form id="uploadForm">
+            <label class="file-picker">
+              <input id="pdfFile" type="file" accept=".pdf,application/pdf" required>
+              <span id="fileLabel">选择不超过 50MB 的 PDF 文件</span>
+            </label>
+            <button id="submitButton" type="submit" class="btn-primary">开始智能预审</button>
+          </form>
+          <p id="uploadError" class="error-text" role="alert"></p>
+        </div>
+        <div class="task-info-grid">
+          <div class="info-cell"><label>文件名</label><span id="taskFile">—</span></div>
+          <div class="info-cell"><label>上传时间</label><span id="taskTime">—</span></div>
+          <div class="info-cell"><label>任务编号</label><span id="taskId">—</span></div>
+          <div class="info-cell"><label>当前阶段</label><span id="taskStage">waiting</span></div>
+        </div>
+        <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
+        <p id="taskMessage" class="task-message">请选择审查方式和 PDF 文件。</p>
+      </section>
+
+      <!-- Overview -->
+      <section class="panel tab-panel hidden" id="tab-overview">
+        <div class="section-header"><h2>任务概览</h2></div>
+        <div class="stat-card-grid" id="overviewCards"></div>
+        <div id="priorityItems" class="alert-box hidden">
+          <div class="alert-title">⚠ 优先处理事项</div>
+          <ul id="priorityList" class="alert-list"></ul>
+        </div>
+      </section>
+
+      <!-- Qualification -->
+      <section class="panel tab-panel hidden" id="tab-qualification">
+        <div class="section-header"><h2>工程基础信息</h2></div>
+        <div id="qualificationPanel" class="stat-card-grid"></div>
+        <div id="qualificationEvidence" class="evidence-list"></div>
+      </section>
+
+      <!-- Document -->
+      <section class="panel tab-panel hidden" id="tab-document">
+        <div class="section-header"><h2>文档解析</h2></div>
+        <div id="documentStats" class="stat-card-grid"></div>
+        <details class="fold-section">
+          <summary>技术统计（Block 明细）</summary>
+          <div id="techStatsContent" class="fold-body"></div>
+        </details>
+        <div class="doc-split">
+          <div class="doc-left">
+            <div class="filter-bar">
+              <label>页面筛选：</label>
+              <select id="pageFilter" class="select-field"><option value="all">全部</option><option value="unreadable">不可读</option><option value="partial">部分解析</option><option value="human-review">需人工复核</option></select>
+            </div>
+            <div class="table-wrap"><table class="data-table">
+              <thead><tr><th>页</th><th>印刷页</th><th>类型</th><th>状态</th><th>文本量</th><th>图/表/公式</th><th>复核</th></tr></thead>
+              <tbody id="pageRows"></tbody>
+            </table></div>
+          </div>
+          <div class="doc-right">
+            <h3>章节目录</h3>
+            <div class="toc-list" id="sectionList"></div>
+          </div>
+        </div>
+        <div id="pageDetailPanel" class="drawer-overlay hidden">
+          <div class="drawer"><div class="drawer-head"><h3 id="drawerTitle">页面详情</h3><button id="drawerClose" class="drawer-close">✕</button></div><div id="drawerBody" class="drawer-body"></div></div>
+        </div>
+      </section>
+
+      <!-- Rule Engine -->
+      <section class="panel tab-panel hidden" id="tab-rule-engine">
+        <div class="section-header">
+          <h2>规则引擎审查 <span class="tag-blue ml-8">v4.0</span></h2>
+        </div>
+        <div id="ruleEngineStats" class="stat-card-grid"></div>
+        <div class="filter-bar">
+          <label>模块筛选：</label>
+          <select id="ruleEngineModuleFilter" class="select-field"><option value="all">全部模块</option></select>
+          <label class="ml-16">状态筛选：</label>
+          <select id="ruleEngineStatusFilter" class="select-field">
+            <option value="all">全部状态</option>
+            <option value="COMPLIANT">合规</option>
+            <option value="VIOLATED">违规</option>
+            <option value="UNCERTAIN">无法判定</option>
+            <option value="NOT_APPLICABLE">不适用</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="ruleEngineTable">
+          <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>等级</th><th>状态</th><th>实际值</th><th>阈值</th><th>判定依据</th><th>操作</th></tr></thead>
+          <tbody id="ruleEngineRows"></tbody>
+        </table></div>
+        <div id="ruleEngineDetailPanel" class="drawer-overlay hidden">
+          <div class="drawer"><div class="drawer-head"><h3 id="reDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="rule-engine">✕</button></div><div id="reDrawerBody" class="drawer-body"></div></div>
+        </div>
+      </section>
+
+      <!-- Completeness -->
+      <section class="panel tab-panel hidden" id="tab-review">
+        <div class="section-header"><h2>完整性审查</h2></div>
+        <div class="filter-bar">
+          <label>筛选：</label>
+          <select id="reviewFilter" class="select-field">
+            <option value="all">全部规则</option>
+            <option value="manual-review">待复核</option>
+            <option value="disagree">结果不一致</option>
+            <option value="MISSING">疑似缺失</option>
+            <option value="UNCERTAIN">无法核验</option>
+          </select>
+          <span id="difyWarning" class="alert-inline hidden"></span>
+        </div>
+        <div class="table-wrap"><table class="data-table" id="reviewTable">
+          <thead><tr><th>规则</th><th>检查事项</th><th>本地预审</th><th>Dify审查</th><th>一致性</th><th>人工状态</th><th>操作</th></tr></thead>
+          <tbody id="reviewRows"></tbody>
+        </table></div>
+        <div id="reviewDetailPanel" class="drawer-overlay hidden">
+          <div class="drawer"><div class="drawer-head"><h3 id="reviewDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="review">✕</button></div><div id="reviewDrawerBody" class="drawer-body"></div></div>
+        </div>
+      </section>
+
+      <!-- Substantive -->
+      <section class="panel tab-panel hidden" id="tab-substantive">
+        <div class="section-header"><h2>规范符合性审查</h2></div>
+        <div id="substantiveStats" class="stat-card-grid"></div>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>编号</th><th>事项</th><th>状态</th><th>实际值/事实</th><th>系统提示</th><th>依据</th></tr></thead>
+          <tbody id="substantiveRows"></tbody>
+        </table></div>
+      </section>
+
+      <!-- Consistency -->
+      <section class="panel tab-panel hidden" id="tab-consistency">
+        <div class="section-header"><h2>参数一致性检查</h2></div>
+        <div id="consistencyStats" class="stat-card-grid"></div>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>编号</th><th>参数</th><th>状态</th><th>正文/构造侧</th><th>计算书侧</th><th>系统提示</th></tr></thead>
+          <tbody id="consistencyRows"></tbody>
+        </table></div>
+      </section>
+
+      <!-- Drawing -->
+      <section class="panel tab-panel hidden" id="tab-drawing">
+        <div class="section-header"><h2>图文复核提示</h2></div>
+        <div id="drawingStats" class="stat-card-grid"></div>
+        <div id="drawingCards" class="card-list"></div>
+      </section>
+
+      <!-- Manual -->
+      <section class="panel tab-panel hidden" id="tab-manual">
+        <div class="section-header"><h2>人工复核</h2></div>
+        <div class="filter-bar">
+          <label><input type="checkbox" id="showAllDecisions"> 显示全部规则（含已确认项）</label>
+          <span id="manualProgress" class="ml-16"></span>
+        </div>
+        <div id="manualList" class="manual-list"></div>
+        <div class="action-row">
+          <button id="saveDecisions" type="button" class="btn-primary">保存复核结果</button>
+          <button id="saveAndNext" type="button" class="btn-default">保存并查看下一项</button>
+          <span id="decisionMessage" class="ml-16"></span>
+        </div>
+      </section>
+
+      <!-- Rule Library Management -->
+      <section class="panel tab-panel hidden" id="tab-rule-library">
+        <div class="section-header">
+          <h2>规则库管理 <span class="tag-blue ml-8">v4.0 · 164条</span></h2>
+        </div>
+        <div id="ruleLibraryStats" class="stat-card-grid"></div>
+        <div class="filter-bar">
+          <label>模块：</label>
+          <select id="rlModuleFilter" class="select-field"><option value="">全部</option></select>
+          <label class="ml-16">类型：</label>
+          <select id="rlTypeFilter" class="select-field"><option value="">全部</option><option value="deterministic">确定性</option><option value="semantic">语义</option><option value="calculation">计算</option></select>
+          <label class="ml-16">等级：</label>
+          <select id="rlSeverityFilter" class="select-field"><option value="">全部</option><option value="A-mandatory">A级强制</option><option value="B-required">B级应执行</option><option value="C-recommended">C级推荐</option></select>
+          <label class="ml-16">搜索：</label>
+          <input id="rlSearch" type="text" class="select-field" placeholder="规则ID或名称">
+        </div>
+        <div class="table-wrap"><table class="data-table" id="ruleLibraryTable">
+          <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>类型</th><th>等级</th><th>风险</th><th>检查方式</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="ruleLibraryRows"></tbody>
+        </table></div>
+        <div id="ruleLibraryDetailPanel" class="drawer-overlay hidden">
+          <div class="drawer"><div class="drawer-head"><h3 id="rlDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="rule-library">✕</button></div><div id="rlDrawerBody" class="drawer-body"></div></div>
+        </div>
+      </section>
+
+      <!-- Records -->
+      <section class="panel tab-panel hidden" id="tab-records">
+        <div class="section-header"><h2>审查记录</h2></div>
+        <h3>任务处理时间线</h3>
+        <div id="timeline" class="timeline"></div>
+        <h3>输出文件</h3>
+        <div id="outputFiles" class="output-files"></div>
+      </section>
+    </div>
+  </div>
+</div>
+<footer class="global-footer">系统辅助审查结果仅供参考，需人工确认。数据仅保存在本机。</footer>
+<script src="{{ url_for('static', path='/app.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+{
+  "module_id": "module_05_material_requirements",
+  "name": "材料要求审查",
+  "description": "审查模板支架所用材料的规格、材质、性能指标是否符合规范要求",
+  "rules": [
+    {
+      "rule_id": "5.1",
+      "rule_name": "钢管规格-扣件式",
+      "check_content": "扣件式钢管脚手架钢管规格应为Φ48.3×3.6mm（外径48.3mm，壁厚3.6mm）；旧规范Φ48×3.5mm已淘汰",
+      "standard_value": "Φ48.3×3.6mm",
+      "code_ref": "JGJ 130-2011 第3.1.2条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.2",
+      "rule_name": "钢管壁厚允许偏差",
+      "check_content": "钢管壁厚实测值不得小于公称壁厚的90%（即Φ48.3×3.6钢管实测壁厚≥3.24mm）；钢管外径允许偏差±0.5mm",
+      "threshold": { "param": "实测壁厚/公称壁厚", "operator": ">=", "value": 0.9 },
+      "code_ref": "JGJ 130-2011 第3.1.2条 / GB/T 3091",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.3",
+      "rule_name": "钢管材质-扣件式",
+      "check_content": "扣件式钢管材质应为Q235普通钢管（力学性能：屈服强度≥235MPa，抗拉强度≥375MPa，伸长率≥20%）",
+      "standard_value": "Q235",
+      "code_ref": "JGJ 130-2011 第3.1.1条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.4",
+      "rule_name": "钢管规格-盘扣式",
+      "check_content": "盘扣式钢管支架立杆规格为Φ48×3.25mm（B型）或Φ60×3.25mm（B型重型），水平杆Φ48×2.5mm",
+      "standard_value": "Φ48×3.25mm 或 Φ60×3.25mm",
+      "code_ref": "JGJ/T231-2021 第3.0.1条(JG/T503)",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.5",
+      "rule_name": "钢管材质-盘扣式",
+      "check_content": "盘扣式支架立杆材质应为Q345（屈服强度≥345MPa），水平杆和斜杆可采用Q235",
+      "standard_value": "Q345（立杆）/ Q235（水平杆、斜杆）",
+      "code_ref": "JGJ/T231-2021 第3.0.1条 / 附录B表B.0.1",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.6",
+      "rule_name": "扣件类型与性能",
+      "check_content": "扣件应采用可锻铸铁或钢板压制，分为直角扣件、旋转扣件、对接扣件三种；直角扣件和旋转扣件抗滑移承载力标准值≥8.0kN/个，对接扣件抗拉承载力≥3.0kN",
+      "standard_value": "抗滑移≥8.0kN/个，抗拉≥3.0kN",
+      "code_ref": "JGJ 130-2011 第3.2节 / GB 15831",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.7",
+      "rule_name": "扣件重量要求",
+      "check_content": "可锻铸铁扣件单件重量：直角扣件≥1.0kg，旋转扣件≥1.0kg，对接扣件≥1.0kg；重量过轻可能为劣质产品",
+      "standard_value": "单件≥1.0kg",
+      "code_ref": "GB 15831",
+      "severity": "minor"
+    },
+    {
+      "rule_id": "5.8",
+      "rule_name": "可调托撑螺杆直径",
+      "check_content": "可调托撑螺杆直径不应小于36mm（扣件式）或38mm（盘扣式）；螺杆材质应为Q235或以上",
+      "threshold": [
+        { "param": "螺杆直径", "operator": ">=", "value": 36, "unit": "mm", "applicable": "扣件式" },
+        { "param": "螺杆直径", "operator": ">=", "value": 38, "unit": "mm", "applicable": "盘扣式" }
+      ],
+      "code_ref": "JGJ 130-2011 第3.4节 / JGJ/T231-2021 第5.1.9条(承载力设计值表)",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.9",
+      "rule_name": "可调托撑钢板厚度",
+      "check_content": "可调托撑顶部钢板（托板）厚度不应小于5mm，托板尺寸不应小于100mm×100mm",
+      "threshold": [
+        { "param": "钢板厚度", "operator": ">=", "value": 5, "unit": "mm" },
+        { "param": "托板尺寸", "operator": ">=", "value": 100, "unit": "mm×mm" }
+      ],
+      "code_ref": "JGJ 130-2011 第3.4节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.10",
+      "rule_name": "可调底座要求",
+      "check_content": "可调底座螺杆直径不应小于36mm，底板厚度不应小于5mm，底板尺寸不应小于100mm×100mm",
+      "code_ref": "JGJ 130-2011 第3.4节 / JGJ 300-2013 第3.2节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.11",
+      "rule_name": "模板面板厚度-胶合板",
+      "check_content": "胶合板模板面板厚度不应小于12mm（木胶合板或竹胶合板）；覆膜板厚度不应小于12mm",
+      "threshold": { "param": "面板厚度", "operator": ">=", "value": 12, "unit": "mm" },
+      "code_ref": "JGJ 162-2016 第3.1节 / GB/T 17656",
+      "severity": "major"
+    },
+    {
+      "rule_id": "5.12",
+      "rule_name": "模板面板厚度-钢板",
+      "check_content": "钢模板面板厚度不应小于3mm（用于一般构件）或5mm（用于特殊重型构件）",
+      "threshold": { "param": "钢板厚度", "operator": ">=", "value": 3, "unit": "mm" },
+      "code_ref": "JGJ 162-2016 第3.1节",
+      "severity": "major"
+    },
+    {
+      "rule_id": "5.13",
+      "rule_name": "方木规格要求",
+      "check_content": "次楞方木截面不应小于40mm×60mm，主楞方木截面不应小于50mm×80mm；方木含水率不应大于25%",
+      "threshold": [
+        { "param": "次楞截面", "operator": ">=", "value_str": "40mm×60mm" },
+        { "param": "主楞截面", "operator": ">=", "value_str": "50mm×80mm" }
+      ],
+      "code_ref": "JGJ 162-2016 第3.2节",
+      "severity": "major"
+    },
+    {
+      "rule_id": "5.14",
+      "rule_name": "钢材强度设计值-Q235",
+      "check_content": "Q235钢材抗拉/抗压/抗弯强度设计值f=205N/mm²，抗剪强度设计值fv=120N/mm²，端面承压强度设计值fce=310N/mm²（厚度≤16mm）",
+      "standard_value": "f=205MPa, fv=120MPa, fce=310MPa",
+      "code_ref": "GB 50017-2017 第4.4节 / JGJ 130-2011 第5.1节",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.15",
+      "rule_name": "钢材强度设计值-Q345",
+      "check_content": "Q345钢材抗拉/抗压/抗弯强度设计值f=305N/mm²，抗剪强度设计值fv=175N/mm²（厚度≤16mm）",
+      "standard_value": "f=305MPa, fv=175MPa",
+      "code_ref": "GB 50017-2017 第4.4节 / JGJ/T231-2021 附录B表B.0.1",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.16",
+      "rule_name": "可调托撑/底座螺杆与立杆配合间隙",
+      "check_content": "可调底座和可调托撑螺杆插入立杆钢管内的间隙不应大于2.5mm（GB55023强制）；盘扣式立杆外径与螺母台阶内径差不应大于2mm（JGJ/T231）",
+      "threshold": [
+        { "param": "螺杆-立杆内壁间隙", "operator": "<=", "value": 2.5, "unit": "mm", "applicable": "GB55023强制底线" },
+        { "param": "立杆外径-螺母台阶内径差", "operator": "<=", "value": 2, "unit": "mm", "applicable": "盘扣式JGJ/T231(更严)" }
+      ],
+      "code_ref": "GB55023-2022 第4.4.16条(强制:≤2.5mm) / JGJ/T231-2021 第7.4.6条(≤2mm)",
+      "notes": "真冲突项:2.5mm(GB强制) vs 2mm(JGJ/T231)。不同测量点但相关，两者同时适用取严",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "5.17",
+      "rule_name": "钢管表面质量",
+      "check_content": "钢管表面应平直光滑，不应有裂缝、结疤、分层、错位、硬弯、毛刺、压痕和深的划道；钢管必须涂防锈漆",
+      "code_ref": "JGJ 130-2011 第3.1.3条",
+      "severity": "minor"
+    },
+    {
+      "rule_id": "5.18",
+      "rule_name": "扣件外观质量",
+      "check_content": "扣件表面不得有裂纹、气孔、缩松、夹砂等缺陷；扣件与钢管贴合面应严格整形，保证贴合良好；扣件活动部位应能灵活转动",
+      "code_ref": "JGJ 130-2011 第3.2.3条",
+      "severity": "minor"
+    }
+  ]
+}

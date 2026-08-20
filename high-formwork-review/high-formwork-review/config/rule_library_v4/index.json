@@ -1,0 +1,258 @@
+{
+  "title": "危大工程-高支模专项方案审查规则库",
+  "version": "4.0.0",
+  "last_updated": "2026-08-19",
+  "description": "v3.3.0(127条模块规则) + 47条三方映射规则合并去重升级版。统一18字段结构，按6模块重新组织编号。",
+  "changelog": {
+    "v4.0.0": "合并127条模块规则与47条三方映射规则，去重23条重叠，新增24条，共156条。统一18字段结构。三方映射表中的plan_facts(方案实例数据)移除，created/last_modified移至index元数据。新增remedy_suggestion/typical_violation/manual_review/check_content字段(已全部填充)。 新增8条语义判断规则(module_06: 6.28~6.35)，覆盖安全措施完整性、应急预案可操作性、危险源辨识、监测方案合理性、验收制度合规性、人员配备等语义审查场景。",
+    "v3.3.0": "127条规则，6模块JSON+index.json。新增GB55023 §2.0.3-2.0.6和§5/6条款。"
+  },
+  "total_rules": 164,
+  "modules": [
+    {
+      "id": "module_01_procedure_compliance",
+      "name": "程序合规性审查",
+      "file": "module_01_procedure_compliance.json",
+      "rule_count": 21,
+      "original_count": 20,
+      "new_from_tm": 1,
+      "check_type_distribution": {
+        "deterministic": 10,
+        "semantic": 11
+      }
+    },
+    {
+      "id": "module_02_load_values",
+      "name": "荷载取值审查",
+      "file": "module_02_load_values.json",
+      "rule_count": 23,
+      "original_count": 18,
+      "new_from_tm": 5,
+      "check_type_distribution": {
+        "deterministic": 5,
+        "semantic": 12,
+        "calculation": 6
+      }
+    },
+    {
+      "id": "module_03_structural_calculation",
+      "name": "结构计算审查",
+      "file": "module_03_structural_calculation.json",
+      "rule_count": 26,
+      "original_count": 21,
+      "new_from_tm": 5,
+      "check_type_distribution": {
+        "calculation": 26
+      }
+    },
+    {
+      "id": "module_04_construction_requirements",
+      "name": "构造要求审查",
+      "file": "module_04_construction_requirements.json",
+      "rule_count": 33,
+      "original_count": 24,
+      "new_from_tm": 9,
+      "check_type_distribution": {
+        "deterministic": 18,
+        "semantic": 15
+      }
+    },
+    {
+      "id": "module_05_material_requirements",
+      "name": "材料要求审查",
+      "file": "module_05_material_requirements.json",
+      "rule_count": 26,
+      "original_count": 18,
+      "new_from_tm": 8,
+      "check_type_distribution": {
+        "deterministic": 10,
+        "semantic": 16
+      }
+    },
+    {
+      "id": "module_06_safety_measures",
+      "name": "安全措施审查",
+      "file": "module_06_safety_measures.json",
+      "rule_count": 35,
+      "original_count": 27,
+      "new_from_tm": 1,
+      "check_type_distribution": {
+        "deterministic": 7,
+        "semantic": 28
+      },
+      "new_semantic": 8
+    }
+  ],
+  "field_schema": {
+    "description": "每条规则包含以下18个字段",
+    "fields": [
+      {
+        "name": "rule_id",
+        "type": "string",
+        "description": "规则编号，格式模块号.序号（如4.1）"
+      },
+      {
+        "name": "rule_name",
+        "type": "string",
+        "description": "规则名称"
+      },
+      {
+        "name": "module",
+        "type": "string",
+        "description": "所属模块ID"
+      },
+      {
+        "name": "category",
+        "type": "string",
+        "description": "分类: procedure/load/calculation/construction/material/safety"
+      },
+      {
+        "name": "check_type",
+        "type": "string",
+        "description": "检查方式: deterministic(确定性规则引擎) / semantic(语义判断大模型) / calculation(计算复核)"
+      },
+      {
+        "name": "severity",
+        "type": "string",
+        "description": "强制等级: A-mandatory(全文强制) / B-required(推荐性国标) / C-recommended(推荐性行业标准)"
+      },
+      {
+        "name": "risk_level",
+        "type": "string",
+        "description": "风险等级: high / medium / low"
+      },
+      {
+        "name": "applicable_types",
+        "type": "array",
+        "description": "适用支架类型: pankou/koujian/wankou/universal"
+      },
+      {
+        "name": "code_ref",
+        "type": "object",
+        "description": "规范引用: {standard, clause, original_text, threshold?}"
+      },
+      {
+        "name": "legacy_code_ref",
+        "type": "object|null",
+        "description": "旧版规范对照（可选）"
+      },
+      {
+        "name": "check_content",
+        "type": "string",
+        "description": "审查内容描述"
+      },
+      {
+        "name": "check_logic",
+        "type": "object",
+        "description": "判定逻辑: {description, extraction_keywords, operator, value, unit, ...}"
+      },
+      {
+        "name": "threshold",
+        "type": "object|null",
+        "description": "阈值参数: {param, operator, value, unit}"
+      },
+      {
+        "name": "remedy_suggestion",
+        "type": "string",
+        "description": "整改建议模板"
+      },
+      {
+        "name": "typical_violation",
+        "type": "string",
+        "description": "典型违规表现"
+      },
+      {
+        "name": "manual_review",
+        "type": "boolean",
+        "description": "是否需人工复核"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "description": "备注（含原三方映射ID追溯）"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "description": "状态: active / deprecated"
+      }
+    ]
+  },
+  "reference_codes": [
+    {
+      "code": "MOHURD_37",
+      "title": "住建部第37号令《危险性较大的分部分项工程安全管理规定》"
+    },
+    {
+      "code": "JBZ_31_2018",
+      "title": "建办质〔2018〕31号《关于实施<危险性较大的分部分项工程安全管理规定>若干问题的通知》"
+    },
+    {
+      "code": "GB_55001_2021",
+      "title": "GB 55001-2021《工程结构通用规范》（全文强制性）"
+    },
+    {
+      "code": "GB_55008_2021",
+      "title": "GB 55008-2021《混凝土结构通用规范》（全文强制性）"
+    },
+    {
+      "code": "GB_55023_2022",
+      "title": "GB 55023-2022《施工脚手架通用规范》（全文强制性）"
+    },
+    {
+      "code": "GB_50009_2012",
+      "title": "GB 50009-2012《建筑结构荷载规范》"
+    },
+    {
+      "code": "GB_50666_2011",
+      "title": "GB 50666-2011《混凝土结构工程施工规范》"
+    },
+    {
+      "code": "JGJ_162_2016",
+      "title": "JGJ 162-2016《建筑施工模板安全技术规范》"
+    },
+    {
+      "code": "JGJ_130_2011",
+      "title": "JGJ 130-2011《建筑施工扣件式钢管脚手架安全技术规范》"
+    },
+    {
+      "code": "JGJ_T231_2021",
+      "title": "JGJ/T 231-2021《建筑施工承插型盘扣式钢管脚手架安全技术标准》"
+    },
+    {
+      "code": "JGJ_166_2016",
+      "title": "JGJ 166-2016《建筑施工碗扣式钢管脚手架安全技术规范》"
+    },
+    {
+      "code": "JGJ_300_2013",
+      "title": "JGJ 300-2013《建筑施工临时支撑结构技术规范》"
+    },
+    {
+      "code": "JGJ_80_2016",
+      "title": "JGJ 80-2016《建筑施工高处作业安全技术规范》"
+    },
+    {
+      "code": "JGJ_59_2011",
+      "title": "JGJ 59-2011《建筑施工安全检查标准》"
+    }
+  ],
+  "conflict_resolution": {
+    "docs": [
+      "规范冲突优先级裁决表.md (GB55023 vs JGJ/T231, 17项)",
+      "规范冲突扩展裁决表_JGJ130_JGJ162.md (GB55023 vs JGJ130/JGJ162, 12项)",
+      "规范冲突扩展裁决表_GB55008_GB55001_GB50666.md (GB55008/GB55001/GB50666, 8项)",
+      "规范冲突裁决总表.md (扩展版汇总, 20项速查)"
+    ],
+    "principle": "A级(全文强制:GB55001/GB55008/GB55023) > B级(推荐性国标:GB50666) > C级(推荐性行业标准:JGJ130/JGJ162/JGJ/T231)。冲突时以A级为准。旧版系数1.2/1.4已被GB55001取代为1.3/1.5"
+  },
+  "merge_stats": {
+    "v3.3.0_module_rules": 127,
+    "triangular_mapping_rules": 47,
+    "overlap_merged": 23,
+    "new_added": 24,
+    "total_v4": 164,
+    "fields_per_rule": 18,
+    "pending_fields": [],
+    "new_semantic_rules": 8
+  }
+}

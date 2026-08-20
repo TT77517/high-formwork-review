@@ -1,0 +1,236 @@
+{
+  "module_id": "module_04_construction_requirements",
+  "name": "构造要求审查",
+  "description": "审查模板支架的构造布置，包括立杆间距、步距、扫地杆、剪刀撑、连墙件等构造措施",
+  "rules": [
+    {
+      "rule_id": "4.1",
+      "rule_name": "立杆纵距限值-扣件式",
+      "check_content": "扣件式高支模立杆纵距不应大于1.5m（常用0.8~1.2m）；间距应通过设计确定",
+      "threshold": { "param": "立杆纵距", "operator": "<=", "value": 1.5, "unit": "m" },
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "GB 55023-2022 第4.4.3条(强制:应通过设计确定) / JGJ 130-2011 第6.9.2条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.2",
+      "rule_name": "立杆横距限值-扣件式",
+      "check_content": "扣件式高支模立杆横距不应大于1.5m",
+      "threshold": { "param": "立杆横距", "operator": "<=", "value": 1.5, "unit": "m" },
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "JGJ 130-2011 第6.9.2条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.3",
+      "rule_name": "立杆步距限值-扣件式",
+      "check_content": "扣件式高支模立杆步距不应大于1.8m（常用1.2~1.5m）；当步距>1.8m时须专项论证",
+      "threshold": { "param": "步距", "operator": "<=", "value": 1.8, "unit": "m" },
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "JGJ 130-2011 第6.9.2条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.4",
+      "rule_name": "扫地杆设置-纵横向",
+      "check_content": "纵横向扫地杆应设置在距地面（垫板）上方200mm以内（扣件式）；盘扣式最底层水平杆中心线离底板≤550mm；纵向扫地杆应贯通，横向扫地杆设在纵向扫地杆下方",
+      "threshold": [
+        { "param": "扫地杆距地面高度", "operator": "<=", "value": 200, "unit": "mm", "applicable": "扣件式" },
+        { "param": "扫地杆中心线距底板高度", "operator": "<=", "value": 550, "unit": "mm", "applicable": "盘扣式" }
+      ],
+      "code_ref": "GB 55023-2022 第4.4.5条(强制:应设置) / JGJ 130-2011 第6.3.2条(扣件式≤200mm) / JGJ/T231-2021 第6.2.5条(盘扣式≤550mm) / JGJ 162-2016 第6.1.9条",
+      "notes": "GB55023定性强制(必须设置), JGJ130/JGJ162定量(扣件式≤200mm), JGJ/T231定量(盘扣式≤550mm)。不同体系不同限值",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.5",
+      "rule_name": "纵向水平杆设置",
+      "check_content": "每步的纵向水平杆必须四周交圈设置，用直角扣件与立杆固定；纵向水平杆对接扣件应交错布置，两根相邻纵向水平杆接头不应在同步同跨内",
+      "code_ref": "JGJ 130-2011 第6.9.4条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.6",
+      "rule_name": "横向水平杆设置",
+      "check_content": "主节点处必须设置一根横向水平杆，用直角扣件扣接且严禁拆除",
+      "code_ref": "JGJ 130-2011 第6.9.4条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.7",
+      "rule_name": "剪刀撑设置-竖向",
+      "check_content": "高度>4m的模板支撑架应在外侧周圈由下至上设置连续竖向剪刀撑；中间每隔4~6根立杆（4~6m）应设置一道竖向剪刀撑；每道剪刀撑宽度4~6跨，跨越4~6步；竖向剪刀撑宽度6~9m（GB55023强制底线）",
+      "threshold": { "param": "架体高度", "operator": ">", "value": 4, "unit": "m" },
+      "code_ref": "GB 55023-2022 第4.4.13条(强制:竖向宽度6~9m) / JGJ 130-2011 第6.9.3条 / JGJ 162-2016 第6.2.4条",
+      "notes": "GB55023强制底线:竖向剪刀撑宽度6~9m。JGJ130普通型5~8m/加强型4~5跨为具体实施。取严",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.8",
+      "rule_name": "剪刀撑设置-水平",
+      "check_content": "高度>4m的模板支撑架应设置水平剪刀撑；顶部、底部（扫地杆上方）及中间每隔不超过2步（或4~6m）设置；盘扣式每4~6步距设置一道",
+      "threshold": { "param": "架体高度", "operator": ">", "value": 4, "unit": "m" },
+      "code_ref": "GB 55023-2022 第4.4.13条(强制:应设水平剪刀撑) / JGJ 130-2011 第6.9.3条 / JGJ/T231-2021 第6.2.7条(4~6步距)",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.9",
+      "rule_name": "剪刀撑与杆件夹角",
+      "check_content": "剪刀撑斜杆与地面（或水平面）的夹角应在45°~60°之间",
+      "threshold": { "param": "剪刀撑夹角", "operator": "range", "min": 45, "max": 60, "unit": "deg" },
+      "code_ref": "JGJ 130-2011 第6.9.5条",
+      "severity": "major"
+    },
+    {
+      "rule_id": "4.10",
+      "rule_name": "连墙件设置",
+      "check_content": "高支模支架应与已浇筑的混凝土结构（柱、墙）进行可靠连接；连墙件应从底层第一步纵向水平杆处开始设置，间距不大于两步两跨；优先采用刚性连墙件",
+      "threshold": { "param": "连墙件间距", "operator": "<=", "value_str": "两步两跨" },
+      "code_ref": "JGJ 130-2011 第6.9.6条 / JGJ 300-2013 第6.2.4条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.11",
+      "rule_name": "立杆接长方式",
+      "check_content": "立杆接长除顶步可采用搭接外，其余各步必须采用对接扣件连接；对接扣件应交错布置，两根相邻立杆接头不应在同步内；搭接长度不应小于1m，应采用不少于2个旋转扣件固定",
+      "code_ref": "JGJ 130-2011 第6.9.6条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.12",
+      "rule_name": "可调托撑螺杆外伸长度限值",
+      "check_content": "可调托撑螺杆外伸长度不应大于300mm（扣件式）或400mm（盘扣式）；螺杆插入钢管长度不应小于150mm",
+      "threshold": [
+        { "param": "螺杆外伸长度", "operator": "<=", "value": 300, "unit": "mm", "applicable": "扣件式" },
+        { "param": "螺杆外伸长度", "operator": "<=", "value": 400, "unit": "mm", "applicable": "盘扣式" },
+        { "param": "调节螺杆伸出长度", "operator": "<=", "value": 500, "unit": "mm", "applicable": "盘扣式Φ48.3+(GB55023强制)" },
+        { "param": "调节螺杆伸出长度", "operator": "<=", "value": 200, "unit": "mm", "applicable": "盘扣式Φ42(GB55023强制)" },
+        { "param": "悬臂长度", "operator": "<=", "value": 650, "unit": "mm", "applicable": "盘扣式(JGJ/T231)" },
+        { "param": "插入长度", "operator": ">=", "value": 150, "unit": "mm", "applicable": "通用(GB55023强制)" }
+      ],
+      "code_ref": "GB55023-2022 第4.4.15条(强制) / JGJ/T231-2021 第6.2.4条 / JGJ 130-2011 第6.9.6条",
+      "notes": "GB55023(强制):插入≥150mm, Φ42伸出≤200mm, Φ48.3+伸出≤500mm; JGJ/T231:悬臂≤650mm, 丝杆外露≤400mm。四项同时满足，取严",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.13",
+      "rule_name": "可调底座外伸长度限值",
+      "check_content": "可调底座螺杆外伸长度不应大于300mm；当外伸长度>200mm时，应设置扫地杆",
+      "threshold": { "param": "底座螺杆外伸长度", "operator": "<=", "value": 300, "unit": "mm" },
+      "code_ref": "JGJ 130-2011 第6.9.6条 / JGJ 300-2013 第6.2.2条",
+      "severity": "major"
+    },
+    {
+      "rule_id": "4.14",
+      "rule_name": "顶层水平杆至可调托撑顶面距离",
+      "check_content": "顶层水平杆（最顶步纵向水平杆）至可调托撑顶面的距离不应大于500mm",
+      "threshold": { "param": "顶层水平杆至托撑顶面距离", "operator": "<=", "value": 500, "unit": "mm" },
+      "code_ref": "JGJ 300-2013 第6.2.2条",
+      "severity": "major"
+    },
+    {
+      "rule_id": "4.15",
+      "rule_name": "立杆间距限值-盘扣式",
+      "check_content": "盘扣式支架立杆间距不宜大于1.5m×1.5m，步距不宜大于1.5m",
+      "threshold": [
+        { "param": "立杆纵距", "operator": "<=", "value": 1.5, "unit": "m" },
+        { "param": "立杆横距", "operator": "<=", "value": 1.5, "unit": "m" },
+        { "param": "步距", "operator": "<=", "value": 2.0, "unit": "m", "note": "JGJ/T231-2021 第6.1.3条强制上限" }
+      ],
+      "applicable": "盘扣式钢管支架",
+      "code_ref": "GB55023-2022 第4.4.3条(强制:应通过设计确定) / JGJ/T231-2021 第6.1.2条+第6.1.3条",
+      "notes": "GB55023强制要求间距步距须通过设计确定; JGJ/T231步距≤2m为强制上限; 常用1.5m",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.16",
+      "rule_name": "盘扣式剪刀撑设置",
+      "check_content": "盘扣式支架必须设置竖向和水平剪刀撑；竖向斜杆按表6.2.2选型布置；高度>4m时水平剪刀撑每4~6步距设置一道；竖向剪刀撑宽度6~9m，倾角45°~60°",
+      "threshold": { "param": "架体高度", "operator": ">", "value": 4, "unit": "m" },
+      "applicable": "盘扣式钢管支架",
+      "code_ref": "GB55023-2022 第4.4.13条(强制:应设竖向+水平剪刀撑) / JGJ/T231-2021 第6.2.2条+第6.2.7条",
+      "notes": "GB55023强制底线:竖向+水平剪刀撑必须设置; JGJ/T231实施细则:竖向斜杆按表6.2.2选型, 水平剪刀撑每4~6步距。倾角45°~60°",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.17",
+      "rule_name": "高宽比限值",
+      "check_content": "支撑脚手架独立架体高宽比不应大于3.0（强制）；超限则方案不合格，须与既有结构刚性连接或增加抗倾覆措施",
+      "threshold": { "param": "高宽比", "operator": "<=", "value": 3.0, "unit": null },
+      "code_ref": "GB55023-2022 第4.4.12条(强制:不应大于3.0) / JGJ/T231-2021 第6.2.1条",
+      "notes": "GB55023为'不应'(强制), JGJ/T231为'宜'(推荐)。冲突时以GB55023为准, 升级为强制限值。JGJ/T231的连接/抗倾覆措施作为补充要求",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.18",
+      "rule_name": "立杆顶端自由端长度限值",
+      "check_content": "立杆顶端自由端长度（最顶层水平杆至立杆顶端）不应大于400mm",
+      "threshold": { "param": "自由端长度", "operator": "<=", "value": 400, "unit": "mm" },
+      "code_ref": "JGJ 130-2011 第6.9.6条",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.19",
+      "rule_name": "水平杆通长连续设置",
+      "check_content": "支撑脚手架水平杆应按步距沿纵向和横向通长连续设置，且应与相邻立杆连接稳固（GB55023强制，JGJ/T231无对应条文）",
+      "code_ref": "GB55023-2022 第4.4.14条(强制)",
+      "notes": "GB55023独有条文。方案中应体现纵横向连续水平杆布置图，不得断开",
+      "applicable": "盘扣式钢管支架",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.20",
+      "rule_name": "螺杆与立杆间隙限值",
+      "check_content": "可调底座和可调托撑螺杆插入立杆钢管内的间隙不应大于2.5mm（GB55023强制）；立杆外径与螺母台阶内径差不应大于2mm（JGJ/T231）",
+      "threshold": [
+        { "param": "螺杆-立杆内壁间隙", "operator": "<=", "value": 2.5, "unit": "mm", "applicable": "GB55023强制底线" },
+        { "param": "立杆外径-螺母台阶内径差", "operator": "<=", "value": 2, "unit": "mm", "applicable": "JGJ/T231盘扣式(更严)" }
+      ],
+      "code_ref": "GB55023-2022 第4.4.16条(强制:≤2.5mm) / JGJ/T231-2021 第7.4.6条(≤2mm)",
+      "notes": "真冲突项:2.5mm(GB强制) vs 2mm(JGJ/T231)。不同测量点但相关,两者同时适用取严",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.21",
+      "rule_name": "扫地杆距底板高度限值",
+      "check_content": "支撑架可调底座丝杆插入立杆≥150mm；最底层水平杆（扫地杆）中心线离底板高度不应大于550mm",
+      "threshold": [
+        { "param": "底座丝杆插入长度", "operator": ">=", "value": 150, "unit": "mm" },
+        { "param": "扫地杆中心线距底板高度", "operator": "<=", "value": 550, "unit": "mm" }
+      ],
+      "code_ref": "GB55023-2022 第4.4.5条(强制:应设置纵横向扫地杆) / JGJ/T231-2021 第6.2.5条(定量≤550mm)",
+      "notes": "互补关系:GB55023定性(必须设置)+JGJ/T231定量(≤550mm)。同时检查",
+      "applicable": "盘扣式钢管支架",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.22",
+      "rule_name": "满堂支撑架搭设高度限值",
+      "check_content": "满堂支撑架搭设高度不宜超过30m；超过30m时应进行专家论证",
+      "threshold": { "param": "搭设高度", "operator": "<=", "value": 30, "unit": "m" },
+      "code_ref": "JGJ 130-2011 第6.9.1条",
+      "notes": "JGJ130独有,GB55023无直接高度限值。超过30m需专家论证(建办质31号文)",
+      "severity": "major"
+    },
+    {
+      "rule_id": "4.23",
+      "rule_name": "模板及支架设计三要素",
+      "check_content": "模板及支架应根据施工过程中的各种控制工况进行设计，并应满足承载力、刚度和整体稳固性要求（三要素缺一不可）",
+      "code_ref": "GB 55008-2021 第5.2.1条(全文强制)",
+      "notes": "GB55008全文强制。方案计算书须包含承载力验算+挠度验算+整体稳固性措施",
+      "severity": "critical"
+    },
+    {
+      "rule_id": "4.24",
+      "rule_name": "扣件式钢管立杆间距步距上限",
+      "check_content": "扣件式满堂支撑架步距与立杆间距不宜超过附录C表C-2~C-5上限值；底层步距不应大于2m；立杆伸出顶层水平杆中心线至支撑点长度a不应超过0.5m",
+      "threshold": [
+        { "param": "步距", "operator": "<=", "value": 2.0, "unit": "m" },
+        { "param": "自由端长度a", "operator": "<=", "value": 0.5, "unit": "m" }
+      ],
+      "applicable": "扣件式钢管脚手架",
+      "code_ref": "GB 55023-2022 第4.4.3条(强制) / JGJ 130-2011 第6.9.1条+第6.3.4条",
+      "severity": "critical"
+    }
+  ]
+}

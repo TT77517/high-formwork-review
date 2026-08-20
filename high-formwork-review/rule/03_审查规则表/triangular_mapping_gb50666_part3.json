@@ -1,0 +1,123 @@
+{
+  "module_id": "triangular_mapping_gb50666_p3",
+  "name": "三方映射-GB50666专项规则(扣件与抗倾覆)",
+  "rules": [
+    {
+      "rule_id": "G-07",
+      "rule_name": "扣件螺栓拧紧力矩",
+      "category": "safety",
+      "severity": "A-mandatory",
+      "applicable_types": ["koujian"],
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "deterministic",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "扣件螺栓拧紧力矩",
+        "plan1_value": "需查方案(方案1为盘扣式，此条不直接适用)",
+        "plan1_location": "方案构造要求章节",
+        "plan2_value": "需查方案",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.4.7条第7款",
+        "original_text": "扣件螺栓的拧紧力矩不应小于40N·m，且不应大于65N·m",
+        "threshold": {"min": 40, "max": 65, "unit": "N·m"}
+      },
+      "check_logic": {
+        "description": "扣件螺栓拧紧力矩40~65N·m",
+        "extraction_keywords": ["拧紧力矩", "扣件", "螺栓", "力矩", "扭力"],
+        "operator": "range_check",
+        "expected_range": [40, 65],
+        "unit": "N·m",
+        "fail_condition": "力矩<40或>65N·m"
+      },
+      "notes": "仅适用于扣件式钢管支架。盘扣式支架为插接式，不涉及扣件拧紧力矩"
+    },
+    {
+      "rule_id": "G-08",
+      "rule_name": "抗倾覆验算(GB50666版)",
+      "category": "safety",
+      "severity": "A-mandatory",
+      "applicable_types": ["universal"],
+      "applicable_conditions": {"min_height": 8, "note": "高度≥8m须验算"},
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "calculation",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "抗倾覆力矩/倾覆力矩",
+        "plan1_value": "架体抗倾覆验算（参考GB51210）",
+        "plan1_location": "计算书第89-90页",
+        "plan2_value": "未提取",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.3.11条",
+        "original_text": "支架抗倾覆验算应满足：γ0·Mo≤Mr；Mo(倾覆力矩设计值)永久荷载分项系数1.35、可变荷载1.4；Mr(抗倾覆力矩设计值)永久荷载分项系数0.9、可变荷载0",
+        "formula": "γ0·Mo ≤ Mr",
+        "threshold": {"γ0Mo": "<=Mr", "永久荷载_不利": 1.35, "可变荷载_不利": 1.4, "永久荷载_抗倾覆": 0.9, "可变荷载_抗倾覆": 0}
+      },
+      "legacy_code_ref": {
+        "standard": "JGJ231-2010/2021",
+        "clause": "第5.3.5条",
+        "old_threshold": {"Mr/Mo": ">=1"},
+        "note": "JGJ231用Mr/Mo≥1(安全系数法)，GB50666用γ0Mo≤Mr(极限状态法)。两种方法公式形式不同但原理一致。按方案引用规范选择"
+      },
+      "check_logic": {
+        "description": "抗倾覆验算应满足γ0·Mo≤Mr；浇筑前倾覆力矩主要由风荷载Q4产生，浇筑时主要由Q3(泵送附加水平荷载)产生",
+        "extraction_keywords": ["抗倾覆", "倾覆力矩", "Mo", "Mr", "抗倾覆力矩", "γ0"],
+        "operator": "formula_verification",
+        "verification_steps": [
+          "确认Mo计算时永久荷载分项系数取1.35",
+          "确认Mo计算时可变荷载分项系数取1.4",
+          "确认Mr计算时永久荷载分项系数取0.9",
+          "确认Mr计算时可变荷载分项系数取0",
+          "确认γ0·Mo≤Mr"
+        ]
+      },
+      "notes": "与S-08规则关联但公式形式不同。S-08引用JGJ231的Mr/Mo≥1，本规则引用GB50666的γ0Mo≤Mr"
+    },
+    {
+      "rule_id": "G-09",
+      "rule_name": "高大模板扣件支架专项构造",
+      "category": "safety",
+      "severity": "B-required",
+      "applicable_types": ["koujian"],
+      "applicable_conditions": {"min_height": 8, "note": "高大模板(≥8m)扣件式支架专项要求"},
+      "status": "active",
+      "created": "2026-08-19",
+      "last_modified": "2026-08-19",
+      "check_type": "deterministic",
+      "risk_level": "high",
+      "plan_facts": {
+        "param_name": "高大模板扣件支架构造参数",
+        "plan1_value": "方案1为盘扣式，此条不直接适用",
+        "plan1_location": null,
+        "plan2_value": "需查方案",
+        "plan2_location": null
+      },
+      "code_ref": {
+        "standard": "GB50666-2011",
+        "clause": "第4.4.8条",
+        "original_text": "高大模板扣件支架：1可调托座螺杆外径≥36mm，插入钢管≥150mm，伸出≤300mm，悬臂≤500mm；2立杆纵横距≤1.2m，步距≤1.8m",
+        "threshold": {
+          "螺杆外径_min": 36, "螺杆插入_min": 150, "螺杆伸出_max": 300, "悬臂_max": 500,
+          "立杆纵横距_max": 1.2, "步距_max": 1.8,
+          "unit": "mm(螺杆)/m(间距)"
+        }
+      },
+      "check_logic": {
+        "description": "高大模板(≥8m)扣件支架：螺杆外径≥36mm/插入≥150mm/伸出≤300mm/悬臂≤500mm；立杆纵横距≤1.2m/步距≤1.8m",
+        "extraction_keywords": ["可调托座", "螺杆", "外径", "悬臂", "立杆间距", "步距", "高大模板"],
+        "operator": "multi_threshold",
+        "fail_condition": "任一阈值超限"
+      },
+      "notes": "仅适用于扣件式高大模板支架(≥8m)。盘扣式支架有独立的JGJ231参数体系"
+    }
+  ]
+}
