@@ -1,6 +1,8 @@
 # AGENTS.md — 本项目的 AI Agent 协作入口
 
 > **所有 AI Agent（dewuclaw / dewucode / codex / claude / 其他）在开始工作前必须读此文件。**
+>
+> **新来的 agent 先读 `ONBOARDING.md`**，里面有完整的环境搭建步骤（本机 macOS 和 Windows 两种场景）。
 
 ## 📋 项目一句话
 
@@ -11,13 +13,14 @@
 > **这不是建议，是硬性要求。pre-commit hook 会拦截不遵守的提交。**
 
 1. **读本文件** — 了解项目约定
-2. **读 `PROGRESS.md`** — 了解当前进度和下一任务
+2. **读 `PROGRESS.md`** — 了解当前进度和下一任务（**最重要的文件**）
 3. **读 `CODEX_CONTEXT.md`** — 了解技术架构和阶段划分
 4. **读 `high-formwork-review/README.md`** — 了解详细技术文档
 5. **签到** — 运行 `make checkin AGENT=<你的名字> TASK="<任务>"` 或手动在 `PROGRESS.md` 底部 Handoff Log 追加：
    ```
    - [YYYY-MM-DD HH:MM] <agent名称> 签到 — 开始处理：<任务描述>
    ```
+   > **Windows**：`powershell -File scripts\agent-protocol.ps1 checkin <名字> "<任务>"`
 
 ## 🚪 离场协议（结束工作前必做）
 
@@ -28,7 +31,8 @@
    ```
    - [YYYY-MM-DD HH:MM] <agent名称> 签退 — 完成了：<任务描述>；下一步建议：<...>
    ```
-3. **跑测试** — `make test`
+   > **Windows**：`powershell -File scripts\agent-protocol.ps1 checkout <名字> "<完成>" "下一步"`
+3. **跑测试** — `make test`（Windows: `cd high-formwork-review && python -m pytest -v`）
 4. **提交** — git add + commit + push，commit message 以 `feat:` / `fix:` / `docs:` 等前缀开头
    （commit-msg hook 会拦截不规范 message）
 5. 如果有未解决问题，在 PROGRESS.md 的"当前阻塞"区写清楚
@@ -37,8 +41,9 @@
 
 | 文件 | 用途 |
 |------|------|
+| `ONBOARDING.md` | **新 agent 上手指南**（环境搭建+首次操作，本机/Windows 双场景） |
 | `AGENTS.md`（本文件） | 协作约定，所有 agent 必读 |
-| `PROGRESS.md` | 当前进度看板 + 交接日志 |
+| `PROGRESS.md` | 当前进度看板 + 交接日志（**最频繁更新**） |
 | `CODEX_CONTEXT.md` | 技术架构 + 阶段划分 + 禁止事项 |
 | `high-formwork-review/README.md` | 详细技术文档 |
 | `high-formwork-review/app/` | 后端核心代码 |
@@ -97,12 +102,12 @@ git commit --no-verify -m "style: ..."
 
 ### 2. 辅助脚本（降低遗忘率）
 
-| 命令 | 作用 |
-|------|------|
-| `make checkin AGENT=dewucode TASK="修复xxx"` | 签到，自动追加到 PROGRESS.md |
-| `make checkout AGENT=dewucode DONE="修复了xxx" NEXT="下一步"` | 签退，自动追加到 PROGRESS.md |
-| `make test` | 跑测试 |
-| `make hooks` | 安装 git hooks |
+| 操作 | macOS | Windows |
+|------|-------|---------|
+| 签到 | `make checkin AGENT=xxx TASK="..."` | `powershell -File scripts\agent-protocol.ps1 checkin xxx "..."` |
+| 签退 | `make checkout AGENT=xxx DONE="..." NEXT="..."` | `powershell -File scripts\agent-protocol.ps1 checkout xxx "..." "..."` |
+| 测试 | `make test` | `cd high-formwork-review && python -m pytest -v` |
+| 安装hooks | `make hooks` | `git config core.hooksPath .githooks` |
 
 ### 3. 约定文件覆盖
 

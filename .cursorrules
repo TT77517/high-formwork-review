@@ -1,18 +1,19 @@
 本项目使用多 AI Agent 协作开发。
 
 ## ⚠️ 开始工作前必须读（不读 = 重复造轮子）
-1. AGENTS.md（协作约定与入口协议）
-2. PROGRESS.md（当前进度与交接日志——看上一个 agent 做到哪了）
-3. CODEX_CONTEXT.md（技术架构与禁止事项）
-4. high-formwork-review/README.md（详细文档）
+1. ONBOARDING.md — 新人上手指南（环境搭建，本机/Windows 双场景）
+2. AGENTS.md — 协作约定与入口协议
+3. PROGRESS.md — 当前进度与交接日志（看上一个 agent 做到哪了）
+4. CODEX_CONTEXT.md — 技术架构与禁止事项
+5. high-formwork-review/README.md — 详细文档
 
 ## 协议
-- 签到：make checkin AGENT=cursor TASK="任务"
-- 签退：make checkout AGENT=cursor DONE="完成" NEXT="下一步"
-- 测试：make test
-- 安装 hooks：make hooks
+- 签到：make checkin AGENT=cursor TASK="任务"（Windows: powershell -File scripts\agent-protocol.ps1 checkin cursor "任务"）
+- 签退：make checkout AGENT=cursor DONE="完成" NEXT="下一步"（Windows: powershell -File scripts\agent-protocol.ps1 checkout cursor "完成" "下一步"）
+- 测试：make test（Windows: cd high-formwork-review && python -m pytest -v）
+- 安装 hooks：make hooks（Windows: git config core.hooksPath .githooks）
 
 ## Enforcement
 - pre-commit hook：改代码不更新 PROGRESS.md → 拒绝提交
 - commit-msg hook：message 不规范 → 拒绝提交
-- 详见 AGENTS.md
+- 详见 AGENTS.md 和 ONBOARDING.md
