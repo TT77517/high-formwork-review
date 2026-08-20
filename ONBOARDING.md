@@ -52,19 +52,26 @@ make checkin AGENT=<你的工具名> TASK="你要做的任务"
 make checkin AGENT=dewucode TASK="修复规范审查模式bug"
 ```
 
-### 步骤 4 — 装依赖（首次必做）
+### 步骤 4 — 确认依赖（本机已有 .venv，跳过创建）
+
+本机的 `.venv` 已建好且依赖齐全，只需激活：
 
 ```bash
 cd high-formwork-review
-python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
 ```
+
+> 如果 `.venv` 不存在（比如被误删），才需要重建：
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> pip install -r requirements.txt
+> ```
 
 ### 步骤 5 — 跑测试确认环境正常
 
 ```bash
-# 在 high-formwork-review 目录下
+# 在 high-formwork-review 目录下，确保 .venv 已激活
 source .venv/bin/activate
 python -m pytest -v
 ```
