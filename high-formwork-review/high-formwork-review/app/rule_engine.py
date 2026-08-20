@@ -185,7 +185,7 @@ def _extract_from_document_fallback(
                         "value": val,
                         "page": page.physical_page,
                         "block_id": block.block_id,
-                        "section": " / ".join(block.section_path or []),
+                        "section": "",
                         "quote": m.group(0).strip(),
                     })
     if not results:

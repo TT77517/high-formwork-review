@@ -146,14 +146,23 @@ def _cross_check_param(
     # 取图纸中的代表值（众数或第一个）
     drawing_value = drawing_values[0]["value"]
 
-    # 比对
-    tolerance = 0.01 * abs(float(body_value))  # 1% 容差
-    if abs(float(drawing_value) - float(body_value)) <= tolerance:
+    # 比对 — 先统一单位（mm和m之间换算）
+    def _normalize_to_mm(val: float, text: str) -> float:
+        """根据上下文推测单位并统一为mm。"""
+        # 如果值很小（<50），可能是m
+        if val < 50:
+            return val * 1000  # m -> mm
+        return val  # 已经是mm
+
+    body_mm = _normalize_to_mm(float(body_value), str(body_value))
+    drawing_mm = _normalize_to_mm(float(drawing_value), drawing_values[0].get("quote", ""))
+    tolerance = 0.05 * abs(body_mm)  # 5% 容差
+    if abs(drawing_mm - body_mm) <= tolerance:
         status = "PASS"
-        reason = f"正文参数={body_value}，图纸标注={drawing_value}，一致"
+        reason = f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后一致（{body_mm}mm ≈ {drawing_mm}mm）"
     else:
         status = "ISSUE"
-        reason = f"正文参数={body_value}，图纸标注={drawing_value}，不一致"
+        reason = f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后不一致（{body_mm}mm vs {drawing_mm}mm）"
 
     return _build_cross_result(
         review_id, param_name, body_value, drawing_value, drawing_values[:3],
