@@ -1,0 +1,7 @@
+本项目使用多 AI Agent 协作开发。开始工作前必须先读：
+1. AGENTS.md（协作约定与入口）
+2. PROGRESS.md（当前进度与交接日志）
+3. CODEX_CONTEXT.md（技术架构）
+4. high-formwork-review/README.md（详细文档）
+
+签到/签退协议和开发规则见 AGENTS.md。
