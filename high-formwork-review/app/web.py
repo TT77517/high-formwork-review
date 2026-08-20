@@ -40,6 +40,10 @@ from .mineru_parser import parse_mineru
 from .project_facts import build_project_facts
 from .project_qualification import build_project_qualification
 from .review_summary import build_review_results
+from .report_generator import build_review_report_from_job_dir
+from .rule_engine import load_rule_library, run_rule_engine_safe
+from .semantic_engine import run_semantic_engine_safe
+from .calculation_engine import run_calculation_engine_safe
 from .substantive_review import build_substantive_review
 
 
@@ -66,7 +70,7 @@ HUMAN_DECISIONS = {
 }
 AUTOMATIC_STATUSES = {"PASS", "MISSING", "UNCERTAIN"}
 ASSET_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
-REVIEW_MODES = {"smart", "completeness", "compliance", "calculation", "drawing_consistency"}
+REVIEW_MODES = {"smart", "completeness", "semantic", "drawing", "calculation"}
 
 STAGE_PROGRESS = {
     "waiting": 0,
@@ -270,6 +274,236 @@ def get_precheck(job_id: str) -> dict[str, Any]:
     return _read_json(job_dir / "review_results.json", "智能预审汇总不存在")
 
 
+@app.get("/api/jobs/{job_id}/rule-engine")
+def get_rule_engine(job_id: str) -> dict[str, Any]:
+    """返回 v4.0 规则引擎确定性规则审查结果。"""
+    job_dir = _completed_job_dir(job_id)
+    return _read_json(job_dir / "rule_engine_results.json", "规则引擎结果不存在")
+
+
+@app.get("/api/jobs/{job_id}/semantic")
+def get_semantic(job_id: str) -> dict[str, Any]:
+    """返回语义规则审查结果。"""
+    job_dir = _completed_job_dir(job_id)
+    return _read_json(job_dir / "semantic_results.json", "语义审查结果不存在")
+
+
+@app.get("/api/jobs/{job_id}/calculation")
+def get_calculation(job_id: str) -> dict[str, Any]:
+    """返回计算规则审查结果。"""
+    job_dir = _completed_job_dir(job_id)
+    return _read_json(job_dir / "calculation_results.json", "计算审查结果不存在")
+
+
+@app.get("/api/jobs/{job_id}/report")
+def get_review_report(job_id: str) -> dict[str, Any]:
+    """生成并返回审查报告（Markdown 格式）。"""
+    job_dir = _completed_job_dir(job_id)
+    report_path = job_dir / "review_report.md"
+    if not report_path.is_file():
+        report = build_review_report_from_job_dir(job_dir)
+        report_path.write_text(report, encoding="utf-8")
+    return {"job_id": job_id, "format": "markdown", "content": report_path.read_text(encoding="utf-8")}
+
+
+@app.get("/api/jobs/{job_id}/report/download")
+def download_review_report(job_id: str) -> FileResponse:
+    """下载审查报告 Markdown 文件。"""
+    job_dir = _completed_job_dir(job_id)
+    report_path = job_dir / "review_report.md"
+    if not report_path.is_file():
+        report = build_review_report_from_job_dir(job_dir)
+        report_path.write_text(report, encoding="utf-8")
+    return FileResponse(report_path, filename=f"审查报告_{job_id[:8]}.md")
+
+
+# ===== 规则库管理 API =====
+
+@app.get("/api/rules")
+def list_rules(
+    module: str | None = None,
+    check_type: str | None = None,
+    severity: str | None = None,
+    status: str | None = None,
+    standard: str | None = None,
+) -> dict[str, Any]:
+    """浏览/筛选规则库（164条）。"""
+    rules = load_rule_library()
+    if module:
+        rules = [r for r in rules if r.get("module") == module]
+    if check_type:
+        rules = [r for r in rules if r.get("check_type") == check_type]
+    if severity:
+        rules = [r for r in rules if r.get("severity") == severity]
+    if status:
+        rules = [r for r in rules if r.get("status") == status]
+    if standard:
+        import re
+        # Remove spaces from both pattern and target for tolerant matching
+        std_norm = standard.replace(" ", "").replace("/", "")
+        rules = [
+            r for r in rules
+            if std_norm in (r.get("code_ref", {}).get("standard", "") or "").replace(" ", "").replace("/", "")
+        ]
+    modules_summary: dict[str, int] = {}
+    for r in rules:
+        m = r.get("module", "unknown")
+        modules_summary[m] = modules_summary.get(m, 0) + 1
+    return {
+        "total": len(rules),
+        "modules": modules_summary,
+        "rules": rules,
+    }
+
+
+@app.get("/api/rules/{rule_id}")
+def get_rule(rule_id: str) -> dict[str, Any]:
+    """查询单条规则详情。"""
+    for rule in load_rule_library():
+        if rule.get("rule_id") == rule_id:
+            return rule
+    raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
+
+
+class RuleUpdateInput(BaseModel):
+    field: str = Field(min_length=1, max_length=64)
+    value: Any = None
+
+
+class RuleCreateInput(BaseModel):
+    rule_id: str = Field(min_length=1, max_length=64)
+    rule_name: str = Field(min_length=1, max_length=200)
+    module: str = Field(min_length=1, max_length=64)
+    category: str = Field(default="", max_length=64)
+    check_type: str = Field(default="deterministic", max_length=32)
+    severity: str = Field(default="B-required", max_length=32)
+    risk_level: str = Field(default="medium", max_length=32)
+    applicable_types: list[str] = Field(default_factory=lambda: ["universal"])
+    code_ref: dict[str, Any] = Field(default_factory=dict)
+    check_content: str = Field(default="", max_length=2000)
+    check_logic: dict[str, Any] = Field(default_factory=dict)
+    threshold: Any = Field(default=None)
+    remedy_suggestion: str = Field(default="", max_length=2000)
+    typical_violation: str = Field(default="", max_length=2000)
+    manual_review: bool = Field(default=False)
+    notes: str = Field(default="", max_length=2000)
+
+
+_MODULE_FILE_MAP = {
+    "01_procedure_compliance": "module_01_procedure_compliance.json",
+    "02_load_values": "module_02_load_values.json",
+    "03_structural_calculation": "module_03_structural_calculation.json",
+    "04_construction_requirements": "module_04_construction_requirements.json",
+    "05_material_requirements": "module_05_material_requirements.json",
+    "06_safety_measures": "module_06_safety_measures.json",
+}
+
+
+@app.post("/api/rules", status_code=201)
+def create_rule(payload: RuleCreateInput) -> dict[str, Any]:
+    """新增规则到指定模块 JSON。"""
+    module = payload.module
+    filename = _MODULE_FILE_MAP.get(module)
+    if not filename:
+        raise HTTPException(status_code=422, detail=f"模块 {module} 不存在")
+    path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
+    if not path.is_file():
+        raise HTTPException(status_code=500, detail="规则文件不存在")
+    rules = json.loads(path.read_text(encoding="utf-8"))
+    for existing in rules:
+        if existing.get("rule_id") == payload.rule_id:
+            raise HTTPException(status_code=409, detail=f"规则 {payload.rule_id} 已存在")
+    rule = {
+        "rule_id": payload.rule_id,
+        "rule_name": payload.rule_name,
+        "module": module,
+        "category": payload.category or module.split("_", 1)[1] if "_" in module else "",
+        "check_type": payload.check_type,
+        "severity": payload.severity,
+        "risk_level": payload.risk_level,
+        "applicable_types": payload.applicable_types,
+        "code_ref": payload.code_ref,
+        "legacy_code_ref": None,
+        "check_content": payload.check_content,
+        "check_logic": payload.check_logic,
+        "threshold": payload.threshold,
+        "remedy_suggestion": payload.remedy_suggestion,
+        "typical_violation": payload.typical_violation,
+        "manual_review": payload.manual_review,
+        "notes": payload.notes,
+        "status": "active",
+    }
+    rules.append(rule)
+    path.write_text(json.dumps(rules, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"rule_id": payload.rule_id, "created": True}
+
+
+@app.delete("/api/rules/{rule_id}")
+def delete_rule(rule_id: str) -> dict[str, Any]:
+    """删除规则（软删除：status→deprecated）。"""
+    for filename in _MODULE_FILE_MAP.values():
+        path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
+        if not path.is_file():
+            continue
+        rules = json.loads(path.read_text(encoding="utf-8"))
+        for rule in rules:
+            if rule.get("rule_id") == rule_id:
+                rule["status"] = "deprecated"
+                path.write_text(
+                    json.dumps(rules, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return {"rule_id": rule_id, "deleted": True, "status": "deprecated"}
+    raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
+
+
+@app.patch("/api/rules/{rule_id}")
+def update_rule(rule_id: str, payload: RuleUpdateInput) -> dict[str, Any]:
+    """编辑单条规则的指定字段。
+
+    仅支持修改 check_logic 和 threshold 下的可编辑字段，
+    修改直接写回 config/rule_library_v4/ 对应模块 JSON。
+    """
+    editable_fields = {
+        "threshold", "remedy_suggestion", "typical_violation",
+        "manual_review", "notes", "check_content", "status",
+    }
+    if payload.field not in editable_fields:
+        raise HTTPException(
+            status_code=422,
+            detail=f"字段 {payload.field} 不可编辑，仅支持: {', '.join(sorted(editable_fields))}",
+        )
+    # 定位规则所在文件
+    for filename in (
+        "module_01_procedure_compliance.json",
+        "module_02_load_values.json",
+        "module_03_structural_calculation.json",
+        "module_04_construction_requirements.json",
+        "module_05_material_requirements.json",
+        "module_06_safety_measures.json",
+    ):
+        path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
+        if not path.is_file():
+            continue
+        rules = json.loads(path.read_text(encoding="utf-8"))
+        for rule in rules:
+            if rule.get("rule_id") == rule_id:
+                old_value = rule.get(payload.field)
+                rule[payload.field] = payload.value
+                path.write_text(
+                    json.dumps(rules, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return {
+                    "rule_id": rule_id,
+                    "field": payload.field,
+                    "old_value": old_value,
+                    "new_value": payload.value,
+                    "updated": True,
+                }
+    raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
+
+
 @app.get("/api/jobs/{job_id}/comparison")
 def get_comparison(job_id: str) -> dict[str, Any]:
     job_dir = _completed_job_dir(job_id)
@@ -450,6 +684,10 @@ def get_output_files(job_id: str) -> dict[str, Any]:
         "completeness_results.json": "完整性审查结果（10 项）",
         "completeness_summary.json": "完整性审查汇总",
         "substantive_review.json": "规范符合性审查结果（部分可用）",
+        "rule_engine_results.json": "v4.0规则引擎确定性审查结果",
+        "semantic_results.json": "语义规则审查结果",
+        "calculation_results.json": "计算规则审查结果",
+        "review_report.md": "完整审查报告（Markdown）",
         "consistency_review.json": "正文-计算书参数一致性检查结果",
         "drawing_review.json": "图文复核提示结果",
         "review_results.json": "智能预审统一汇总",
@@ -554,11 +792,17 @@ def _process_job(job_id: str) -> None:
         _atomic_write_json(job_dir / "completeness_summary.json", asdict(summary))
         project_facts = build_project_facts(document)
         project_qualification = build_project_qualification(document, project_facts)
+        rule_engine_result = run_rule_engine_safe(document, project_facts)
+        semantic_result = run_semantic_engine_safe(document, project_facts)
+        calculation_result = run_calculation_engine_safe(document, project_facts)
         substantive_review = build_substantive_review(project_qualification, project_facts)
         consistency_review = build_consistency_review(project_facts, document)
         drawing_review = build_drawing_review(document, project_facts)
         _atomic_write_json(job_dir / "project_facts.json", project_facts)
         _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
+        _atomic_write_json(job_dir / "rule_engine_results.json", rule_engine_result)
+        _atomic_write_json(job_dir / "semantic_results.json", semantic_result)
+        _atomic_write_json(job_dir / "calculation_results.json", calculation_result)
         _atomic_write_json(job_dir / "substantive_review.json", substantive_review)
         _atomic_write_json(job_dir / "consistency_review.json", consistency_review)
         _atomic_write_json(job_dir / "drawing_review.json", drawing_review)
@@ -617,6 +861,12 @@ def _process_job(job_id: str) -> None:
             _update_status(job_dir, "completed", "解析与完整性审查已完成")
         _write_review_comparison_if_ready(job_dir)
         _write_precheck_summary_if_ready(job_dir)
+        # Generate review report
+        try:
+            report = build_review_report_from_job_dir(job_dir)
+            _atomic_write_text(job_dir / "review_report.md", report)
+        except Exception:
+            pass
     except Exception:
         _update_status(
             job_dir,
@@ -697,6 +947,7 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
         "qualification": job_dir / "project_qualification.json",
         "completeness": job_dir / "completeness_summary.json",
         "substantive": job_dir / "substantive_review.json",
+        "rule_engine": job_dir / "rule_engine_results.json",
         "consistency": job_dir / "consistency_review.json",
         "drawing": job_dir / "drawing_review.json",
         "comparison": job_dir / "review_comparison.json",
@@ -706,6 +957,7 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
     comparison = _read_json(paths["comparison"], "") if paths["comparison"].is_file() else None
     consistency = _read_json(paths["consistency"], "") if paths["consistency"].is_file() else None
     drawing = _read_json(paths["drawing"], "") if paths["drawing"].is_file() else None
+    rule_engine = _read_json(paths["rule_engine"], "") if paths["rule_engine"].is_file() else None
     _atomic_write_json(
         job_dir / "review_results.json",
         build_review_results(
@@ -715,6 +967,7 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
             comparison=comparison,
             consistency_review=consistency,
             drawing_review=drawing,
+            rule_engine=rule_engine,
         ),
     )
 

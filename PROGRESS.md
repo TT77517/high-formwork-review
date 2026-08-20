@@ -54,3 +54,55 @@
 - [2026-08-20 18:00] dewuclaw 签退 — 完成了：创建 ONBOARDING.md(双场景指南)+agent-protocol.ps1(Windows脚本)+更新AGENTS/CLAUDE/.cursorrules；下一步建议：验证967951c修复完整性+规划规范语义审查Agent
 
 - [2026-08-20 18:11] dewucode 签到 — 开始处理：使用样例文件上传到web运行，并review出现的问题
+
+- [2026-08-20 19:30] dewucode 签退 — 完成了：样例PDF上传测试和系统功能验证；下一步建议：修复代码结构问题和配置问题
+
+## 📋 测试报告（2026-08-20 19:30）
+
+### 测试环境
+- 样例文件：`rule/04_方案样本/高支模方案.pdf`（214页）
+- 审查模式：智能预审（smart）
+- 任务ID：`1c7fadda5ab94690bf86fcdf4578b86d`
+
+### 功能验证结果
+
+| 模块 | 状态 | 结果 |
+|------|------|------|
+| PDF上传 + MinerU解析 | ✅ 正常 | 使用缓存，解析耗时约10秒 |
+| 完整性审查 | ✅ 正常 | 10/10 PASS |
+| 确定性规则引擎 | ✅ 正常 | 28条规则：11合规, 6违规, 11无法判定 |
+| 语义规则引擎 | ✅ 正常 | 84条规则：30合规, 0违规, 54无法判定 |
+| 计算规则引擎 | ✅ 正常 | 32条规则：18合规, 0违规, 14无法判定 |
+| 参数一致性检查 | ✅ 正常 | 4项：2 PASS, 2 REVIEW |
+| 图文一致性校验 | ✅ 正常 | 5项：1 PASS, 3 ISSUE, 1 REVIEW |
+
+### 发现的问题
+
+#### 1. 代码结构问题（严重）
+存在两个嵌套的 app 目录，导致功能缺失：
+- **主目录**：`high-formwork-review/app/`（缺少关键文件）
+- **嵌套目录**：`high-formwork-review/high-formwork-review/app/`（包含完整代码）
+
+缺失文件需要手动复制：
+- `rule_engine.py` - 确定性规则引擎
+- `semantic_engine.py` - 语义规则引擎
+- `calculation_engine.py` - 计算规则引擎
+- `report_generator.py` - 报告生成器
+- `config/rule_library_v4/` - v4.0规则库配置
+
+#### 2. 配置问题
+- MinerU API Token 未配置（`.env` 中为空）
+- 需要手动复制 MinerU 缓存目录到 `data/cache/mineru/`
+
+#### 3. 依赖问题
+- Python 3.9 需要安装 `eval_type_backport` 包支持新语法
+
+#### 4. 审查结果问题
+- 语义规则引擎：54/84 条规则状态为 UNCERTAIN，需要人工复核
+- 图文一致性校验：发现 3 项 ISSUE（步距、可调托撑悬臂长度等参数不一致）
+
+### 建议修复
+1. 合并两个 app 目录，统一代码结构
+2. 补充 `.env.example` 中的配置说明
+3. 在 `requirements.txt` 中添加 `eval_type_backport` 依赖
+4. 优化语义规则引擎的关键词匹配逻辑，减少 UNCERTAIN 结果

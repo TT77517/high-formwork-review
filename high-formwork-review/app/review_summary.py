@@ -14,6 +14,7 @@ def build_review_results(
     comparison: dict[str, Any] | None = None,
     consistency_review: list[dict[str, Any]] | None = None,
     drawing_review: list[dict[str, Any]] | None = None,
+    rule_engine: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     completeness = _completeness_dict(completeness_summary)
     consistency_review = consistency_review or []
@@ -99,6 +100,7 @@ def build_review_results(
         "substantive_review": substantive_review,
         "consistency_review": consistency_review,
         "drawing_review": drawing_review,
+        "rule_engine": rule_engine or {},
         "summary": {
             "completeness_total": completeness.get("total_rules", 0),
             "completeness_pass": completeness.get("pass_count", 0),
@@ -114,6 +116,11 @@ def build_review_results(
             "consistency_review": sum(item.get("status") == "REVIEW" for item in consistency_review),
             "drawing_total": len(drawing_review),
             "drawing_review": sum(item.get("requires_human_review") for item in drawing_review),
+            "rule_engine_total": (rule_engine or {}).get("total_rules", 0),
+            "rule_engine_compliant": (rule_engine or {}).get("compliant", 0),
+            "rule_engine_violated": (rule_engine or {}).get("violated", 0),
+            "rule_engine_uncertain": (rule_engine or {}).get("uncertain", 0),
+            "rule_engine_not_applicable": (rule_engine or {}).get("not_applicable", 0),
         },
         "human_review_queue": queue,
         "notice": "系统结果仅作为专项施工方案预审辅助，需由审查人员人工确认，不作为最终审查结论。",
