@@ -46,3 +46,5 @@
 > 格式：`[时间] agent名称 签到/签退 — 内容`
 
 - [2026-08-20 17:30] dewuclaw 签到 — 创建 AGENTS.md / PROGRESS.md / 迁移 CODEX_CONTEXT.md，建立多 Agent 协作基础设施
+
+- [2026-08-20 17:52] dewuclaw 签退 — 完成了：建立 enforcement 机制：git hooks + 签到签退脚本 + Makefile；下一步建议：验证 967951c 修复完整性

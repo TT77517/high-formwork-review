@@ -6,7 +6,7 @@
 #   ./scripts/agent-protocol.sh checkin  <agent名> <任务描述>
 #   ./scripts/agent-protocol.sh checkout <agent名> <完成描述> [下一步建议]
 #
-set -euo pipebase
+set -euo pipefail
 
 PROGRESS_FILE="$(dirname "$0")/../PROGRESS.md"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
