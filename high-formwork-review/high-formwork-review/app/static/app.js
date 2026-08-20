@@ -23,7 +23,7 @@ const MODE_TABS = {
   drawing: ['home','overview','qualification','document','drawing','manual','rule-library','records'],
   calculation: ['home','overview','qualification','document','calculation','manual','rule-library','records']
 };
-let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null;
+let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null, calcData=null;
 
 initFromQuery();
 $$('#reviewModeGrid .mode-card').forEach(c => c.addEventListener('click', () => {
@@ -117,6 +117,7 @@ async function loadAll() {
     try { const er = await fetch(`/api/jobs/${curJob}/dify-error`); if (er.ok) difyErr = await er.json(); } catch(_){}
     try { const re = await fetch(`/api/jobs/${curJob}/rule-engine`); if (re.ok) ruleEngineData = await re.json(); } catch(_){}
     try { const sm = await fetch(`/api/jobs/${curJob}/semantic`); if (sm.ok) semanticData = await sm.json(); } catch(_){}
+    try { const cl = await fetch(`/api/jobs/${curJob}/calculation`); if (cl.ok) calcData = await cl.json(); } catch(_){}
     loadRuleLibrary('', '', '', '', '');  // Load rule library in background
     renderOverview(); renderQualification(); renderDocument(); renderRuleEngine(); renderReview();
     renderSemantic(); renderDrawing(); renderCalculation(); renderManual(); renderRecords();
@@ -133,7 +134,7 @@ function renderOverview() {
     { tab:'review', title:'完整性审查', value: `${s.pass_count||0}/${s.total_rules||10}`, sub:`缺失 ${s.missing_count||0} · 无法核验 ${s.uncertain_count||0}` },
     { tab:'semantic', title:'规范语义审查', value: `${(ss.rule_engine_compliant||0)+(semanticData?.compliant||0)}/${(ss.rule_engine_total||0)+(semanticData?.total_rules||0)}`, sub:`违规 ${(ss.rule_engine_violated||0)+(semanticData?.violated||0)} · 无法判定 ${(ss.rule_engine_uncertain||0)+(semanticData?.uncertain||0)}`, warn: ((ss.rule_engine_violated||0)+(semanticData?.violated||0))>0 },
     { tab:'drawing', title:'图文一致性校验', value: `${ss.drawing_total||0}`, sub:`需复核 ${ss.drawing_review||0}`, warn: (ss.drawing_review||0)>0 },
-    { tab:'calculation', title:'计算校核', value: `${ss.consistency_pass||0}/${ss.consistency_total||0}`, sub:`不一致 ${ss.consistency_issue||0}`, warn: (ss.consistency_issue||0)>0 },
+    { tab:'calculation', title:'计算校核', value: `${(calcData?.compliant||0)}/${(calcData?.total_rules||0)+(ss.consistency_total||0)}`, sub:`验算问题 ${calcData?.violated||0} · 不一致 ${ss.consistency_issue||0}`, warn: (calcData?.violated||0)>0 || (ss.consistency_issue||0)>0 },
     { tab:'manual', title:'人工复核', value: decisions.filter(d=>d.human_decision!=='pending').length, sub:`共 ${decisions.length} 条`, warn: decisions.filter(d=>d.human_decision==='pending').length>0 }
   ];
   $('#overviewCards').innerHTML = cards.map(c => `<button class="stat-card${c.warn?' warn':''}" onclick="switchTab('${c.tab}')">
@@ -356,9 +357,34 @@ function openSemanticDrawer(rid, rtype, allResults) {
 
 // ===== Calculation Review (计算校核) =====
 function renderCalculation() {
-  const items = preData?.consistency_review||[]; const s = preData?.summary||{};
-  $('#calcStats').innerHTML = [['检查项',s.consistency_total??items.length],['一致',s.consistency_pass??0],['不一致',s.consistency_issue??0],['需复核',s.consistency_review??0]].map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  $('#calcRows').innerHTML = items.length ? items.map(i => `<tr><td>${esc(i.review_item_id)}</td><td><b>${esc(i.title)}</b></td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td>${sideTxt(i.design_side)}</td><td>${sideTxt(i.calculation_side)}</td><td>${esc(i.conclusion||'')}</td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无计算校核结果</td></tr>';
+  const calc = calcData;
+  const items = preData?.consistency_review||[];
+  const s = preData?.summary||{};
+  // Combine calc engine results + consistency results
+  const calcResults = calc?.results || [];
+  const calcTotal = calc?.total_rules || 0;
+  const calcCompliant = calc?.compliant || 0;
+  const calcViolated = calc?.violated || 0;
+  const calcUncertain = calc?.uncertain || 0;
+  const consTotal = s.consistency_total ?? items.length;
+  const consPass = s.consistency_pass ?? 0;
+  const consIssue = s.consistency_issue ?? 0;
+
+  $('#calcStats').innerHTML = [
+    ['验算项', calcTotal], ['验算通过', calcCompliant], ['验算问题', calcViolated], ['无法判定', calcUncertain], ['参数不一致', consIssue]
+  ].map(([l,v]) => `<div class="stat-card${l==='验算问题'&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+
+  // Render calculation results table
+  const calcRows = calcResults.length ? calcResults.map(r => {
+    const ev = r.evidence || [];
+    const evSnippet = ev.length ? ev[0].quote : '';
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td><small>${esc(r.formula||'')}</small></td><td><small>${esc(evSnippet).substring(0,80)}</small></td><td>${esc(r.reason||'')}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无计算校核结果</td></tr>';
+
+  // Also render consistency items
+  const consRows = items.length ? items.map(i => `<tr><td>${esc(i.review_item_id)}</td><td>${esc(i.title)}</td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td>${sideTxt(i.design_side)}</td><td>${sideTxt(i.calculation_side)}</td><td>${esc(i.conclusion||'')}</td></tr>`).join('') : '';
+
+  $('#calcRows').innerHTML = calcRows + (consRows ? `<tr><td colspan="6" style="background:#fafafa;font-weight:600;padding:8px">参数一致性检查</td></tr>` + consRows : '');
 }
 
 // ===== Drawing =====
