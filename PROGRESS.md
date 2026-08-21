@@ -25,6 +25,7 @@
 - [x] 规范注册表（config/standards.json + app/standards.py；/api/standards；规则 standard_id/standard_refs 标注与规范精确过滤）
 - [x] qualification 输出 applicable_standards（按支撑体系派生，未识别仅列通用规范附 note）+ 报告适用规范行
 - [x] 前端规范词汇统一：规则库规范筛选改注册表词汇、工程基础信息页适用规范 chips 点击跳转规则库筛选
+- [x] qualification 接通跨度/总荷载/线荷载三参数（键名不变、requires_review 口径不变）+ 未识别时 pending_confirmation 摘要（各体系待执行专属规则数）
 
 ## 🔲 待完成
 

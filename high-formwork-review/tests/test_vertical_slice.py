@@ -122,6 +122,33 @@ def test_project_qualification_lists_applicable_standards() -> None:
     assert all(s.get("note") for s in unknown["applicable_standards"])
 
 
+def test_project_qualification_reads_parameters_from_facts() -> None:
+    facts = {"facts": {
+        "support_system": {"value": "disk_lock", "status": "confirmed", "evidence": []},
+        "support_height": {"value": 8.5, "unit": "m", "status": "confirmed", "evidence": []},
+        "support_span": {"value": 18.0, "unit": "m", "status": "confirmed", "evidence": []},
+        "total_load": {"value": 16.0, "unit": "kN/m2", "status": "confirmed", "evidence": []},
+        "concentrated_line_load": {"value": 20.0, "unit": "kN/m", "status": "uncertain", "evidence": []},
+    }}
+
+    result = build_project_qualification(None, facts)
+
+    p = result["identified_parameters"]
+    assert p["support_span"]["value"] == 18.0 and p["support_span"]["status"] == "confirmed"
+    assert p["total_load_design"]["value"] == 16.0
+    assert p["concentrated_line_load_design"]["status"] == "uncertain"
+    assert result["pending_confirmation"] is None
+
+
+def test_project_qualification_pending_confirmation_when_unknown() -> None:
+    result = build_project_qualification(None, {"facts": {}})
+
+    pending = result["pending_confirmation"]
+    assert pending and pending["field"] == "support_system"
+    counts = {o["value"]: o["pending_rule_count"] for o in pending["options"]}
+    assert counts["disk_lock"] > 0 and counts["coupler"] > 0
+
+
 def test_substantive_review_handles_numeric_and_missing_facts() -> None:
     doc = _document(
         "采用盘扣式钢管架，支撑高度为10.2m，步距1.5m，"

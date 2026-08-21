@@ -642,7 +642,7 @@ function isPriority(c, r) { return c?.review_priority==='priority_review' || (!c
 function isQuick(c, r) { return c?.review_priority==='quick_confirm' || Boolean(c?.comparison_status==='NOT_REQUESTED'&&r.status==='PASS'&&typeof r.confidence==='number'&&r.confidence>=0.8&&!r.requires_human_review&&!r.needs_semantic_review); }
 function fmt(v) { return v ? new Date(v).toLocaleString('zh-CN',{hour12:false}) : '—'; }
 function esc(v) { return String(v??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[c]); }
-function vwu(i) { return !i||i.value===null||i.value===undefined ? (i?.status==='unknown'?'未识别':'需复核') : `${fmtv(i.value)}${i.unit||''}`; }
+function vwu(i) { if (!i||i.value===null||i.value===undefined) return i?.status==='unknown'?'未识别':'需复核'; return i.status==='conflict' ? `${fmtv(i.value)}${i.unit||''}(冲突需复核)` : `${fmtv(i.value)}${i.unit||''}`; }
 function fmtv(v) { return v === +v && v === (v|0) ? String(v) : String(v); }
 function stTxt(s) { return {PASS:'支持通过',ISSUE:'发现问题',REVIEW:'需复核',NOT_APPLICABLE:'不适用'}[s]||s; }
 function actTxt(a) { if (!a) return '未识别'; if (Array.isArray(a.items)) return esc(a.items.join('、')); if (a.value!==undefined&&a.value!==null) return esc(`${a.value}${a.unit||''}`); return esc(a.status||'未识别'); }

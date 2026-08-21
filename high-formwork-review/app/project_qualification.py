@@ -6,6 +6,7 @@ from typing import Any
 
 from .models import ReviewEvidence
 from .project_facts import build_project_facts
+from .rule_engine import load_rule_library
 from .standards import applicable_standards_for
 
 
@@ -22,9 +23,11 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
 
     identified = {
         "support_height": _parameter(support_height),
-        "support_span": _unknown_parameter("当前未识别跨度参数"),
-        "total_load_design": _unknown_parameter("当前未识别总荷载设计值"),
-        "concentrated_line_load_design": _unknown_parameter("当前未识别集中线荷载设计值"),
+        "support_span": _parameter_from_facts(facts, "support_span", "当前未识别跨度参数"),
+        "total_load_design": _parameter_from_facts(facts, "total_load", "当前未识别总荷载设计值"),
+        "concentrated_line_load_design": _parameter_from_facts(
+            facts, "concentrated_line_load", "当前未识别集中线荷载设计值"
+        ),
     }
     missing_core = [
         key for key, value in identified.items()
@@ -41,6 +44,7 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
         "triggered_conditions": _triggered_conditions(support_height),
         "applicable_rule_packs": rule_packs,
         "applicable_standards": applicable_standards_for(system_value),
+        "pending_confirmation": _pending_confirmation(system_value),
         "requires_human_review": requires_review,
         "human_review_reason": (
             "关键工程识别参数未完全识别，需人工确认"
@@ -53,6 +57,42 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
 def _fact(facts: dict[str, Any], fact_id: str) -> dict[str, Any]:
     value = facts.get(fact_id)
     return value if isinstance(value, dict) else {}
+
+
+def _parameter_from_facts(facts: dict[str, Any], fact_id: str, reason: str) -> dict[str, Any]:
+    """接通 facts 中已提取的参数；无值时保持原 unknown 形状。"""
+    fact = _fact(facts, fact_id)
+    if fact.get("value") is None:
+        return _unknown_parameter(reason)
+    return _parameter(fact)
+
+
+# 支撑体系选项 → 规则库 applicable_types 体系码
+_SYSTEM_OPTIONS = [
+    ("disk_lock", "承插型盘扣式", "pankou"),
+    ("coupler", "扣件式", "koujian"),
+    ("other", "其他", "wankou"),
+]
+
+
+def _pending_confirmation(system_value: Any) -> dict[str, Any] | None:
+    """支撑体系未识别时输出待确认摘要（含各体系待执行专属规则数）。"""
+    if system_value not in (None, "", "unknown"):
+        return None
+    options = []
+    for value, label, code in _SYSTEM_OPTIONS:
+        count = sum(
+            1
+            for rule in load_rule_library()
+            if "universal" not in rule.get("applicable_types", ["universal"])
+            and code in rule.get("applicable_types", [])
+        )
+        options.append({"value": value, "label": label, "pending_rule_count": count})
+    return {
+        "field": "support_system",
+        "note": "支撑体系未识别，体系专属规则暂未执行，人工确认后重跑",
+        "options": options,
+    }
 
 
 def _parameter(fact: dict[str, Any]) -> dict[str, Any]:
