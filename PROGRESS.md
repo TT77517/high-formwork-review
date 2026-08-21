@@ -29,6 +29,7 @@
 - [x] 引擎适用性门禁共享（system_applicability_status）：支撑体系未识别时体系专属规则记 PENDING_CONFIRMATION（待人工确认后重跑），已识别不匹配仍 NOT_APPLICABLE；report/summary/前端状态词、筛选、统计卡同步
 - [x] 文档解析页章节聚合+钻取：一级章节主表（页范围/文本量/图表/partial/需复核）展开页行、目录树形（level≤2）、Block 分布条折叠、抽屉所见即所得（表格真渲染/图片直显/原文折叠）
 - [x] 统一人工复核队列后端：human_review_queue 增 item_key、引擎 VIOLATED 逐条（按等级排序）、体系待确认聚合项、解析风险页聚合项（带 deep-link）、qualification 队首项 actionable（确认支撑体系选项）；decisions 端点支持 item_key（旧 rule_id payload 兼容）；报告复核表改事项编号
+- [x] 人工复核前端重写为统一工作台：按来源分组（识别/审查范围/规则引擎/语义/完整性/实质性/一致性/图文/文档解析）、证据跳转（页抽屉/规则详情/文档筛选）、确认支撑体系+重跑按钮（startPolling 复用）、概览卡改队列口径；浏览器冒烟通过
 - [x] 重跑闭环：POST /api/jobs/{id}/rerun（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
 
 ## 🔲 待完成
@@ -39,7 +40,7 @@
 - [ ] 更多规范规则的补充与完善
 - [ ] 测试覆盖补充
 - [ ] 修复剩余 3 个存量测试失败（test_web 过期断言 2 + DR-01 1；py3.9 收集错误已于 2026-08-21 修复）
-- [ ] Web UI 页面改进（P0，需与用户沟通具体方向）
+- [x] Web UI 页面改进（P0，识别驱动重构 9 个提交：规范注册表/适用规范展示/章节聚合/待确认状态/统一复核工作台/重跑闭环）
 
 ## 🚧 当前阻塞
 
@@ -47,9 +48,9 @@
 
 ## 📌 下一步建议
 
-1. Web UI 页面改进（P0）——需与用户沟通具体不满意点和改进方向
-2. 修复存量测试失败（Python 3.9 兼容 + 过期断言，详见"已知测试问题"）
-3. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`）
+1. 修复剩余 3 个存量测试失败（test_web 过期断言 2 + DR-01 图纸召回 1）
+2. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`），可复用本次的 PENDING_CONFIRMATION/重跑闭环机制
+3. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
 
 ## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
 
@@ -184,3 +185,4 @@
 - [2026-08-21 13:24] claude 签到 — 开始处理：P0 Web UI 页面改进——现状梳理 + 与用户沟通改进方向
 
 - [2026-08-21 13:59] claude 签到 — 开始处理：P0 Web UI 改进——针对用户 4 点反馈（工程基础信息展示/规则包按规范展示/解析明细可视化/按工程特征匹配规则/人工复核定位）梳理现状并讨论改进方案
+- [2026-08-21 15:20] claude 签退 — 完成了：P0 Web UI 识别驱动重构（规范注册表+适用规范展示、qualification 三参数接线、引擎 PENDING_CONFIRMATION、文档解析章节聚合+抽屉所见即所得、统一人工复核工作台、POST /rerun 重跑闭环，10 个提交，153 测试通过/存量 3 败未触碰，浏览器冒烟通过）；下一步建议：修复剩余 3 个存量测试失败；语义审查 Agent 复用 PENDING_CONFIRMATION/重跑机制
