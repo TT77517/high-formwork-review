@@ -141,7 +141,7 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .status-chip { display: inline-block; padding: 1px 10px; font-size: 12px; border-radius: 12px; line-height: 20px; white-space: nowrap; }
 .status-COMPLIANT, .status-PASS { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
 .status-VIOLATED, .status-ISSUE, .status-MISSING { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
-.status-UNCERTAIN, .status-REVIEW, .status-uncertain { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+.status-UNCERTAIN, .status-REVIEW, .status-uncertain, .status-PENDING_CONFIRMATION { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
 .status-NOT_APPLICABLE { background: #f5f5f5; color: var(--text-tertiary); border: 1px solid var(--border); }
 
 /* Filter Bar */

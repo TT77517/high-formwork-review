@@ -121,6 +121,7 @@ def build_review_results(
             "rule_engine_violated": (rule_engine or {}).get("violated", 0),
             "rule_engine_uncertain": (rule_engine or {}).get("uncertain", 0),
             "rule_engine_not_applicable": (rule_engine or {}).get("not_applicable", 0),
+            "rule_engine_pending_confirmation": (rule_engine or {}).get("pending_confirmation", 0),
         },
         "human_review_queue": queue,
         "notice": "系统结果仅作为专项施工方案预审辅助，需由审查人员人工确认，不作为最终审查结论。",

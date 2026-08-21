@@ -225,6 +225,7 @@ def run_rule_engine(
     violated = sum(1 for r in results if r["status"] == "VIOLATED")
     uncertain = sum(1 for r in results if r["status"] == "UNCERTAIN")
     not_app = sum(1 for r in results if r["status"] == "NOT_APPLICABLE")
+    pending = sum(1 for r in results if r["status"] == "PENDING_CONFIRMATION")
 
     return {
         "version": "4.0.0",
@@ -234,8 +235,29 @@ def run_rule_engine(
         "violated": violated,
         "uncertain": uncertain,
         "not_applicable": not_app,
+        "pending_confirmation": pending,
         "results": results,
     }
+
+
+TYPE_MAP = {"pankou": "disk_lock", "koujian": "coupler", "wankou": "other"}
+
+
+def system_applicability_status(
+    applicable_types: list[str], system_value: Any
+) -> str | None:
+    """体系专属规则的适用性门禁（三引擎共享）。
+
+    适用返回 None；支撑体系未识别返回 PENDING_CONFIRMATION
+    （待人工确认后重跑）；已识别但不匹配返回 NOT_APPLICABLE。
+    """
+    if "universal" in applicable_types:
+        return None
+    if system_value in (None, "", "unknown"):
+        return "PENDING_CONFIRMATION"
+    if any(TYPE_MAP.get(at) == system_value for at in applicable_types):
+        return None
+    return "NOT_APPLICABLE"
 
 
 def _evaluate_rule(
@@ -249,14 +271,17 @@ def _evaluate_rule(
     applicable_types = rule.get("applicable_types", ["universal"])
 
     # 适用性检查
-    if "universal" not in applicable_types:
-        support_system = facts.get("support_system", {})
-        system_value = support_system.get("value", "unknown")
-        type_map = {"pankou": "disk_lock", "koujian": "coupler", "wankou": "other"}
-        matched = any(type_map.get(at) == system_value for at in applicable_types)
-        if not matched:
-            return _build_result(rule, "NOT_APPLICABLE", "", None,
-                                 [], "支架类型不适用")
+    applicability = system_applicability_status(
+        applicable_types, facts.get("support_system", {}).get("value", "unknown")
+    )
+    if applicability == "PENDING_CONFIRMATION":
+        return _build_result(
+            rule, "PENDING_CONFIRMATION", "", None,
+            [], "支撑体系未识别，该规则仅适用于特定支撑体系，待人工确认后重跑",
+        )
+    if applicability == "NOT_APPLICABLE":
+        return _build_result(rule, "NOT_APPLICABLE", "", None,
+                             [], "支架类型不适用")
 
     # list 类型 threshold（如 4.12 可调托撑多限值、4.15 立杆间距多参数）
     if isinstance(threshold, list):
@@ -422,6 +447,7 @@ def run_rule_engine_safe(
             "violated": 0,
             "uncertain": 0,
             "not_applicable": 0,
+            "pending_confirmation": 0,
             "results": [],
             "error": str(exc),
         }

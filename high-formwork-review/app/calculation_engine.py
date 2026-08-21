@@ -17,7 +17,12 @@ import unicodedata
 from typing import Any
 
 from .models import MinerUDocument
-from .rule_engine import RULE_LIBRARY_DIR, MODULE_NAMES, MODULE_FILES
+from .rule_engine import (
+    MODULE_FILES,
+    MODULE_NAMES,
+    RULE_LIBRARY_DIR,
+    system_applicability_status,
+)
 
 # 验算公式关键词映射
 FORMULA_KEYWORDS: dict[str, list[str]] = {
@@ -120,6 +125,7 @@ def run_calculation_engine(
     violated = sum(1 for r in results if r["status"] == "VIOLATED")
     uncertain = sum(1 for r in results if r["status"] == "UNCERTAIN")
     not_app = sum(1 for r in results if r["status"] == "NOT_APPLICABLE")
+    pending = sum(1 for r in results if r["status"] == "PENDING_CONFIRMATION")
 
     return {
         "version": "4.0.0",
@@ -130,6 +136,7 @@ def run_calculation_engine(
         "violated": violated,
         "uncertain": uncertain,
         "not_applicable": not_app,
+        "pending_confirmation": pending,
         "results": results,
     }
 
@@ -148,12 +155,16 @@ def _evaluate_calculation(
         keywords = re.findall(r"[\u4e00-\u9fff]{2,6}", desc)[:5]
 
     # 适用性检查
-    applicable_types = rule.get("applicable_types", ["universal"])
-    if "universal" not in applicable_types:
-        type_map = {"pankou": "disk_lock", "koujian": "coupler", "wankou": "other"}
-        matched = any(type_map.get(at) == system_value for at in applicable_types)
-        if not matched:
-            return _build_calc_result(rule, "NOT_APPLICABLE", "支架类型不适用", [])
+    applicability = system_applicability_status(
+        rule.get("applicable_types", ["universal"]), system_value
+    )
+    if applicability == "PENDING_CONFIRMATION":
+        return _build_calc_result(
+            rule, "PENDING_CONFIRMATION",
+            "支撑体系未识别，该规则仅适用于特定支撑体系，待人工确认后重跑", [],
+        )
+    if applicability == "NOT_APPLICABLE":
+        return _build_calc_result(rule, "NOT_APPLICABLE", "支架类型不适用", [])
 
     # 检查计算书中是否包含该验算项目
     norm_text = unicodedata.normalize("NFKC", calc_text)
@@ -239,6 +250,7 @@ def run_calculation_engine_safe(
             "violated": 0,
             "uncertain": 0,
             "not_applicable": 0,
+            "pending_confirmation": 0,
             "results": [],
             "error": str(exc),
         }

@@ -3,7 +3,7 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 const STAGE_NAMES = { waiting:'等待上传',uploaded:'已上传',mineru_parsing:'MinerU解析',document_parsing:'文档解析',completeness_review:'完整性审查',completed:'已完成',completed_with_warning:'已完成(警告)',failed:'失败' };
 const STATUS_CN = { PASS:'已识别',MISSING:'疑似缺失',UNCERTAIN:'无法核验' };
-const RE_STATUS_CN = { COMPLIANT:'合规',VIOLATED:'违规',UNCERTAIN:'无法判定',NOT_APPLICABLE:'不适用' };
+const RE_STATUS_CN = { COMPLIANT:'合规',VIOLATED:'违规',UNCERTAIN:'无法判定',NOT_APPLICABLE:'不适用',PENDING_CONFIRMATION:'待确认' };
 const COMP_CN = { AGREEMENT:'一致',DISAGREEMENT:'不一致',NOT_REQUESTED:'未请求',DIFY_FAILED:'暂未完成',BOTH_UNCERTAIN:'均不确定' };
 const DIFY_CN = { not_requested:'增强复核：未请求',failed:'增强复核：暂未完成',cache:'增强复核：缓存',api:'增强复核：实时' };
 const HUMAN_CN = { pending:'待复核',confirmed_pass:'确认已具备',confirmed_missing:'确认存在缺项',unable_to_verify:'暂无法核验',false_positive:'排除误报',need_supplement:'要求补充资料' };
@@ -212,8 +212,8 @@ $('#pageDetailPanel').addEventListener('click', e => { if (e.target === $('#page
 function renderRuleEngine() {
   const re = ruleEngineData; if (!re) { $('#ruleEngineStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规则引擎未运行</div></div>'; return; }
   $('#ruleEngineStats').innerHTML = [
-    ['总规则数', re.total_rules], ['合规', re.compliant], ['违规', re.violated], ['无法判定', re.uncertain], ['不适用', re.not_applicable]
-  ].map(([l,v]) => `<div class="stat-card${l==='违规'&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+    ['总规则数', re.total_rules], ['合规', re.compliant], ['违规', re.violated], ['无法判定', re.uncertain], ['不适用', re.not_applicable], ['待确认', re.pending_confirmation||0]
+  ].map(([l,v]) => `<div class="stat-card${(l==='违规'||l==='待确认')&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
 
   // Populate module filter
   const mods = [...new Set((re.results||[]).map(r => r.module))].filter(Boolean);
@@ -335,14 +335,15 @@ function renderSemantic() {
   const violated = (ruleEngineData?.violated||0) + (semanticData?.violated||0);
   const uncertain = (ruleEngineData?.uncertain||0) + (semanticData?.uncertain||0);
   const notApp = (ruleEngineData?.not_applicable||0) + (semanticData?.not_applicable||0);
+  const pendingConf = (ruleEngineData?.pending_confirmation||0) + (semanticData?.pending_confirmation||0);
   if (!total) {
     $('#semanticStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规范语义审查未运行</div></div>';
     $('#semanticRows').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>';
     return;
   }
   $('#semanticStats').innerHTML = [
-    ['总规则数', total], ['合规', compliant], ['违规', violated], ['无法判定', uncertain], ['不适用', notApp]
-  ].map(([l,v]) => `<div class="stat-card${l==='违规'&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+    ['总规则数', total], ['合规', compliant], ['违规', violated], ['无法判定', uncertain], ['不适用', notApp], ['待确认', pendingConf]
+  ].map(([l,v]) => `<div class="stat-card${(l==='违规'||l==='待确认')&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
   // Populate module filter from all results
   const mods = [...new Set(allResults.map(r => r.module))].filter(Boolean);
   const sel = $('#semanticModuleFilter');

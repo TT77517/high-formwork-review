@@ -18,12 +18,17 @@ from pathlib import Path
 from typing import Any
 
 from .models import MinerUDocument
-from .rule_engine import RULE_LIBRARY_DIR, MODULE_NAMES, MODULE_FILES
+from .rule_engine import (
+    MODULE_FILES,
+    MODULE_NAMES,
+    RULE_LIBRARY_DIR,
+    system_applicability_status,
+)
 
 logger = logging.getLogger(__name__)
 
 # 语义审查输出状态
-SEMANTIC_STATUSES = ("COMPLIANT", "VIOLATED", "UNCERTAIN", "NOT_APPLICABLE")
+SEMANTIC_STATUSES = ("COMPLIANT", "VIOLATED", "UNCERTAIN", "NOT_APPLICABLE", "PENDING_CONFIRMATION")
 
 # 每条语义规则发送给 LLM 的方案文本上限（字符）
 SEMANTIC_EVIDENCE_LIMIT = 6000
@@ -219,6 +224,7 @@ def run_semantic_engine_local(
     violated = sum(1 for r in results if r["status"] == "VIOLATED")
     uncertain = sum(1 for r in results if r["status"] == "UNCERTAIN")
     not_app = sum(1 for r in results if r["status"] == "NOT_APPLICABLE")
+    pending = sum(1 for r in results if r["status"] == "PENDING_CONFIRMATION")
 
     return {
         "version": "4.0.0",
@@ -229,6 +235,7 @@ def run_semantic_engine_local(
         "violated": violated,
         "uncertain": uncertain,
         "not_applicable": not_app,
+        "pending_confirmation": pending,
         "results": results,
     }
 
@@ -245,12 +252,16 @@ def _evaluate_semantic_local(
         keywords = re.findall(r"[\u4e00-\u9fff]{2,6}", check_content)[:5]
 
     # 适用性检查
-    applicable_types = rule.get("applicable_types", ["universal"])
-    if "universal" not in applicable_types:
-        type_map = {"pankou": "disk_lock", "koujian": "coupler", "wankou": "other"}
-        matched = any(type_map.get(at) == system_value for at in applicable_types)
-        if not matched:
-            return _build_sem_result(rule, "NOT_APPLICABLE", "支架类型不适用", [], "")
+    applicability = system_applicability_status(
+        rule.get("applicable_types", ["universal"]), system_value
+    )
+    if applicability == "PENDING_CONFIRMATION":
+        return _build_sem_result(
+            rule, "PENDING_CONFIRMATION",
+            "支撑体系未识别，该规则仅适用于特定支撑体系，待人工确认后重跑", [], "",
+        )
+    if applicability == "NOT_APPLICABLE":
+        return _build_sem_result(rule, "NOT_APPLICABLE", "支架类型不适用", [], "")
 
     # 关键词匹配
     evidence = build_semantic_evidence(document, rule)
@@ -333,6 +344,7 @@ def run_semantic_engine_safe(
             "violated": 0,
             "uncertain": 0,
             "not_applicable": 0,
+            "pending_confirmation": 0,
             "results": [],
             "error": str(exc),
         }

@@ -107,7 +107,7 @@ def build_review_report(
     re_total = re.get("total_rules", 0)
     re_compliant = re.get("compliant", 0)
     re_violated = re.get("violated", 0)
-    re_uncertain = re.get("uncertain", 0) + re.get("not_applicable", 0)
+    re_uncertain = re.get("uncertain", 0) + re.get("not_applicable", 0) + re.get("pending_confirmation", 0)
     lines.append(f"| 规则引擎审查 | {re_total} | {re_compliant} | {re_violated} | {re_uncertain} |")
 
     sr = substantive_review or []
