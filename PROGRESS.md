@@ -27,7 +27,8 @@
 - [x] 前端规范词汇统一：规则库规范筛选改注册表词汇、工程基础信息页适用规范 chips 点击跳转规则库筛选
 - [x] qualification 接通跨度/总荷载/线荷载三参数（键名不变、requires_review 口径不变）+ 未识别时 pending_confirmation 摘要（各体系待执行专属规则数）
 - [x] 引擎适用性门禁共享（system_applicability_status）：支撑体系未识别时体系专属规则记 PENDING_CONFIRMATION（待人工确认后重跑），已识别不匹配仍 NOT_APPLICABLE；report/summary/前端状态词、筛选、统计卡同步
-- [x] 文档解析页章节聚合+钻取：一级章节主表（页范围/文本量/图表/partial/需复核）展开页行、目录树形（level≤2）、Block 分布条折叠、抽屉所见即所得（表格真渲染/图片直显/原文折叠）
+- [x] 文档解析页章节聚合+钻取：一级章节主表（页范围/文本量/图表/partial/需复核）展开页行、Block 分布条折叠、抽屉所见即所得（表格真渲染/图片直显/原文折叠）
+- [x] 文档解析页改三级钻取表（章节→小节→页），移除右侧长目录，全宽表格+操作提示
 - [x] 统一人工复核队列后端：human_review_queue 增 item_key、引擎 VIOLATED 逐条（按等级排序）、体系待确认聚合项、解析风险页聚合项（带 deep-link）、qualification 队首项 actionable（确认支撑体系选项）；decisions 端点支持 item_key（旧 rule_id payload 兼容）；报告复核表改事项编号
 - [x] 人工复核前端重写为统一工作台：按来源分组（识别/审查范围/规则引擎/语义/完整性/实质性/一致性/图文/文档解析）、证据跳转（页抽屉/规则详情/文档筛选）、确认支撑体系+重跑按钮（startPolling 复用）、概览卡改队列口径；浏览器冒烟通过
 - [x] 重跑闭环：POST /api/jobs/{id}/rerun（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
@@ -186,3 +187,4 @@
 
 - [2026-08-21 13:59] claude 签到 — 开始处理：P0 Web UI 改进——针对用户 4 点反馈（工程基础信息展示/规则包按规范展示/解析明细可视化/按工程特征匹配规则/人工复核定位）梳理现状并讨论改进方案
 - [2026-08-21 15:20] claude 签退 — 完成了：P0 Web UI 识别驱动重构（规范注册表+适用规范展示、qualification 三参数接线、引擎 PENDING_CONFIRMATION、文档解析章节聚合+抽屉所见即所得、统一人工复核工作台、POST /rerun 重跑闭环，10 个提交，153 测试通过/存量 3 败未触碰，浏览器冒烟通过）；下一步建议：修复剩余 3 个存量测试失败；语义审查 Agent 复用 PENDING_CONFIRMATION/重跑机制
+- [2026-08-21 16:05] claude 补充提交 — 文档解析页按用户选择改三级钻取表（章节→小节→页），移除右侧长目录；浏览器验证通过

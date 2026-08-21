@@ -182,7 +182,7 @@ function renderDocument() {
   const d = docMeta; if (!d) return;
   const stats = [['引擎',d.engine],['总页数',d.physical_page_count],['章节',d.section_count],['Block',d.block_count],['完整页',d.complete_page_count],['部分解析',d.partial_page_count],['不可读',d.unreadable_page_count]];
   $('#documentStats').innerHTML = stats.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  renderTechStats(); renderChapterTable('all'); renderSectionTree();
+  renderTechStats(); renderChapterTable('all');
   $('#pageFilter').onchange = function() { renderChapterTable(this.value); };
 }
 function renderTechStats() {
@@ -199,49 +199,69 @@ function _chapterGroups() {
   const chapters = []; const byName = {};
   sections.forEach(s => {
     const root = (s.path && s.path[0]) || s.title;
-    if (!byName[root]) { byName[root] = { title: root, start: s.physical_page_start, end: s.physical_page_end, sections: 0, pages: [] }; chapters.push(byName[root]); }
+    if (!byName[root]) { byName[root] = { title: root, start: s.physical_page_start, end: s.physical_page_end, subs: [], pages: [] }; chapters.push(byName[root]); }
     const c = byName[root];
     c.start = Math.min(c.start, s.physical_page_start);
     c.end = Math.max(c.end, s.physical_page_end);
-    c.sections += 1;
+    if ((s.path||[]).length >= 2) c.subs.push(s);
   });
-  const unc = { title: '未分类（封面/目录等）', start: 1, end: 1, sections: 0, pages: [] };
+  chapters.forEach(c => c.subs.sort((a,b) => a.physical_page_start - b.physical_page_start));
+  const unc = { title: '未分类（封面/目录等）', start: 1, end: 1, subs: [], pages: [] };
   pages.forEach(p => {
     const c = chapters.find(c => p.physical_page >= c.start && p.physical_page <= c.end);
     (c || unc).pages.push(p);
   });
+  const inSec = (s, p) => p.physical_page >= s.physical_page_start && p.physical_page <= s.physical_page_end;
+  chapters.forEach(c => {
+    c.subs.forEach(s => {
+      s._pages = c.pages.filter(p => inSec(s, p) && !c.subs.some(d => d !== s && (d.level||1) > (s.level||1) && inSec(d, p)));
+    });
+    c._direct = c.pages.filter(p => !c.subs.some(s => inSec(s, p)));
+  });
   return unc.pages.length ? [unc, ...chapters] : chapters;
 }
-function _pageRow(p) {
-  return `<tr class="${p.parse_status==='unreadable'?'row-unreadable':p.parse_status==='partial'?'row-partial':''}" data-page="${p.physical_page}">
-    <td>${p.physical_page}</td><td>${esc(p.printed_page||'—')}</td><td>${esc(p.page_type)}</td><td>${esc(p.parse_status)}</td>
+function _pageRow(p, ci, si) {
+  return `<tr class="page-sub hidden ${p.parse_status==='unreadable'?'row-unreadable':p.parse_status==='partial'?'row-partial':''}" data-ch="${ci}" data-sec="${si}" data-page="${p.physical_page}">
+    <td style="padding-left:44px">${p.physical_page}</td><td>${esc(p.printed_page||'—')}</td><td>${esc(p.page_type)}</td><td>${esc(p.parse_status)}</td>
     <td>${p.text_length}</td><td>${p.image_count}/${p.table_count}/${p.formula_count}</td>
     <td class="${p.requires_human_review?'review-yes':''}">${p.requires_human_review?'需要':'否'}</td></tr>`;
 }
 function renderChapterTable(f) {
   const match = p => f==='all'||(f==='unreadable'&&p.parse_status==='unreadable')||(f==='partial'&&p.parse_status==='partial')||(f==='human-review'&&p.requires_human_review);
+  const sum = (ps, k) => ps.reduce((a,p) => a+(p[k]||0), 0);
   const rows = [];
-  _chapterGroups().forEach((c, gi) => {
+  _chapterGroups().forEach((c, ci) => {
     const shown = f==='all' ? c.pages : c.pages.filter(match);
     if (f!=='all' && !shown.length) return;
     const partial = c.pages.filter(p => p.parse_status==='partial').length;
     const review = c.pages.filter(p => p.requires_human_review).length;
-    rows.push(`<tr class="chapter-row" data-g="${gi}"><td><b>${esc(c.title)}</b><small style="color:var(--text-tertiary)"> ${c.sections} 节</small></td><td>${c.start}-${c.end}</td><td>${c.pages.length}</td><td>${c.pages.reduce((a,p)=>a+(p.text_length||0),0)}</td><td>${c.pages.reduce((a,p)=>a+(p.image_count||0),0)}/${c.pages.reduce((a,p)=>a+(p.table_count||0),0)}/${c.pages.reduce((a,p)=>a+(p.formula_count||0),0)}</td><td>${partial}</td><td class="${review?'review-yes':''}">${review?`是(${review})`:'否'}</td></tr>`);
-    rows.push(`<tr class="chapter-pages hidden" data-g="${gi}"><td colspan="7"><table class="data-table inner-page-table"><thead><tr><th>页</th><th>印刷页</th><th>类型</th><th>状态</th><th>文本量</th><th>图/表/公式</th><th>复核</th></tr></thead><tbody>${shown.map(_pageRow).join('')}</tbody></table></td></tr>`);
+    rows.push(`<tr class="chapter-row" data-ch="${ci}"><td><b>${esc(c.title)}</b><small style="color:var(--text-tertiary)"> ${c.subs.length} 节</small></td><td>${c.start}-${c.end}</td><td>${c.pages.length}</td><td>${sum(c.pages,'text_length')}</td><td>${sum(c.pages,'image_count')}/${sum(c.pages,'table_count')}/${sum(c.pages,'formula_count')}</td><td>${partial}</td><td class="${review?'review-yes':''}">${review?`是(${review})`:'否'}</td></tr>`);
+    (f==='all' ? c._direct : c._direct.filter(match)).forEach(p => rows.push(_pageRow(p, ci, -1)));
+    c.subs.forEach((s, si) => {
+      const sp = f==='all' ? s._pages : s._pages.filter(match);
+      if (f!=='all' && !sp.length) return;
+      const depth = Math.min(3, (s.path||[]).length - 2);
+      const spartial = s._pages.filter(p => p.parse_status==='partial').length;
+      const sreview = s._pages.filter(p => p.requires_human_review).length;
+      rows.push(`<tr class="section-row hidden" data-ch="${ci}" data-sec="${si}"><td style="padding-left:${20+depth*16}px">${esc(s.title)}</td><td>${s.physical_page_start}-${s.physical_page_end}</td><td>${s._pages.length}</td><td>${sum(s._pages,'text_length')}</td><td>${sum(s._pages,'image_count')}/${sum(s._pages,'table_count')}/${sum(s._pages,'formula_count')}</td><td>${spartial}</td><td class="${sreview?'review-yes':''}">${sreview?`是(${sreview})`:'否'}</td></tr>`);
+      sp.forEach(p => rows.push(_pageRow(p, ci, si)));
+    });
   });
   $('#chapterRows').innerHTML = rows.join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary)">无符合条件的页面</td></tr>';
   $$('#chapterRows tr.chapter-row').forEach(r => r.addEventListener('click', () => {
-    const pr = $(`#chapterRows tr.chapter-pages[data-g="${r.dataset.g}"]`); if (pr) pr.classList.toggle('hidden');
+    const ci = r.dataset.ch;
+    const secs = $$(`#chapterRows tr.section-row[data-ch="${ci}"]`);
+    const opening = secs.length && secs[0].classList.contains('hidden');
+    $$(`#chapterRows tr[data-ch="${ci}"]`).forEach(k => { if (!k.classList.contains('chapter-row')) k.classList.add('hidden'); });
+    if (opening) $$(`#chapterRows tr[data-ch="${ci}"]`).forEach(k => {
+      if (k.classList.contains('section-row') || (k.classList.contains('page-sub') && k.dataset.sec === '-1')) k.classList.remove('hidden');
+    });
+  }));
+  $$('#chapterRows tr.section-row').forEach(r => r.addEventListener('click', () => {
+    const { ch, sec } = r.dataset;
+    $$(`#chapterRows tr.page-sub[data-ch="${ch}"][data-sec="${sec}"]`).forEach(k => k.classList.toggle('hidden'));
   }));
   $$('#chapterRows tr[data-page]').forEach(r => r.addEventListener('click', e => { e.stopPropagation(); openPageDrawer(+r.dataset.page); }));
-}
-function renderSectionTree() {
-  const ss = (docMeta?.sections||[]).filter(s => (s.level||1) <= 2);
-  $('#sectionList').innerHTML = ss.map(s => {
-    const depth = Math.max(0, (s.level||1) - 1);
-    return `<span class="toc-item" style="padding-left:${depth*12}px" data-page="${s.physical_page_start}">${esc(s.title)} <small>${s.physical_page_start}-${s.physical_page_end}</small></span>`;
-  }).join('');
-  $$('#sectionList .toc-item').forEach(i => i.addEventListener('click', () => openPageDrawer(+i.dataset.page)));
 }
 async function openPageDrawer(pn) {
   try {

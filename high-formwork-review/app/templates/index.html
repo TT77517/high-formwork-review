@@ -135,22 +135,15 @@
           <summary>技术统计（Block 明细）</summary>
           <div id="techStatsContent" class="fold-body"></div>
         </details>
-        <div class="doc-split">
-          <div class="doc-left">
-            <div class="filter-bar">
-              <label>页面筛选：</label>
-              <select id="pageFilter" class="select-field"><option value="all">全部</option><option value="unreadable">不可读</option><option value="partial">部分解析</option><option value="human-review">需人工复核</option></select>
-            </div>
-            <div class="table-wrap"><table class="data-table">
-              <thead><tr><th>章节</th><th>页范围</th><th>页数</th><th>文本量</th><th>图/表/公式</th><th>部分解析页</th><th>需复核</th></tr></thead>
-              <tbody id="chapterRows"></tbody>
-            </table></div>
-          </div>
-          <div class="doc-right">
-            <h3>章节目录</h3>
-            <div class="toc-list" id="sectionList"></div>
-          </div>
+        <div class="filter-bar">
+          <label>页面筛选：</label>
+          <select id="pageFilter" class="select-field"><option value="all">全部</option><option value="unreadable">不可读</option><option value="partial">部分解析</option><option value="human-review">需人工复核</option></select>
+          <span class="mode-hint" style="margin-left:12px">点击章节展开小节，点击小节展开页，点击页查看解析详情</span>
         </div>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>章节/小节/页</th><th>页范围</th><th>页数</th><th>文本量</th><th>图/表/公式</th><th>部分解析页</th><th>需复核</th></tr></thead>
+          <tbody id="chapterRows"></tbody>
+        </table></div>
         <div id="pageDetailPanel" class="drawer-overlay hidden">
           <div class="drawer"><div class="drawer-head"><h3 id="drawerTitle">页面详情</h3><button id="drawerClose" class="drawer-close">✕</button></div><div id="drawerBody" class="drawer-body"></div></div>
         </div>
