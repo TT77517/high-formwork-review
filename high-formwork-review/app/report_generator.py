@@ -58,6 +58,7 @@ def build_review_report(
         f"- **总荷载：** {_param_str(params.get('total_load_design', {}))}",
         f"- **线荷载：** {_param_str(params.get('concentrated_line_load_design', {}))}",
         f"- **适用规则包：** {'、'.join(q.get('applicable_rule_packs', [])) or '—'}",
+        f"- **适用规范：** {'、'.join(s.get('full_code', '') for s in q.get('applicable_standards', [])) or '—'}",
         "",
     ])
     conditions = q.get("triggered_conditions", [])

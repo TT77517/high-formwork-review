@@ -23,6 +23,7 @@
 - [x] 图文一致性校验（正文参数与图纸文本数值交叉比对）
 - [x] 规范筛选 + 规则详情编辑入口
 - [x] 规范注册表（config/standards.json + app/standards.py；/api/standards；规则 standard_id/standard_refs 标注与规范精确过滤）
+- [x] qualification 输出 applicable_standards（按支撑体系派生，未识别仅列通用规范附 note）+ 报告适用规范行
 
 ## 🔲 待完成
 

@@ -6,6 +6,7 @@ from typing import Any
 
 from .models import ReviewEvidence
 from .project_facts import build_project_facts
+from .standards import applicable_standards_for
 
 
 def build_project_qualification(document: Any, project_facts: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -39,6 +40,7 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
         "identified_parameters": identified,
         "triggered_conditions": _triggered_conditions(support_height),
         "applicable_rule_packs": rule_packs,
+        "applicable_standards": applicable_standards_for(system_value),
         "requires_human_review": requires_review,
         "human_review_reason": (
             "关键工程识别参数未完全识别，需人工确认"
