@@ -194,11 +194,11 @@ def build_review_report(
     # ===== 五、人工复核记录 =====
     if decisions:
         lines.extend(["---", "", "## 五、人工复核记录", ""])
-        lines.append("| 规则编号 | 自动状态 | 人工决定 | 备注 |")
+        lines.append("| 事项编号 | 自动状态 | 人工决定 | 备注 |")
         lines.append("|---------|---------|---------|------|")
         for d in decisions:
             lines.append(
-                f"| {d.get('rule_id', '—')} | {d.get('automatic_status', '—')} "
+                f"| {d.get('item_key', d.get('rule_id', '—'))} | {d.get('automatic_status', '—')} "
                 f"| {d.get('human_decision_label', d.get('human_decision', '—'))} "
                 f"| {d.get('note', '') or '—'} |"
             )

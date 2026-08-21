@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
+_SEVERITY_RANK = {"A-mandatory": 0, "B-required": 1, "C-recommended": 2}
+
 
 def build_review_results(
     project_qualification: dict[str, Any],
@@ -15,6 +17,8 @@ def build_review_results(
     consistency_review: list[dict[str, Any]] | None = None,
     drawing_review: list[dict[str, Any]] | None = None,
     rule_engine: dict[str, Any] | None = None,
+    semantic: dict[str, Any] | None = None,
+    document_pages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     completeness = _completeness_dict(completeness_summary)
     consistency_review = consistency_review or []
@@ -26,6 +30,7 @@ def build_review_results(
                 {
                     "source": "completeness_review",
                     "review_item_id": item.get("rule_id"),
+                    "item_key": f"completeness_review:{item.get('rule_id')}",
                     "title": item.get("name"),
                     "system_result": item.get("status"),
                     "reason": item.get("reason"),
@@ -39,6 +44,7 @@ def build_review_results(
                 {
                     "source": "substantive_review",
                     "review_item_id": item.get("review_item_id"),
+                    "item_key": f"substantive_review:{item.get('review_item_id')}",
                     "title": item.get("title"),
                     "system_result": item.get("status"),
                     "reason": item.get("conclusion"),
@@ -52,6 +58,7 @@ def build_review_results(
                 {
                     "source": "consistency_review",
                     "review_item_id": item.get("review_item_id"),
+                    "item_key": f"consistency_review:{item.get('review_item_id')}",
                     "title": item.get("title"),
                     "system_result": item.get("status"),
                     "reason": item.get("conclusion"),
@@ -68,6 +75,7 @@ def build_review_results(
                 {
                     "source": "drawing_review",
                     "review_item_id": item.get("review_item_id"),
+                    "item_key": f"drawing_review:{item.get('review_item_id')}",
                     "title": item.get("title"),
                     "system_result": item.get("status"),
                     "reason": item.get("conclusion"),
@@ -78,19 +86,100 @@ def build_review_results(
                     "basis": [],
                 }
             )
+
+    # 规则引擎/语义引擎 VIOLATED 逐条（按强制等级排序）
+    engine_items = []
+    for source, payload in (("rule_engine", rule_engine), ("semantic_engine", semantic)):
+        for r in (payload or {}).get("results", []):
+            if r.get("status") != "VIOLATED":
+                continue
+            engine_items.append(
+                {
+                    "source": source,
+                    "review_item_id": r.get("rule_id"),
+                    "item_key": f"{source}:{r.get('rule_id')}",
+                    "title": r.get("rule_name"),
+                    "system_result": "VIOLATED",
+                    "reason": r.get("reason"),
+                    "evidence": r.get("evidence", []),
+                    "basis": [(r.get("code_ref") or {}).get("standard", "")],
+                    "meta": {"severity": r.get("severity"), "module": r.get("module")},
+                }
+            )
+    engine_items.sort(
+        key=lambda i: _SEVERITY_RANK.get((i.get("meta") or {}).get("severity"), 3)
+    )
+
+    # 体系专属规则待确认聚合一条
+    pending_item = None
+    pending_total = sum(
+        (payload or {}).get("pending_confirmation", 0)
+        for payload in (rule_engine, semantic)
+    )
+    if pending_total:
+        pending_item = {
+            "source": "engine_scope",
+            "review_item_id": "PENDING-SYSTEM",
+            "item_key": "engine_scope:PENDING-SYSTEM",
+            "title": f"{pending_total} 条体系专属规则待确认支撑体系后执行",
+            "system_result": "PENDING_CONFIRMATION",
+            "reason": (
+                f"确定性 {(rule_engine or {}).get('pending_confirmation', 0)} 条 / "
+                f"语义 {(semantic or {}).get('pending_confirmation', 0)} 条"
+            ),
+            "evidence": [],
+            "basis": [],
+            "link": {"tab": "manual"},
+        }
+
+    # 解析风险页聚合一条
+    doc_item = None
+    risk_pages = [
+        p.get("physical_page")
+        for p in (document_pages or [])
+        if p.get("requires_human_review")
+    ]
+    if risk_pages:
+        doc_item = {
+            "source": "document_parse",
+            "review_item_id": "DOC-RISK-PAGES",
+            "item_key": "document_parse:DOC-RISK-PAGES",
+            "title": f"文档解析有 {len(risk_pages)} 页需人工复核",
+            "system_result": "REVIEW",
+            "reason": "部分解析/不可读/仅图片内容页需人工确认",
+            "evidence": [],
+            "basis": [],
+            "link": {"tab": "document", "filter": "human-review"},
+            "meta": {"pages": risk_pages},
+        }
+
+    ordered: list[dict[str, Any]] = []
     if project_qualification.get("requires_human_review"):
-        queue.insert(
-            0,
-            {
-                "source": "project_qualification",
-                "review_item_id": "PQ-01",
-                "title": "工程识别",
-                "system_result": "REVIEW",
-                "reason": project_qualification.get("human_review_reason"),
-                "evidence": [],
-                "basis": [],
-            },
-        )
+        qual_item = {
+            "source": "project_qualification",
+            "review_item_id": "PQ-01",
+            "item_key": "project_qualification:PQ-01",
+            "title": "工程识别",
+            "system_result": "REVIEW",
+            "reason": project_qualification.get("human_review_reason"),
+            "evidence": [],
+            "basis": [],
+        }
+        pending_confirmation = project_qualification.get("pending_confirmation")
+        if pending_confirmation:
+            qual_item["actionable"] = {
+                "type": "confirm_support_system",
+                "current": project_qualification.get("support_system"),
+                "options": pending_confirmation.get("options", []),
+            }
+        ordered.append(qual_item)
+    if pending_item:
+        ordered.append(pending_item)
+    ordered.extend(engine_items)
+    ordered.extend(queue)
+    if doc_item:
+        ordered.append(doc_item)
+
     return {
         "project_qualification": project_qualification,
         "completeness_review": {
@@ -123,7 +212,7 @@ def build_review_results(
             "rule_engine_not_applicable": (rule_engine or {}).get("not_applicable", 0),
             "rule_engine_pending_confirmation": (rule_engine or {}).get("pending_confirmation", 0),
         },
-        "human_review_queue": queue,
+        "human_review_queue": ordered,
         "notice": "系统结果仅作为专项施工方案预审辅助，需由审查人员人工确认，不作为最终审查结论。",
     }
 

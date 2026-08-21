@@ -95,7 +95,8 @@ app.mount(
 
 
 class DecisionInput(BaseModel):
-    rule_id: str = Field(min_length=1, max_length=64)
+    rule_id: str | None = Field(default=None, min_length=1, max_length=64)
+    item_key: str | None = Field(default=None, min_length=1, max_length=128)
     automatic_status: str
     human_decision: str
     human_decision_label: str = Field(default="")
@@ -103,7 +104,7 @@ class DecisionInput(BaseModel):
 
 
 class DecisionsPayload(BaseModel):
-    decisions: list[DecisionInput] = Field(min_length=1, max_length=10)
+    decisions: list[DecisionInput] = Field(min_length=1, max_length=200)
 
 
 @app.get("/")
@@ -539,11 +540,11 @@ def get_comparison(job_id: str) -> dict[str, Any]:
 @app.post("/api/jobs/{job_id}/decisions")
 def save_decisions(job_id: str, payload: DecisionsPayload) -> dict[str, Any]:
     job_dir = _completed_job_dir(job_id)
-    review_results = _read_json(
+    completeness_results = _read_json(
         job_dir / "completeness_results.json", "审查结果不存在"
     )
     valid_rules = {
-        str(item.get("rule_id")): str(item.get("status")) for item in review_results
+        str(item.get("rule_id")): str(item.get("status")) for item in completeness_results
     }
     decisions_path = job_dir / "decisions.json"
     existing = (
@@ -551,30 +552,68 @@ def save_decisions(job_id: str, payload: DecisionsPayload) -> dict[str, Any]:
         if decisions_path.exists()
         else []
     )
-    by_rule = {str(item.get("rule_id")): item for item in existing}
+    by_key: dict[str, dict[str, Any]] = {}
+    for item in existing or []:
+        key = str(item.get("item_key") or f"completeness_review:{item.get('rule_id')}")
+        by_key[key] = {**item, "item_key": key, "source": key.split(":", 1)[0]}
 
     for decision in payload.decisions:
-        expected_status = valid_rules.get(decision.rule_id)
-        if expected_status is None:
-            raise HTTPException(status_code=422, detail="规则编号不存在")
-        if (
-            decision.automatic_status not in AUTOMATIC_STATUSES
-            or decision.automatic_status != expected_status
-        ):
-            raise HTTPException(status_code=422, detail="自动审查状态不匹配")
+        if not decision.rule_id and not decision.item_key:
+            raise HTTPException(status_code=422, detail="rule_id 或 item_key 必填其一")
+        item_key = decision.item_key or f"completeness_review:{decision.rule_id}"
+        source, _, item_id = item_key.partition(":")
+        record_rule_id = None
+        if source == "completeness_review":
+            rule_id = decision.rule_id or item_id
+            expected_status = valid_rules.get(rule_id)
+            if expected_status is None:
+                raise HTTPException(status_code=422, detail="规则编号不存在")
+            if (
+                decision.automatic_status not in AUTOMATIC_STATUSES
+                or decision.automatic_status != expected_status
+            ):
+                raise HTTPException(status_code=422, detail="自动审查状态不匹配")
+            record_rule_id = rule_id
+        elif source in {"rule_engine", "semantic_engine"}:
+            fname = "rule_engine_results.json" if source == "rule_engine" else "semantic_results.json"
+            data = _read_json(job_dir / fname, "") if (job_dir / fname).is_file() else None
+            statuses = {
+                str(r.get("rule_id")): str(r.get("status"))
+                for r in (data or {}).get("results", [])
+            }
+            expected_status = statuses.get(item_id)
+            if expected_status is None or decision.automatic_status != expected_status:
+                raise HTTPException(status_code=422, detail="自动审查状态不匹配")
+        elif source in {"substantive_review", "consistency_review", "drawing_review"}:
+            fpath = job_dir / f"{source}.json"
+            items = _read_json(fpath, "") if fpath.is_file() else None
+            statuses = {
+                str(i.get("review_item_id")): str(i.get("status")) for i in items or []
+            }
+            expected_status = statuses.get(item_id)
+            if expected_status is None or decision.automatic_status != expected_status:
+                raise HTTPException(status_code=422, detail="自动审查状态不匹配")
+        else:
+            # 聚合项（engine_scope/document_parse/project_qualification）不比对自动状态
+            if decision.automatic_status not in {"REVIEW", "PENDING_CONFIRMATION"}:
+                raise HTTPException(status_code=422, detail="自动审查状态不匹配")
         if decision.human_decision not in HUMAN_DECISIONS:
             raise HTTPException(status_code=422, detail="人工决定无效")
-        by_rule[decision.rule_id] = {
+        record = {
             "job_id": job_id,
-            "rule_id": decision.rule_id,
+            "item_key": item_key,
+            "source": source,
             "automatic_status": decision.automatic_status,
             "human_decision": decision.human_decision,
             "human_decision_label": decision.human_decision_label.strip() or decision.human_decision,
             "note": decision.note.strip(),
             "decided_at": _utc_now(),
         }
+        if record_rule_id:
+            record["rule_id"] = record_rule_id
+        by_key[item_key] = record
 
-    saved = [by_rule[rule_id] for rule_id in sorted(by_rule)]
+    saved = [by_key[key] for key in sorted(by_key)]
     _atomic_write_json(decisions_path, saved)
     return {"job_id": job_id, "saved_count": len(payload.decisions), "decisions": saved}
 
@@ -840,6 +879,15 @@ def _process_job(job_id: str) -> None:
                 substantive_review,
                 consistency_review=consistency_review,
                 drawing_review=drawing_review,
+                rule_engine=rule_engine_result,
+                semantic=semantic_result,
+                document_pages=[
+                    {
+                        "physical_page": p.physical_page,
+                        "requires_human_review": p.requires_human_review,
+                    }
+                    for p in document.pages
+                ],
             ),
         )
         _atomic_write_text(
@@ -984,6 +1032,20 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
     consistency = _read_json(paths["consistency"], "") if paths["consistency"].is_file() else None
     drawing = _read_json(paths["drawing"], "") if paths["drawing"].is_file() else None
     rule_engine = _read_json(paths["rule_engine"], "") if paths["rule_engine"].is_file() else None
+    semantic_path = job_dir / "semantic_results.json"
+    semantic = _read_json(semantic_path, "") if semantic_path.is_file() else None
+    document_pages = None
+    doc_path = job_dir / "mineru_document.json"
+    if doc_path.is_file():
+        doc_data = _read_json(doc_path, "")
+        if isinstance(doc_data, dict):
+            document_pages = [
+                {
+                    "physical_page": p.get("physical_page"),
+                    "requires_human_review": p.get("requires_human_review"),
+                }
+                for p in doc_data.get("pages", [])
+            ]
     _atomic_write_json(
         job_dir / "review_results.json",
         build_review_results(
@@ -994,6 +1056,8 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
             consistency_review=consistency,
             drawing_review=drawing,
             rule_engine=rule_engine,
+            semantic=semantic,
+            document_pages=document_pages,
         ),
     )
 

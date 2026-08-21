@@ -728,3 +728,51 @@ def test_standards_endpoint_and_rule_standard_filter(client: TestClient) -> None
 
     all_rules = client.get("/api/rules").json()
     assert all("standard_id" in r for r in all_rules["rules"])
+
+
+def test_decisions_support_item_key_for_engine_items(client: TestClient) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    _write_json(
+        web.JOBS_ROOT / job_id / "rule_engine_results.json",
+        {"results": [{"rule_id": "4.1", "status": "VIOLATED"}]},
+    )
+
+    ok = client.post(
+        f"/api/jobs/{job_id}/decisions",
+        json={"decisions": [{
+            "item_key": "rule_engine:4.1",
+            "automatic_status": "VIOLATED",
+            "human_decision": "confirmed",
+            "note": "确认违规",
+        }]},
+    )
+    assert ok.status_code == 200
+    saved = ok.json()["decisions"][0]
+    assert saved["item_key"] == "rule_engine:4.1"
+    assert saved["source"] == "rule_engine"
+
+    bad = client.post(
+        f"/api/jobs/{job_id}/decisions",
+        json={"decisions": [{
+            "item_key": "rule_engine:4.1",
+            "automatic_status": "COMPLIANT",
+            "human_decision": "confirmed",
+        }]},
+    )
+    assert bad.status_code == 422
+
+
+def test_decisions_legacy_payload_gets_item_key(client: TestClient) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    resp = client.post(
+        f"/api/jobs/{job_id}/decisions",
+        json={"decisions": [{
+            "rule_id": "HF-COMP-001",
+            "automatic_status": "PASS",
+            "human_decision": "confirmed_pass",
+        }]},
+    )
+    assert resp.status_code == 200
+    saved = resp.json()["decisions"][0]
+    assert saved["item_key"] == "completeness_review:HF-COMP-001"
+    assert saved["rule_id"] == "HF-COMP-001"
