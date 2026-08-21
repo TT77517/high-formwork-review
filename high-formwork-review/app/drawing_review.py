@@ -141,6 +141,7 @@ def _cross_check_param(
             review_id, param_name, body_value, None, [],
             "REVIEW",
             f"正文参数={body_value}，未在图纸页面文本中找到该参数的对应数值，需人工复核图纸标注",
+            text_evidence=[_evidence_dict(item) for item in fact.get("evidence", [])[:3]],
         )
 
     # 取图纸中的代表值（众数或第一个）
@@ -167,6 +168,7 @@ def _cross_check_param(
     return _build_cross_result(
         review_id, param_name, body_value, drawing_value, drawing_values[:3],
         status, reason,
+        text_evidence=[_evidence_dict(item) for item in fact.get("evidence", [])[:3]],
     )
 
 
@@ -178,6 +180,7 @@ def _build_cross_result(
     drawing_evidence: list[dict[str, Any]],
     status: str,
     reason: str,
+    text_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "review_item_id": review_id,
@@ -188,7 +191,7 @@ def _build_cross_result(
         "conclusion": reason,
         "body_value": body_value,
         "drawing_value": drawing_value,
-        "text_evidence": [],
+        "text_evidence": text_evidence or [],
         "drawing_evidence": drawing_evidence,
         "automation_level": "text_level_cross_check",
         "requires_human_review": status != "PASS",

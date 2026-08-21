@@ -172,6 +172,7 @@
           <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>等级</th><th>状态</th><th>实际值</th><th>阈值</th><th>判定依据</th><th>操作</th></tr></thead>
           <tbody id="ruleEngineRows"></tbody>
         </table></div>
+        <div id="ruleEnginePager"></div>
         <div id="ruleEngineDetailPanel" class="drawer-overlay hidden">
           <div class="drawer"><div class="drawer-head"><h3 id="reDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="rule-engine">✕</button></div><div id="reDrawerBody" class="drawer-body"></div></div>
         </div>
@@ -223,6 +224,7 @@
           <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>等级</th><th>状态</th><th>实际值</th><th>阈值</th><th>判定依据</th><th>操作</th></tr></thead>
           <tbody id="semanticRows"></tbody>
         </table></div>
+        <div id="semanticPager"></div>
         <div id="semanticDetailPanel" class="drawer-overlay hidden">
           <div class="drawer"><div class="drawer-head"><h3 id="semanticDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="semantic">✕</button></div><div id="semanticDrawerBody" class="drawer-body"></div></div>
         </div>
@@ -233,25 +235,20 @@
         <div class="section-header"><h2>图文一致性校验</h2></div>
         <div id="drawingStats" class="stat-card-grid"></div>
         <div id="drawingCards" class="card-list"></div>
+        <div id="drawingPager"></div>
       </section>
 
       <!-- Calculation Review (计算校核) -->
       <section class="panel tab-panel hidden" id="tab-calculation">
         <div class="section-header"><h2>计算校核 <span class="tag-orange ml-8">部分可用</span></h2></div>
+        <h3 class="sub-head">公式验算</h3>
         <div id="calcStats" class="stat-card-grid"></div>
-        <div class="filter-bar">
-          <label>状态：</label>
-          <select id="calcStatusFilter" class="select-field">
-            <option value="all">全部</option>
-            <option value="PASS">一致</option>
-            <option value="ISSUE">不一致</option>
-            <option value="REVIEW">需复核</option>
-          </select>
-        </div>
-        <div class="table-wrap"><table class="data-table">
-          <thead><tr><th>编号</th><th>参数</th><th>状态</th><th>正文/构造侧</th><th>计算书侧</th><th>系统提示</th></tr></thead>
-          <tbody id="calcRows"></tbody>
-        </table></div>
+        <div id="calcCards" class="card-list"></div>
+        <div id="calcPager"></div>
+        <h3 class="sub-head">正文/计算书参数一致性</h3>
+        <div id="consStats" class="stat-card-grid"></div>
+        <div id="consCards" class="card-list"></div>
+        <div id="consPager"></div>
       </section>
 
       <!-- Manual -->

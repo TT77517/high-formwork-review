@@ -259,6 +259,23 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .tree-caret { display: inline-block; width: 14px; margin-right: 4px; font-size: 10px; color: var(--text-tertiary); transition: transform .15s; }
 .tree-caret.open { transform: rotate(90deg); }
 .tree-caret.leaf { color: var(--border); }
+
+/* Pager & card linkage */
+.pager { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.pager-info { font-size: 12px; color: var(--text-tertiary); }
+.pager-num { font-size: 12px; color: var(--text-secondary); }
+.stat-card.active { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-bg); }
+.sub-head { font-size: 14px; margin: 16px 0 8px; }
+.ev-block { margin-top: 8px; }
+.ev-block h5 { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+.ev-line { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.ev-line blockquote { flex: 1; margin: 0; }
+.cmp-line { display: flex; gap: 16px; margin: 6px 0; font-size: 13px; }
+.cmp-line code { background: var(--border-secondary); padding: 1px 6px; border-radius: 4px; }
+.cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0; }
+.cmp-side { background: #fafafa; border-radius: var(--radius-sm); padding: 8px; }
+.cmp-side h5 { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+.cmp-val { font-size: 14px; margin-bottom: 4px; }
 .inner-page-table { margin: 4px 0 8px; background: #fff; }
 .dist-bars { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .dist-row { display: flex; align-items: center; gap: 8px; }

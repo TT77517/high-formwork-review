@@ -323,12 +323,50 @@ async function openSectionReader(title, pages) {
 $('#drawerClose').addEventListener('click', () => $('#pageDetailPanel').classList.add('hidden'));
 $('#pageDetailPanel').addEventListener('click', e => { if (e.target === $('#pageDetailPanel')) $('#pageDetailPanel').classList.add('hidden'); });
 
+// ===== 分页与卡片联动 =====
+function slicePage(items, st) {
+  const pages = Math.max(1, Math.ceil(items.length / st.size));
+  if (st.page > pages) st.page = pages;
+  if (st.page < 1) st.page = 1;
+  const s = (st.page - 1) * st.size;
+  return items.slice(s, s + st.size);
+}
+function pagerHtml(st, total) {
+  const pages = Math.max(1, Math.ceil(total / st.size));
+  return `<div class="pager"><span class="pager-info">共 ${total} 条</span>
+    <select class="select-field pager-size">${[10,20,50].map(x => `<option value="${x}" ${st.size===x?'selected':''}>${x} / 页</option>`).join('')}</select>
+    <button type="button" class="btn-small pager-prev" ${st.page<=1?'disabled':''}>上一页</button>
+    <span class="pager-num">${st.page} / ${pages}</span>
+    <button type="button" class="btn-small pager-next" ${st.page>=pages?'disabled':''}>下一页</button></div>`;
+}
+function bindPager(sel, st, rerender) {
+  const root = $(sel); if (!root) return;
+  const prev = root.querySelector('.pager-prev'), next = root.querySelector('.pager-next'), size = root.querySelector('.pager-size');
+  if (prev) prev.addEventListener('click', () => { st.page -= 1; rerender(); });
+  if (next) next.addEventListener('click', () => { st.page += 1; rerender(); });
+  if (size) size.addEventListener('change', () => { st.size = +size.value; st.page = 1; rerender(); });
+}
+function statCardsHtml(cards, active) {
+  const warnLbl = ['违规','待确认','验算问题','需人工复核','不一致'];
+  return cards.map(([f,l,v]) => `<div class="stat-card${warnLbl.includes(l)&&v>0?' warn':''}${active===f?' active':''}" data-f="${f}" style="cursor:pointer" title="点击筛选下方列表"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+}
+function evLine(e, label) {
+  const pg = e.physical_page ?? e.page;
+  return `<div class="ev-line"><blockquote>${esc(e.quote||e.text||'')}</blockquote>${pg?`<button type="button" class="btn-small jq-page" data-page="${pg}">${label||'原文'} P${pg}</button>`:''}</div>`;
+}
+
 // ===== Rule Engine =====
+let reState = { page: 1, size: 10 };
 function renderRuleEngine() {
   const re = ruleEngineData; if (!re) { $('#ruleEngineStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规则引擎未运行</div></div>'; return; }
-  $('#ruleEngineStats').innerHTML = [
-    ['总规则数', re.total_rules], ['合规', re.compliant], ['违规', re.violated], ['无法判定', re.uncertain], ['不适用', re.not_applicable], ['待确认', re.pending_confirmation||0]
-  ].map(([l,v]) => `<div class="stat-card${(l==='违规'||l==='待确认')&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+  $('#ruleEngineStats').innerHTML = statCardsHtml([
+    ['all','总规则数',re.total_rules], ['COMPLIANT','合规',re.compliant], ['VIOLATED','违规',re.violated], ['UNCERTAIN','无法判定',re.uncertain], ['NOT_APPLICABLE','不适用',re.not_applicable], ['PENDING_CONFIRMATION','待确认',re.pending_confirmation||0]
+  ], $('#ruleEngineStatusFilter').value);
+  $$('#ruleEngineStats .stat-card').forEach(c => c.addEventListener('click', () => {
+    $('#ruleEngineStatusFilter').value = c.dataset.f;
+    reState.page = 1;
+    renderRuleEngineTable($('#ruleEngineModuleFilter').value, c.dataset.f);
+  }));
 
   // Populate module filter
   const mods = [...new Set((re.results||[]).map(r => r.module))].filter(Boolean);
@@ -346,12 +384,14 @@ function renderRuleEngine() {
 
 function renderRuleEngineTable(modFilter, stFilter) {
   const re = ruleEngineData; if (!re) return;
+  $$('#ruleEngineStats .stat-card').forEach(x => x.classList.toggle('active', x.dataset.f === stFilter));
   const results = (re.results||[]).filter(r => {
     if (modFilter !== 'all' && r.module !== modFilter) return false;
     if (stFilter !== 'all' && r.status !== stFilter) return false;
     return true;
   });
-  $('#ruleEngineRows').innerHTML = results.length ? results.map(r => {
+  const shown = slicePage(results, reState);
+  $('#ruleEngineRows').innerHTML = shown.length ? shown.map(r => {
     const th = r.threshold||{}; const thStr = th.value !== undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
     const valStr = r.actual_value !== null && r.actual_value !== undefined ? `${r.actual_value}${th.unit||''}` : '—';
     return `<tr>
@@ -365,6 +405,8 @@ function renderRuleEngineTable(modFilter, stFilter) {
       <td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td>
     </tr>`;
   }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
+  $('#ruleEnginePager').innerHTML = pagerHtml(reState, results.length);
+  bindPager('#ruleEnginePager', reState, () => renderRuleEngineTable(modFilter, stFilter));
   $$('#ruleEngineRows .btn-detail').forEach(b => b.addEventListener('click', () => openRuleEngineDrawer(b.dataset.rule)));
 }
 
@@ -438,6 +480,7 @@ function openReviewDrawer(rid) {
 }
 
 // ===== Semantic Review (规范语义审查) =====
+let semState = { page: 1, size: 10 };
 function renderSemantic() {
   // Combine deterministic (ruleEngineData) and semantic (semanticData) results
   const detResults = ruleEngineData?.results || [];
@@ -456,9 +499,14 @@ function renderSemantic() {
     $('#semanticRows').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>';
     return;
   }
-  $('#semanticStats').innerHTML = [
-    ['总规则数', total], ['合规', compliant], ['违规', violated], ['无法判定', uncertain], ['不适用', notApp], ['待确认', pendingConf]
-  ].map(([l,v]) => `<div class="stat-card${(l==='违规'||l==='待确认')&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+  $('#semanticStats').innerHTML = statCardsHtml([
+    ['all','总规则数',total], ['COMPLIANT','合规',compliant], ['VIOLATED','违规',violated], ['UNCERTAIN','无法判定',uncertain], ['NOT_APPLICABLE','不适用',notApp], ['PENDING_CONFIRMATION','待确认',pendingConf]
+  ], $('#semanticStatusFilter').value);
+  $$('#semanticStats .stat-card').forEach(c => c.addEventListener('click', () => {
+    $('#semanticStatusFilter').value = c.dataset.f;
+    semState.page = 1;
+    renderSemanticTable($('#semanticModuleFilter').value, c.dataset.f, allResults);
+  }));
   // Populate module filter from all results
   const mods = [...new Set(allResults.map(r => r.module))].filter(Boolean);
   const sel = $('#semanticModuleFilter');
@@ -471,13 +519,17 @@ function renderSemantic() {
   drawer.addEventListener('click', e => { if (e.target === drawer) drawer.classList.add('hidden'); });
 }
 function renderSemanticTable(modF, stF, allResults) {
+  $$('#semanticStats .stat-card').forEach(x => x.classList.toggle('active', x.dataset.f === stF));
   const results = (allResults||[]).filter(r => (modF==='all'||r.module===modF) && (stF==='all'||r.status===stF));
-  $('#semanticRows').innerHTML = results.length ? results.map(r => {
+  const shown = slicePage(results, semState);
+  $('#semanticRows').innerHTML = shown.length ? shown.map(r => {
     const th = r.threshold||{}; const thStr = th.value!==undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
     const valStr = r.actual_value!==null && r.actual_value!==undefined ? `${r.actual_value}${th.unit||''}` : '—';
     const typeTag = r.check_type==='semantic' ? '<span class="tag-blue">语义</span>' : '<span class="tag-default">确定性</span>';
     return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${typeTag}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${valStr}</td><td>${thStr}</td><td><small>${esc(r.reason||'')}</small></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}" data-type="${esc(r.check_type||'')}">详情</button></td></tr>`;
   }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
+  $('#semanticPager').innerHTML = pagerHtml(semState, results.length);
+  bindPager('#semanticPager', semState, () => renderSemanticTable(modF, stF, allResults));
   $$('#semanticRows .btn-detail').forEach(b => b.addEventListener('click', () => openSemanticDrawer(b.dataset.rule, b.dataset.type, allResults)));
 }
 function openSemanticDrawer(rid, rtype, allResults) {
@@ -491,42 +543,83 @@ function openSemanticDrawer(rid, rtype, allResults) {
 }
 
 // ===== Calculation Review (计算校核) =====
+let calcState = { page: 1, size: 10 }, consState = { page: 1, size: 10 };
+let calcFilter = 'all', consFilter = 'all';
 function renderCalculation() {
   const calc = calcData;
   const items = preData?.consistency_review||[];
-  const s = preData?.summary||{};
-  // Combine calc engine results + consistency results
   const calcResults = calc?.results || [];
-  const calcTotal = calc?.total_rules || 0;
-  const calcCompliant = calc?.compliant || 0;
-  const calcViolated = calc?.violated || 0;
-  const calcUncertain = calc?.uncertain || 0;
-  const consTotal = s.consistency_total ?? items.length;
-  const consPass = s.consistency_pass ?? 0;
-  const consIssue = s.consistency_issue ?? 0;
+  $('#calcStats').innerHTML = statCardsHtml([
+    ['all','验算项',calc?.total_rules||0], ['COMPLIANT','验算通过',calc?.compliant||0], ['VIOLATED','验算问题',calc?.violated||0], ['UNCERTAIN','无法判定',calc?.uncertain||0]
+  ], calcFilter);
+  $('#consStats').innerHTML = statCardsHtml([
+    ['all','一致性检查项',items.length],
+    ['PASS','一致',items.filter(i => i.status==='PASS').length],
+    ['ISSUE','不一致',items.filter(i => i.status==='ISSUE').length],
+    ['REVIEW','需复核',items.filter(i => i.status==='REVIEW').length]
+  ], consFilter);
+  $$('#calcStats .stat-card').forEach(c => c.addEventListener('click', () => { calcFilter = c.dataset.f; calcState.page = 1; renderCalculation(); }));
+  $$('#consStats .stat-card').forEach(c => c.addEventListener('click', () => { consFilter = c.dataset.f; consState.page = 1; renderCalculation(); }));
 
-  $('#calcStats').innerHTML = [
-    ['验算项', calcTotal], ['验算通过', calcCompliant], ['验算问题', calcViolated], ['无法判定', calcUncertain], ['参数不一致', consIssue]
-  ].map(([l,v]) => `<div class="stat-card${l==='验算问题'&&v>0?' warn':''}"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
+  // 公式验算卡片
+  const filteredCalc = calcResults.filter(r => calcFilter==='all' || r.status===calcFilter);
+  const shownCalc = slicePage(filteredCalc, calcState);
+  $('#calcCards').innerHTML = shownCalc.length ? shownCalc.map(r => {
+    const evs = (r.evidence||[]).slice(0,2).map(e => evLine(e,'原文')).join('');
+    return `<div class="review-card"><div class="review-card-head"><div><b>${esc(r.rule_id)} · ${esc(r.rule_name)}</b></div><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></div>
+      ${r.formula?`<p class="cmp-line">验算要求：<code>${esc(r.formula)}</code></p>`:''}
+      <p class="review-card-conclusion">${esc(r.reason||'')}</p>
+      ${evs?`<div class="ev-block"><h5>原文证据</h5>${evs}</div>`:''}</div>`;
+  }).join('') : '<p style="color:var(--text-tertiary)">无符合条件的验算项</p>';
+  $('#calcPager').innerHTML = pagerHtml(calcState, filteredCalc.length);
+  bindPager('#calcPager', calcState, renderCalculation);
 
-  // Render calculation results table
-  const calcRows = calcResults.length ? calcResults.map(r => {
-    const ev = r.evidence || [];
-    const evSnippet = ev.length ? ev[0].quote : '';
-    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td><small>${esc(r.formula||'')}</small></td><td><small>${esc(evSnippet).substring(0,80)}</small></td><td>${esc(r.reason||'')}</td></tr>`;
-  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无计算校核结果</td></tr>';
-
-  // Also render consistency items
-  const consRows = items.length ? items.map(i => `<tr><td>${esc(i.review_item_id)}</td><td>${esc(i.title)}</td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td>${sideTxt(i.design_side)}</td><td>${sideTxt(i.calculation_side)}</td><td>${esc(i.conclusion||'')}</td></tr>`).join('') : '';
-
-  $('#calcRows').innerHTML = calcRows + (consRows ? `<tr><td colspan="6" style="background:#fafafa;font-weight:600;padding:8px">参数一致性检查</td></tr>` + consRows : '');
+  // 参数一致性对比卡片
+  const filteredCons = items.filter(i => consFilter==='all' || i.status===consFilter);
+  const shownCons = slicePage(filteredCons, consState);
+  $('#consCards').innerHTML = shownCons.length ? shownCons.map(i => `
+    <div class="review-card"><div class="review-card-head"><div><b>${esc(i.review_item_id)} · ${esc(i.title)}</b></div><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></div>
+    <div class="cmp-grid">
+      <div class="cmp-side"><h5>正文/构造侧</h5><div class="cmp-val">${sideTxt(i.design_side)}</div>${(i.design_side?.evidence||[]).slice(0,1).map(e => evLine(e,'原文')).join('')}</div>
+      <div class="cmp-side"><h5>计算书侧</h5><div class="cmp-val">${sideTxt(i.calculation_side)}</div>${(i.calculation_side?.evidence||[]).slice(0,1).map(e => evLine(e,'原文')).join('')}</div>
+    </div>
+    <p class="review-card-conclusion">${esc(i.conclusion||'')}</p></div>`).join('') : '<p style="color:var(--text-tertiary)">无符合条件的检查项</p>';
+  $('#consPager').innerHTML = pagerHtml(consState, filteredCons.length);
+  bindPager('#consPager', consState, renderCalculation);
+  $$('#tab-calculation .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
 }
 
 // ===== Drawing =====
+let drawState = { page: 1, size: 5 };
+let drawFilter = 'all';
 function renderDrawing() {
   const items = preData?.drawing_review||[]; const s = preData?.summary||{};
-  $('#drawingStats').innerHTML = [['复核卡片',s.drawing_total??items.length],['需人工复核',s.drawing_review??items.length]].map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  $('#drawingCards').innerHTML = items.length ? items.map(i => `<div class="review-card"><div class="review-card-head"><div><b>${esc(i.review_item_id)} · ${esc(i.title)}</b></div><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></div><p class="review-card-conclusion">${esc(i.conclusion||'')}</p></div>`).join('') : '<p style="color:var(--text-tertiary)">暂无结果</p>';
+  $('#drawingStats').innerHTML = statCardsHtml([
+    ['all','复核卡片',s.drawing_total??items.length],
+    ['review','需人工复核',s.drawing_review??items.filter(i => i.requires_human_review).length],
+    ['PASS','一致',items.filter(i => i.status==='PASS').length],
+    ['ISSUE','不一致',items.filter(i => i.status==='ISSUE').length]
+  ], drawFilter);
+  $$('#drawingStats .stat-card').forEach(c => c.addEventListener('click', () => { drawFilter = c.dataset.f; drawState.page = 1; renderDrawing(); }));
+  const filtered = items.filter(i => drawFilter==='all' || (drawFilter==='review' ? i.requires_human_review : i.status===drawFilter));
+  const shown = slicePage(filtered, drawState);
+  $('#drawingCards').innerHTML = shown.length ? shown.map(i => {
+    const cmp = (i.body_value!=null || i.drawing_value!=null) ? `<div class="cmp-line"><span>正文值 <b>${i.body_value??'—'}</b></span><span>图纸标注值 <b class="${i.status==='ISSUE'?'review-yes':''}">${i.drawing_value??'—'}</b></span></div>` : '';
+    const evT = (i.text_evidence||[]).slice(0,3).map(e => evLine(e,'原文')).join('');
+    const evD = (i.drawing_evidence||[]).slice(0,4).map(e => {
+      const pg = e.physical_page||e.page;
+      const lbl = e.quote ? `标注「${esc(e.quote)}」` : (e.keyword_hits||[]).map(esc).join('、');
+      return `<div class="ev-line"><span>${lbl}${e.value!=null?` = <b>${e.value}</b>`:''}</span>${pg?`<button type="button" class="btn-small jq-page" data-page="${pg}">图纸 P${pg}</button>`:''}</div>`;
+    }).join('');
+    return `<div class="review-card"><div class="review-card-head"><div><b>${esc(i.review_item_id)} · ${esc(i.title)}</b></div><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></div>
+      <p class="review-card-conclusion">${esc(i.conclusion||'')}</p>${cmp}
+      ${evT?`<div class="ev-block"><h5>正文原文证据</h5>${evT}</div>`:''}
+      ${evD?`<div class="ev-block"><h5>图纸标注/图纸页证据</h5>${evD}</div>`:''}
+      ${i.boundary?`<p class="boundary-note">${esc(i.boundary)}</p>`:''}</div>`;
+  }).join('') : '<p style="color:var(--text-tertiary)">暂无结果</p>';
+  $('#drawingPager').innerHTML = pagerHtml(drawState, filtered.length);
+  bindPager('#drawingPager', drawState, renderDrawing);
+  $$('#drawingCards .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
 }
 
 // ===== Manual（统一复核工作台） =====
