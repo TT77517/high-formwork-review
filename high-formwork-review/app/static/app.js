@@ -23,7 +23,9 @@ const MODE_TABS = {
   drawing: ['home','overview','qualification','document','drawing','manual','rule-library','records'],
   calculation: ['home','overview','qualification','document','calculation','manual','rule-library','records']
 };
-let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null, calcData=null;
+let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null, calcData=null, standardsData=null;
+const STD_LABEL = {};
+const RISK_CN = { over_scale_dangerous:'超过一定规模危大', dangerous:'危大', unknown:'未识别' };
 
 initFromQuery();
 $$('#reviewModeGrid .mode-card').forEach(c => c.addEventListener('click', () => {
@@ -118,6 +120,13 @@ async function loadAll() {
     try { const re = await fetch(`/api/jobs/${curJob}/rule-engine`); if (re.ok) ruleEngineData = await re.json(); } catch(_){}
     try { const sm = await fetch(`/api/jobs/${curJob}/semantic`); if (sm.ok) semanticData = await sm.json(); } catch(_){}
     try { const cl = await fetch(`/api/jobs/${curJob}/calculation`); if (cl.ok) calcData = await cl.json(); } catch(_){}
+    try {
+      const sr = await fetch('/api/standards');
+      if (sr.ok) {
+        standardsData = await sr.json();
+        (standardsData.standards||[]).forEach(s => { STD_LABEL[s.standard_id] = s.full_code; });
+      }
+    } catch(_){}
     loadRuleLibrary('', '', '', '', '');  // Load rule library in background
     renderOverview(); renderQualification(); renderDocument(); renderRuleEngine(); renderReview();
     renderSemantic(); renderDrawing(); renderCalculation(); renderManual(); renderRecords();
@@ -150,10 +159,20 @@ function renderOverview() {
 
 // ===== Qualification =====
 function renderQualification() {
-  const q = preData?.project_qualification; if (!q) { $('#qualificationPanel').innerHTML = '<div class="stat-card"><div class="stat-value">未生成</div><div class="stat-title">工程基础信息</div></div>'; return; }
+  const q = preData?.project_qualification; if (!q) { $('#qualificationPanel').innerHTML = '<div class="stat-card"><div class="stat-value">未生成</div><div class="stat-title">工程基础信息</div></div>'; $('#qualificationStandards').innerHTML = ''; return; }
   const p = q.identified_parameters||{}; const h = p.support_height||{}; const sp = p.support_span||{}; const t = p.total_load_design||{}; const l = p.concentrated_line_load_design||{};
-  const rows = [['工程类型',q.project_type],['风险属性',q.risk_classification],['支撑体系',q.support_system_label],['支撑高度',vwu(h)],['跨度',vwu(sp)],['总荷载',vwu(t)],['线荷载',vwu(l)],['适用规则包',(q.applicable_rule_packs||[]).join('、')]];
+  const rows = [['工程类型',q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label],['支撑高度',vwu(h)],['跨度',vwu(sp)],['总荷载',vwu(t)],['线荷载',vwu(l)]];
   $('#qualificationPanel').innerHTML = rows.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${esc(l)}</div><div class="stat-value">${esc(v||'未识别')}</div></div>`).join('');
+  const stds = q.applicable_standards||[];
+  const note = stds.length && stds[0].note ? `<p class="mode-hint">${esc(stds[0].note)}，确认后重跑适用规则</p>` : '';
+  $('#qualificationStandards').innerHTML = stds.length
+    ? `<div class="std-head">适用规范</div><div class="std-chips">${stds.map(s => `<button type="button" class="std-chip" data-std="${esc(s.standard_id)}" title="${esc(s.name)}">${esc(s.full_code)}<small>${esc(s.name)}</small></button>`).join('')}</div>${note}`
+    : '';
+  $$('#qualificationStandards .std-chip').forEach(b => b.addEventListener('click', () => {
+    switchTab('rule-library');
+    $('#rlStandardFilter').value = b.dataset.std;
+    loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, b.dataset.std);
+  }));
 }
 
 // ===== Document =====
@@ -462,16 +481,17 @@ function renderRuleLibrary() {
   const mods = [...new Set(rules.map(r => r.module))].filter(Boolean);
   const sel = $('#rlModuleFilter');
   if (sel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); }); }
-  // Populate standard filter
-  const stds = [...new Set(rules.map(r => { const s=r.code_ref?.standard||''; const m=s.match(/(GB[\d\s]*\d+|JGJ[/T]*\s*\d+|住建部|建办质|建质)/); return m?m[0].replace(/\s/g,''):''; }).filter(Boolean))];
+  // Populate standard filter from registry（与工程基础信息"适用规范"同一词汇）
   const stdSel = $('#rlStandardFilter');
-  if (stdSel.options.length <= 1) { stds.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; stdSel.appendChild(o); }); }
+  if (stdSel.options.length <= 1 && standardsData) {
+    (standardsData.standards||[]).forEach(s => { const o = document.createElement('option'); o.value = s.standard_id; o.textContent = `${s.full_code} ${s.name}`; stdSel.appendChild(o); });
+  }
   // Render table
   $('#ruleLibraryRows').innerHTML = rules.length ? rules.map(r => {
     const typeLabel = { deterministic:'确定性', semantic:'语义', calculation:'计算' }[r.check_type]||r.check_type;
     const sevClass = r.severity==='A-mandatory'?'orange':'default';
     const sevLabel = SEVERITY_CN[r.severity]||r.severity;
-    const stdText = (r.code_ref?.standard||'').substring(0,15);
+    const stdText = (r.standard_refs||[]).map(id => STD_LABEL[id]||id).join(' / ') || (r.code_ref?.standard||'').substring(0,15);
     const actions = r.status==='active'
       ? `<button class="btn-small btn-detail" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button>`
       : `<button class="btn-small btn-detail" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button>`;
