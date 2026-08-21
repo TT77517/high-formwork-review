@@ -30,6 +30,8 @@
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
 - [ ] 更多规范规则的补充与完善
 - [ ] 测试覆盖补充
+- [ ] 修复 6 个存量测试失败/错误（见下方"已知测试问题"，2026-08-21 claude 发现并诊断）
+- [ ] Web UI 页面改进（P0，需与用户沟通具体方向）
 
 ## 🚧 当前阻塞
 
@@ -37,9 +39,23 @@
 
 ## 📌 下一步建议
 
-1. 验证 `967951c` 的修复是否完整——测试规范审查各模式是否正常
-2. 完成 MinerU 缓存的验证用例
-3. 规划规范语义审查 Agent 的架构
+1. Web UI 页面改进（P0）——需与用户沟通具体不满意点和改进方向
+2. 修复存量测试失败（Python 3.9 兼容 + 过期断言，详见"已知测试问题"）
+3. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`）
+
+## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
+
+`cd high-formwork-review && .venv/bin/python -m pytest` 结果：**4 failed, 99 passed, 1 skipped, 2 collection errors**（Desktop 与 dewuclaw 两份副本结果完全一致，确认为存量问题）：
+
+1. **Python 3.9 兼容性（收集错误 + 1 失败）**
+   - `tests/test_dify_cache.py:12`、`tests/test_review.py:30`：函数签名注解用了 `dict | None` / `str | None`（PEP 604，3.10+），3.9 下 import 即报 TypeError
+   - `tests/test_dify.py:351`：`zip(..., strict=True)`（3.10+ 语法）
+   - 注：本机仅有 Python 3.9.6，装 `eval_type_backport` 无效（它只对 `get_type_hints` 生效）
+2. **测试断言过期（test_web 2 个失败）**
+   - `test_home_page_shows_modular_review_modes`：断言旧文案"规范符合性审查"，当前 UI 已改为"规范语义审查"等新模式
+   - `test_upload_creates_job`：传 `review_mode=compliance`，但 `app/web.py:73` 的 `REVIEW_MODES = {smart, completeness, semantic, drawing, calculation}` 已无 `compliance`（与 dewucode 2026-08-20 手工验证结论矛盾——手工验证通过的记录未同步到测试）
+3. **DR-01 缺失（test_vertical_slice 1 个失败）**
+   - `test_drawing_review_recalls_related_drawing_pages`：`build_drawing_review` 输出中无 `DR-01` 条目（KeyError），需查 `app/drawing_review.py` 规则配置
 
 ## 🔄 Agent 交接日志（Handoff Log）
 
@@ -152,3 +168,5 @@
 ### 下一步建议
 1. MinerU 缓存验证
 2. 规范语义审查 Agent 架构规划
+
+- [2026-08-21 10:30] claude 签到 — 开始处理：Desktop 副本同步至 a20b549 + 基线测试验证；发现并诊断 6 个存量测试失败（详见"已知测试问题"），准备进入 P0 Web UI 改进
