@@ -178,30 +178,81 @@ function renderQualification() {
 // ===== Document =====
 function renderDocument() {
   const d = docMeta; if (!d) return;
-  const stats = [['引擎',d.engine],['总页数',d.physical_page_count],['章节',d.section_count],['Block',d.block_count],['文本块',d.text_block_count],['表格',d.table_count],['图片',d.image_count],['公式',d.formula_count],['完整页',d.complete_page_count],['部分解析',d.partial_page_count],['不可读',d.unreadable_page_count]];
+  const stats = [['引擎',d.engine],['总页数',d.physical_page_count],['章节',d.section_count],['Block',d.block_count],['完整页',d.complete_page_count],['部分解析',d.partial_page_count],['不可读',d.unreadable_page_count]];
   $('#documentStats').innerHTML = stats.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${l}</div><div class="stat-value">${v}</div></div>`).join('');
-  renderPageTable('all'); renderSections();
-  $('#pageFilter').onchange = function() { renderPageTable(this.value); };
+  renderTechStats(); renderChapterTable('all'); renderSectionTree();
+  $('#pageFilter').onchange = function() { renderChapterTable(this.value); };
 }
-function renderPageTable(f) {
-  const pages = docMeta?.pages||[]; const filtered = pages.filter(p => f==='all'||(f==='unreadable'&&p.parse_status==='unreadable')||(f==='partial'&&p.parse_status==='partial')||(f==='human-review'&&p.requires_human_review));
-  $('#pageRows').innerHTML = filtered.map(p => `<tr class="${p.parse_status==='unreadable'?'row-unreadable':p.parse_status==='partial'?'row-partial':''}" data-page="${p.physical_page}">
+function renderTechStats() {
+  const d = docMeta; if (!d) return;
+  const total = (d.text_block_count||0)+(d.table_count||0)+(d.image_count||0)+(d.formula_count||0)||1;
+  const bars = [['文本块',d.text_block_count],['表格',d.table_count],['图片',d.image_count],['公式',d.formula_count]];
+  const pc = d.physical_page_count||1;
+  $('#techStatsContent').innerHTML = `
+    <div class="dist-bars">${bars.map(([l,v]) => `<div class="dist-row"><span class="dist-label">${l}</span><div class="dist-track"><div class="dist-fill" style="width:${Math.round((v||0)/total*100)}%"></div></div><span class="dist-val">${v||0}</span></div>`).join('')}</div>
+    <p class="mode-hint">解析质量：完整页 ${d.complete_page_count||0}/${pc}（${Math.round((d.complete_page_count||0)/pc*100)}%）、部分解析 ${d.partial_page_count||0}、不可读 ${d.unreadable_page_count||0}；需人工复核 ${d.human_review_page_count??0} 页。</p>`;
+}
+function _chapterGroups() {
+  const pages = docMeta?.pages||[]; const sections = docMeta?.sections||[];
+  const chapters = []; const byName = {};
+  sections.forEach(s => {
+    const root = (s.path && s.path[0]) || s.title;
+    if (!byName[root]) { byName[root] = { title: root, start: s.physical_page_start, end: s.physical_page_end, sections: 0, pages: [] }; chapters.push(byName[root]); }
+    const c = byName[root];
+    c.start = Math.min(c.start, s.physical_page_start);
+    c.end = Math.max(c.end, s.physical_page_end);
+    c.sections += 1;
+  });
+  const unc = { title: '未分类（封面/目录等）', start: 1, end: 1, sections: 0, pages: [] };
+  pages.forEach(p => {
+    const c = chapters.find(c => p.physical_page >= c.start && p.physical_page <= c.end);
+    (c || unc).pages.push(p);
+  });
+  return unc.pages.length ? [unc, ...chapters] : chapters;
+}
+function _pageRow(p) {
+  return `<tr class="${p.parse_status==='unreadable'?'row-unreadable':p.parse_status==='partial'?'row-partial':''}" data-page="${p.physical_page}">
     <td>${p.physical_page}</td><td>${esc(p.printed_page||'—')}</td><td>${esc(p.page_type)}</td><td>${esc(p.parse_status)}</td>
     <td>${p.text_length}</td><td>${p.image_count}/${p.table_count}/${p.formula_count}</td>
-    <td class="${p.requires_human_review?'review-yes':''}">${p.requires_human_review?'需要':'否'}</td></tr>`).join('');
-  $$('#pageRows tr').forEach(r => r.addEventListener('click', () => openPageDrawer(+r.dataset.page)));
+    <td class="${p.requires_human_review?'review-yes':''}">${p.requires_human_review?'需要':'否'}</td></tr>`;
 }
-function renderSections() {
-  const ss = docMeta?.sections||[];
-  $('#sectionList').innerHTML = ss.map(s => `<span class="toc-item" data-page="${s.physical_page_start}">${esc(s.title)} <small>${s.physical_page_start}-${s.physical_page_end}</small></span>`).join('');
+function renderChapterTable(f) {
+  const match = p => f==='all'||(f==='unreadable'&&p.parse_status==='unreadable')||(f==='partial'&&p.parse_status==='partial')||(f==='human-review'&&p.requires_human_review);
+  const rows = [];
+  _chapterGroups().forEach((c, gi) => {
+    const shown = f==='all' ? c.pages : c.pages.filter(match);
+    if (f!=='all' && !shown.length) return;
+    const partial = c.pages.filter(p => p.parse_status==='partial').length;
+    const review = c.pages.filter(p => p.requires_human_review).length;
+    rows.push(`<tr class="chapter-row" data-g="${gi}"><td><b>${esc(c.title)}</b><small style="color:var(--text-tertiary)"> ${c.sections} 节</small></td><td>${c.start}-${c.end}</td><td>${c.pages.length}</td><td>${c.pages.reduce((a,p)=>a+(p.text_length||0),0)}</td><td>${c.pages.reduce((a,p)=>a+(p.image_count||0),0)}/${c.pages.reduce((a,p)=>a+(p.table_count||0),0)}/${c.pages.reduce((a,p)=>a+(p.formula_count||0),0)}</td><td>${partial}</td><td class="${review?'review-yes':''}">${review?`是(${review})`:'否'}</td></tr>`);
+    rows.push(`<tr class="chapter-pages hidden" data-g="${gi}"><td colspan="7"><table class="data-table inner-page-table"><thead><tr><th>页</th><th>印刷页</th><th>类型</th><th>状态</th><th>文本量</th><th>图/表/公式</th><th>复核</th></tr></thead><tbody>${shown.map(_pageRow).join('')}</tbody></table></td></tr>`);
+  });
+  $('#chapterRows').innerHTML = rows.join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary)">无符合条件的页面</td></tr>';
+  $$('#chapterRows tr.chapter-row').forEach(r => r.addEventListener('click', () => {
+    const pr = $(`#chapterRows tr.chapter-pages[data-g="${r.dataset.g}"]`); if (pr) pr.classList.toggle('hidden');
+  }));
+  $$('#chapterRows tr[data-page]').forEach(r => r.addEventListener('click', e => { e.stopPropagation(); openPageDrawer(+r.dataset.page); }));
+}
+function renderSectionTree() {
+  const ss = (docMeta?.sections||[]).filter(s => (s.level||1) <= 2);
+  $('#sectionList').innerHTML = ss.map(s => {
+    const depth = Math.max(0, (s.level||1) - 1);
+    return `<span class="toc-item" style="padding-left:${depth*12}px" data-page="${s.physical_page_start}">${esc(s.title)} <small>${s.physical_page_start}-${s.physical_page_end}</small></span>`;
+  }).join('');
   $$('#sectionList .toc-item').forEach(i => i.addEventListener('click', () => openPageDrawer(+i.dataset.page)));
 }
 async function openPageDrawer(pn) {
   try {
     const r = await fetch(`/api/jobs/${curJob}/document/pages/${pn}`); const p = await r.json(); if (!r.ok) return;
-    const blocks = (p.blocks||[]).map(b => `<div class="evidence-block"><div class="meta"><span><b>${esc(b.block_type)}</b></span><span>${esc(b.block_id)}</span></div><blockquote>${esc(b.text||'无文本')}</blockquote>${b.image_path?`<img src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(b.image_path)}">`:''}</div>`).join('');
+    const blocks = (p.blocks||[]).map(b => {
+      const meta = `<div class="meta"><span><b>${esc(b.block_type)}</b></span><span>${esc(b.block_id)}</span><small>${esc(b.source_pointer||'')}</small></div>`;
+      if (b.block_type==='table' && b.table_html) return `<div class="evidence-block">${meta}<div class="table-html">${b.table_html}</div></div>`;
+      if ((b.block_type==='image'||b.block_type==='drawing') && b.image_path) return `<div class="evidence-block">${meta}<img src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(b.image_path)}"></div>`;
+      if (b.block_type==='title') return `<div class="evidence-block">${meta}<h4 style="margin:4px 0">${esc(b.text||'')}</h4></div>`;
+      return `<div class="evidence-block">${meta}<p style="margin:4px 0;white-space:pre-wrap">${esc(b.text||'无文本')}</p></div>`;
+    }).join('');
     $('#drawerTitle').textContent = `第 ${p.physical_page} 页详情`;
-    $('#drawerBody').innerHTML = `<div><p>${esc(p.text||'本页无可用文本')}</p></div><h4 style="margin-top:14px">Block列表</h4>${blocks}`;
+    $('#drawerBody').innerHTML = `${blocks || '<p style="color:var(--text-tertiary)">本页无可用内容</p>'}<details class="fold-section" style="margin-top:12px"><summary>整页原始文本</summary><div class="fold-body"><p style="white-space:pre-wrap">${esc(p.text||'')}</p></div></details>`;
     $('#pageDetailPanel').classList.remove('hidden');
   } catch(_){}
 }
