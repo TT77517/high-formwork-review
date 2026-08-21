@@ -484,6 +484,11 @@ def _document_from_dict(data: Any) -> MinerUDocument:
     return document
 
 
+def document_from_dict(data: Any) -> MinerUDocument:
+    """公开入口：把文档 dict 反序列化为 MinerUDocument（重跑等场景复用）。"""
+    return _document_from_dict(data)
+
+
 def _atomic_write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temp_name = tempfile.mkstemp(

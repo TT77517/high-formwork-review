@@ -32,11 +32,13 @@ from .mineru_cache import (
     PARSER_CONFIG_VERSION,
     PARSER_VERSION,
     build_cache_key,
+    document_from_dict,
     parse_pdf_with_cache,
     sha256_file,
 )
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
+from .models import MinerUDocument
 from .project_facts import build_project_facts
 from .project_qualification import build_project_qualification
 from .review_summary import build_review_results
@@ -79,6 +81,7 @@ STAGE_PROGRESS = {
     "mineru_parsing": 30,
     "document_parsing": 60,
     "completeness_review": 80,
+    "rerun_review": 90,
     "completed": 100,
     "completed_with_warning": 100,
     "failed": 100,
@@ -855,41 +858,7 @@ def _process_job(job_id: str) -> None:
             enriched_results.append(item)
         _atomic_write_json(job_dir / "completeness_results.json", enriched_results)
         _atomic_write_json(job_dir / "completeness_summary.json", asdict(summary))
-        project_facts = build_project_facts(document)
-        project_qualification = build_project_qualification(document, project_facts)
-        rule_engine_result = run_rule_engine_safe(document, project_facts)
-        semantic_result = run_semantic_engine_safe(document, project_facts)
-        calculation_result = run_calculation_engine_safe(document, project_facts)
-        substantive_review = build_substantive_review(project_qualification, project_facts)
-        consistency_review = build_consistency_review(project_facts, document)
-        drawing_review = build_drawing_review(document, project_facts)
-        _atomic_write_json(job_dir / "project_facts.json", project_facts)
-        _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
-        _atomic_write_json(job_dir / "rule_engine_results.json", rule_engine_result)
-        _atomic_write_json(job_dir / "semantic_results.json", semantic_result)
-        _atomic_write_json(job_dir / "calculation_results.json", calculation_result)
-        _atomic_write_json(job_dir / "substantive_review.json", substantive_review)
-        _atomic_write_json(job_dir / "consistency_review.json", consistency_review)
-        _atomic_write_json(job_dir / "drawing_review.json", drawing_review)
-        _atomic_write_json(
-            job_dir / "review_results.json",
-            build_review_results(
-                project_qualification,
-                asdict(summary),
-                substantive_review,
-                consistency_review=consistency_review,
-                drawing_review=drawing_review,
-                rule_engine=rule_engine_result,
-                semantic=semantic_result,
-                document_pages=[
-                    {
-                        "physical_page": p.physical_page,
-                        "requires_human_review": p.requires_human_review,
-                    }
-                    for p in document.pages
-                ],
-            ),
-        )
+        _run_review_stages(job_dir, document)
         _atomic_write_text(
             job_dir / "completeness_evidence_check.md",
             build_evidence_check_markdown(document, summary, details),
@@ -950,6 +919,139 @@ def _process_job(job_id: str) -> None:
         )
 
 
+def _run_review_stages(
+    job_dir: Path,
+    document: MinerUDocument,
+    project_facts: dict[str, Any] | None = None,
+) -> None:
+    """fact-dependent 审查段：facts→qualification→三引擎→实质性/一致性/图文→落盘→review_results。
+
+    上传管线与人工确认重跑共用；不含 mineru 解析与完整性审查。
+    """
+    if project_facts is None:
+        project_facts = build_project_facts(document)
+    project_qualification = build_project_qualification(document, project_facts)
+    rule_engine_result = run_rule_engine_safe(document, project_facts)
+    semantic_result = run_semantic_engine_safe(document, project_facts)
+    calculation_result = run_calculation_engine_safe(document, project_facts)
+    substantive_review = build_substantive_review(project_qualification, project_facts)
+    consistency_review = build_consistency_review(project_facts, document)
+    drawing_review = build_drawing_review(document, project_facts)
+    _atomic_write_json(job_dir / "project_facts.json", project_facts)
+    _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
+    _atomic_write_json(job_dir / "rule_engine_results.json", rule_engine_result)
+    _atomic_write_json(job_dir / "semantic_results.json", semantic_result)
+    _atomic_write_json(job_dir / "calculation_results.json", calculation_result)
+    _atomic_write_json(job_dir / "substantive_review.json", substantive_review)
+    _atomic_write_json(job_dir / "consistency_review.json", consistency_review)
+    _atomic_write_json(job_dir / "drawing_review.json", drawing_review)
+    _atomic_write_json(
+        job_dir / "review_results.json",
+        build_review_results(
+            project_qualification,
+            _read_json(job_dir / "completeness_summary.json", ""),
+            substantive_review,
+            consistency_review=consistency_review,
+            drawing_review=drawing_review,
+            rule_engine=rule_engine_result,
+            semantic=semantic_result,
+            document_pages=[
+                {
+                    "physical_page": p.physical_page,
+                    "requires_human_review": p.requires_human_review,
+                }
+                for p in document.pages
+            ],
+        ),
+    )
+
+
+class RerunInput(BaseModel):
+    overrides: dict[str, str] = Field(default_factory=dict)
+
+
+RERUN_SYSTEM_VALUES = {"disk_lock", "coupler", "other"}
+
+
+@app.post("/api/jobs/{job_id}/rerun", status_code=202)
+def rerun_job(
+    job_id: str,
+    payload: RerunInput,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """人工确认支撑体系后重跑适用规则（不重跑 MinerU 与完整性审查）。"""
+    if set(payload.overrides) - {"support_system"}:
+        raise HTTPException(status_code=422, detail="仅支持 support_system 覆盖")
+    if any(v not in RERUN_SYSTEM_VALUES for v in payload.overrides.values()):
+        raise HTTPException(status_code=422, detail="支撑体系取值无效")
+    job_dir = _job_dir(job_id)
+    status = _read_json(job_dir / "status.json", "任务状态不存在")
+    if status.get("status") not in COMPLETED_STATUSES:
+        raise HTTPException(status_code=409, detail="任务未完成或重跑进行中")
+    _atomic_write_json(
+        job_dir / "human_overrides.json",
+        {"overrides": payload.overrides, "created_at": _utc_now(), "applied_at": None},
+    )
+    _update_status(job_dir, "rerun_review", "按人工确认的支撑体系重跑适用规则")
+    background_tasks.add_task(_rerun_review_stages, job_id, payload.overrides)
+    return {"job_id": job_id, "status": "rerun_review"}
+
+
+def _rerun_review_stages(job_id: str, overrides: dict[str, str]) -> None:
+    job_dir = JOBS_ROOT / job_id
+    try:
+        document = document_from_dict(
+            _read_json(job_dir / "mineru_document.json", "解析结果不存在")
+        )
+        project_facts = build_project_facts(document)
+        for key, value in overrides.items():
+            project_facts["facts"][key] = {
+                "value": value,
+                "unit": None,
+                "raw_value": None,
+                "status": "confirmed",
+                "confidence": None,
+                "candidates": [],
+                "evidence": [],
+                "source_role": "human_override",
+                "has_conflict": False,
+                "requires_human_review": False,
+            }
+        _atomic_write_json(job_dir / "project_facts.json", project_facts)
+        _run_review_stages(job_dir, document, project_facts)
+        # 引擎结论已失效：仅保留完整性复核记录
+        decisions_path = job_dir / "decisions.json"
+        if decisions_path.exists():
+            existing = _read_json(decisions_path, "") or []
+            kept = [
+                d for d in existing
+                if str(d.get("item_key", d.get("rule_id", ""))).startswith("completeness_review:")
+            ]
+            _atomic_write_json(decisions_path, kept)
+        _write_precheck_summary_if_ready(job_dir)
+        try:
+            _atomic_write_text(
+                job_dir / "review_report.md",
+                build_review_report_from_job_dir(job_dir),
+            )
+        except Exception:
+            pass
+        overrides_path = job_dir / "human_overrides.json"
+        if overrides_path.is_file():
+            data = _read_json(overrides_path, "")
+            if isinstance(data, dict):
+                data["applied_at"] = _utc_now()
+                _atomic_write_json(overrides_path, data)
+        final = (
+            "completed_with_warning"
+            if (job_dir / "dify_error.json").is_file()
+            else "completed"
+        )
+        _update_status(job_dir, final, "适用规则重跑完成（按人工确认的支撑体系）")
+    except Exception:
+        _update_status(job_dir, "failed", "重跑适用规则失败", error_stage="rerun_review")
+
+
 def _update_status(
     job_dir: Path,
     stage: str,
@@ -998,6 +1100,7 @@ def _failure_message(stage: str) -> str:
         "mineru_parsing": "MinerU 解析失败，请检查网络和 API 配置后重试",
         "document_parsing": "文档解析失败，请检查 MinerU 结果是否完整",
         "completeness_review": "完整性审查失败，请检查规则配置和解析结果",
+        "rerun_review": "重跑适用规则失败，请重试或重新上传",
     }.get(stage, "任务处理失败，请稍后重试")
 
 

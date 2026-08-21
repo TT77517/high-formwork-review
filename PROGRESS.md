@@ -29,6 +29,7 @@
 - [x] 引擎适用性门禁共享（system_applicability_status）：支撑体系未识别时体系专属规则记 PENDING_CONFIRMATION（待人工确认后重跑），已识别不匹配仍 NOT_APPLICABLE；report/summary/前端状态词、筛选、统计卡同步
 - [x] 文档解析页章节聚合+钻取：一级章节主表（页范围/文本量/图表/partial/需复核）展开页行、目录树形（level≤2）、Block 分布条折叠、抽屉所见即所得（表格真渲染/图片直显/原文折叠）
 - [x] 统一人工复核队列后端：human_review_queue 增 item_key、引擎 VIOLATED 逐条（按等级排序）、体系待确认聚合项、解析风险页聚合项（带 deep-link）、qualification 队首项 actionable（确认支撑体系选项）；decisions 端点支持 item_key（旧 rule_id payload 兼容）；报告复核表改事项编号
+- [x] 重跑闭环：POST /api/jobs/{id}/rerun（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
 
 ## 🔲 待完成
 

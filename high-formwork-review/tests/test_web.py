@@ -776,3 +776,55 @@ def test_decisions_legacy_payload_gets_item_key(client: TestClient) -> None:
     saved = resp.json()["decisions"][0]
     assert saved["item_key"] == "completeness_review:HF-COMP-001"
     assert saved["rule_id"] == "HF-COMP-001"
+
+
+def test_rerun_requires_completed_job(client: TestClient) -> None:
+    upload = client.post(
+        "/api/jobs",
+        files={"file": ("demo.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+    ).json()
+    resp = client.post(
+        f"/api/jobs/{upload['job_id']}/rerun",
+        json={"overrides": {"support_system": "coupler"}},
+    )
+    assert resp.status_code == 409
+
+
+def test_rerun_rejects_invalid_overrides(client: TestClient) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    bad_key = client.post(f"/api/jobs/{job_id}/rerun", json={"overrides": {"foo": "bar"}})
+    assert bad_key.status_code == 422
+    bad_val = client.post(
+        f"/api/jobs/{job_id}/rerun", json={"overrides": {"support_system": "nope"}}
+    )
+    assert bad_val.status_code == 422
+
+
+def test_rerun_applies_human_override(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    captured: dict = {}
+
+    def fake_run(job_dir, document, project_facts=None):
+        captured["facts"] = project_facts
+
+    monkeypatch.setattr(web, "_run_review_stages", fake_run)
+    resp = client.post(
+        f"/api/jobs/{job_id}/rerun",
+        json={"overrides": {"support_system": "coupler"}},
+    )
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "rerun_review"
+
+    facts = captured["facts"]["facts"]["support_system"]
+    assert facts["value"] == "coupler"
+    assert facts["source_role"] == "human_override"
+    overrides = json.loads(
+        (web.JOBS_ROOT / job_id / "human_overrides.json").read_text(encoding="utf-8")
+    )
+    assert overrides["applied_at"]
+    status = json.loads(
+        (web.JOBS_ROOT / job_id / "status.json").read_text(encoding="utf-8")
+    )
+    assert status["status"] == "completed"
