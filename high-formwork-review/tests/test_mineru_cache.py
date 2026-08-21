@@ -205,6 +205,44 @@ def test_parser_or_config_version_change_invalidates_cache(
     assert _FakeClient.calls == 2
 
 
+def test_cache_hit_restores_raw_assets(tmp_path: Path) -> None:
+    """缓存命中时图片等原始资源应还原到新任务目录，证据图像才可展示。"""
+    _FakeClient.calls = 0
+    cache_root = tmp_path / "cache"
+    pdf = tmp_path / "source.pdf"
+    pdf.write_bytes(b"%PDF-with-images")
+
+    class ImageClient(_FakeClient):
+        def parse_pdf(self, pdf_path: Path, output_dir: Path) -> Path:
+            raw = Path(output_dir) / "raw"
+            (raw / "images").mkdir(parents=True, exist_ok=True)
+            (raw / "images" / "table-1.jpg").write_bytes(b"fake-jpg")
+            return raw
+
+    _, first = parse_pdf_with_cache(
+        pdf,
+        tmp_path / "job-1" / "raw",
+        tmp_path / "job-1" / "mineru_document.json",
+        cache_root=cache_root,
+        client_factory=ImageClient,
+        parser=lambda raw_dir: _document(),
+    )
+    assert first.cache_hit is False
+
+    _, second = parse_pdf_with_cache(
+        pdf,
+        tmp_path / "job-2" / "raw",
+        tmp_path / "job-2" / "mineru_document.json",
+        cache_root=cache_root,
+        client_factory=ImageClient,
+        parser=lambda raw_dir: _document(),
+    )
+    assert second.cache_hit is True
+    restored = tmp_path / "job-2" / "raw" / "raw" / "images" / "table-1.jpg"
+    assert restored.is_file()
+    assert restored.read_bytes() == b"fake-jpg"
+
+
 def test_mineru_failure_does_not_write_success_cache(tmp_path: Path) -> None:
     cache_root = tmp_path / "cache"
     pdf = tmp_path / "source.pdf"

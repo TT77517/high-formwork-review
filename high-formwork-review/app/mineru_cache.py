@@ -139,6 +139,17 @@ def parse_pdf_with_cache(
                     before_document_parse()
                 target_document.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(cache_dir / "mineru_document.json", target_document)
+                # 还原缓存中的图片等原始资源（缺失时前端自动降级为纯文本证据）
+                cached_raw = cache_dir / "raw"
+                if cached_raw.is_dir():
+                    try:
+                        shutil.copytree(
+                            cached_raw,
+                            Path(raw_output_dir) / "raw",
+                            dirs_exist_ok=True,
+                        )
+                    except OSError:
+                        pass
                 return cached_document, ParseCacheInfo(
                     source_sha256=source_sha256,
                     cache_key=cache_key,
@@ -198,6 +209,7 @@ def parse_pdf_with_cache(
             source_sha256=source_sha256,
             parser_version=parser_version,
             parser_config_version=parser_config_version,
+            raw_source_dir=Path(raw_output_dir) / "raw",
         )
         return document, ParseCacheInfo(
             source_sha256=source_sha256,
@@ -391,6 +403,7 @@ def _write_cache(
     source_sha256: str,
     parser_version: str,
     parser_config_version: str,
+    raw_source_dir: Path | None = None,
 ) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write_json(cache_dir / "mineru_document.json", asdict(document))
@@ -405,6 +418,12 @@ def _write_cache(
             "parse_status": "success",
         },
     )
+    # 缓存图片等原始资源，命中时才能还原证据图像
+    if raw_source_dir is not None and raw_source_dir.is_dir():
+        try:
+            shutil.copytree(raw_source_dir, cache_dir / "raw", dirs_exist_ok=True)
+        except OSError:
+            pass  # 图像缓存失败不影响解析结果，仅证据展示降级
 
 
 def _validate_document(document: MinerUDocument) -> None:

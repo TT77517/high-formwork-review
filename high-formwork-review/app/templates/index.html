@@ -315,6 +315,16 @@
   </div>
 </div>
 <footer class="global-footer">系统辅助审查结果仅供参考，需人工确认。数据仅保存在本机。</footer>
+<div id="imageLightbox" class="lightbox-overlay hidden">
+  <div class="lightbox-box">
+    <div class="lightbox-head"><h3 id="lightboxTitle">图像证据</h3><button type="button" class="drawer-close" id="lightboxClose">✕</button></div>
+    <div class="lightbox-body" id="lightboxBody"></div>
+    <div class="lightbox-actions">
+      <button type="button" class="btn-small" id="lightboxOpenPage">打开所在页</button>
+      <a id="lightboxRawLink" class="btn-small" target="_blank" rel="noopener">查看原图</a>
+    </div>
+  </div>
+</div>
 <script src="{{ url_for('static', path='/app.js') }}" defer></script>
 </body>
 </html>

@@ -89,6 +89,7 @@ def _find_relevant_sections(
     current_section_title = ""
     current_section_text = ""
     current_section_page = 0
+    current_section_blocks: list[dict[str, Any]] = []
     for page in document.pages:
         if page.parse_status == "unreadable":
             continue
@@ -105,12 +106,20 @@ def _find_relevant_sections(
                         "text": current_section_text,
                         "page": current_section_page,
                         "matched": matched,
+                        "blocks": current_section_blocks,
                     })
                 current_section_title = text
                 current_section_text = ""
                 current_section_page = page.physical_page
+                current_section_blocks = []
             else:
                 current_section_text += text + "\n"
+                current_section_blocks.append({
+                    "block_id": block.block_id,
+                    "block_type": block.block_type,
+                    "physical_page": page.physical_page,
+                    "text": text,
+                })
         # page text fallback
         page_text = page.text or ""
         if page_text and not current_section_text:
@@ -120,6 +129,7 @@ def _find_relevant_sections(
                     "text": page_text[:2000],
                     "page": page.physical_page,
                     "matched": True,
+                    "blocks": [],
                 })
     # flush last section
     if current_section_text:
@@ -129,11 +139,32 @@ def _find_relevant_sections(
             "text": current_section_text,
             "page": current_section_page,
             "matched": matched,
+            "blocks": current_section_blocks,
         })
     # prioritize matched sections
     matched_sections = [s for s in sections if s["matched"]]
     other_sections = [s for s in sections if not s["matched"]]
     return (matched_sections + other_sections)[:5]
+
+
+def _locate_keyword_block(
+    sections: list[dict[str, Any]],
+    keyword: str,
+) -> dict[str, Any] | None:
+    """在相关章节中定位包含关键词的最小 block（供证据回查图像/页码）。"""
+    for sec in sections:
+        if keyword not in _normalize_text(sec.get("text", "")):
+            continue
+        for block in sec.get("blocks", []):
+            if keyword in _normalize_text(block["text"]):
+                return block
+        return {
+            "block_id": None,
+            "block_type": "section",
+            "physical_page": sec.get("page"),
+            "text": sec.get("text", ""),
+        }
+    return None
 
 
 def build_semantic_evidence(
@@ -270,11 +301,31 @@ def _evaluate_semantic_local(
     for kw in keywords:
         if kw in _normalize_text(evidence):
             matched_count += 1
-    # 提取匹配证据片段
+    # 提取匹配证据片段（定位到来源 block，便于回查表格图像与页码）
     if matched_count > 0 and keywords:
+        sections = _find_relevant_sections(document, keywords)
         for kw in keywords[:3]:
-            idx = _normalize_text(evidence).find(kw)
-            if idx >= 0:
+            norm_ev = _normalize_text(evidence)
+            if kw not in norm_ev:
+                continue
+            block = _locate_keyword_block(sections, kw)
+            if block is not None:
+                text = block["text"]
+                idx = text.find(kw)
+                target = text
+                if idx < 0:
+                    target = _normalize_text(text)
+                    idx = target.find(kw)
+                start = max(0, (idx if idx >= 0 else 0) - 30)
+                quote = target[start: idx + len(kw) + 50].strip() if idx >= 0 else text[:80].strip()
+                matched_evidence.append({
+                    "quote": quote,
+                    "page": block["physical_page"],
+                    "block_id": block["block_id"],
+                    "block_type": block["block_type"],
+                })
+            else:
+                idx = norm_ev.find(kw)
                 start = max(0, idx - 30)
                 end = min(len(evidence), idx + len(kw) + 50)
                 matched_evidence.append({

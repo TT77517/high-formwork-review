@@ -352,8 +352,49 @@ function statCardsHtml(cards, active) {
 }
 function evLine(e, label) {
   const pg = e.physical_page ?? e.page;
-  return `<div class="ev-line"><blockquote>${esc(e.quote||e.text||'')}</blockquote>${pg?`<button type="button" class="btn-small jq-page" data-page="${pg}">${label||'原文'} P${pg}</button>`:''}</div>`;
+  return `<div class="ev-line">${evThumb(e, pg)}<blockquote>${esc(e.quote||e.text||'')}</blockquote>${pg?`<button type="button" class="btn-small jq-page" data-page="${pg}">${label||'原文'} P${pg}</button>`:''}</div>`;
 }
+function evThumb(e, pg) {
+  if (e.table_html) return `<button type="button" class="ev-thumb ev-thumb-table" data-page="${pg||''}" data-thtml="${esc(e.table_html)}" title="点击查看表格原样">▦ 表格</button>`;
+  if (!e.image_path) return '';
+  return `<img class="ev-thumb" loading="lazy" alt="证据图像" src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(e.image_path)}" data-img="${esc(e.image_path)}" data-page="${pg||''}" title="点击查看大图">`;
+}
+
+// ===== 图片/表格证据灯箱 =====
+function _openLightbox(title, bodyHtml, page, rawUrl) {
+  $('#lightboxTitle').textContent = title;
+  $('#lightboxBody').innerHTML = bodyHtml;
+  const openBtn = $('#lightboxOpenPage');
+  openBtn.dataset.page = page || '';
+  openBtn.style.display = page ? '' : 'none';
+  const rawLink = $('#lightboxRawLink');
+  if (rawUrl) { rawLink.href = rawUrl; rawLink.style.display = ''; } else { rawLink.style.display = 'none'; }
+  $('#imageLightbox').classList.remove('hidden');
+}
+function openImageLightbox(path, page) {
+  const url = `/api/jobs/${curJob}/asset?path=${encodeURIComponent(path)}`;
+  _openLightbox(page ? `图像证据 · P${page}` : '图像证据', `<img src="${url}" alt="证据图像">`, page, url);
+}
+function openTableLightbox(html, page) {
+  _openLightbox(page ? `表格证据 · P${page}` : '表格证据', `<div class="table-html">${html}</div>`, page, null);
+}
+document.addEventListener('click', e => {
+  const tbtn = e.target.closest && e.target.closest('.ev-thumb-table');
+  if (tbtn && tbtn.dataset.thtml) { openTableLightbox(tbtn.dataset.thtml, tbtn.dataset.page); return; }
+  const thumb = e.target.closest && e.target.closest('.ev-thumb');
+  if (thumb && thumb.dataset.img) openImageLightbox(thumb.dataset.img, thumb.dataset.page);
+});
+// 图像资源缺失时移除缩略图，不影响文本证据
+document.addEventListener('error', e => {
+  if (e.target && e.target.classList && e.target.classList.contains('ev-thumb')) e.target.remove();
+}, true);
+$('#lightboxClose').addEventListener('click', () => $('#imageLightbox').classList.add('hidden'));
+$('#imageLightbox').addEventListener('click', e => { if (e.target === $('#imageLightbox')) $('#imageLightbox').classList.add('hidden'); });
+$('#lightboxOpenPage').addEventListener('click', e => {
+  const pg = +e.currentTarget.dataset.page;
+  $('#imageLightbox').classList.add('hidden');
+  if (pg) openPageDrawer(pg);
+});
 
 // ===== Rule Engine =====
 let reState = { page: 1, size: 10 };
@@ -414,7 +455,7 @@ function openRuleEngineDrawer(rid) {
   const re = ruleEngineData; if (!re) return;
   const rule = (re.results||[]).find(r => r.rule_id === rid); if (!rule) return;
   const th = rule.threshold||{}; const ev = rule.evidence||[];
-  const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span><span>${esc(e.block_id||'')}</span><span>${esc(e.section||'')}</span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
+  const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span><span>${esc(e.block_id||'')}</span><span>${esc(e.section||'')}</span></div>${evThumb(e, e.page)}<blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
   $('#reDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
   $('#reDrawerBody').innerHTML = `
     <div class="detail-section"><h4>审查结果</h4>
@@ -473,7 +514,7 @@ function renderReviewTable(f) {
 }
 function openReviewDrawer(rid) {
   const results = revData?.results||[]; const rule = results.find(r => r.rule_id===rid); if (!rule) return;
-  const ev = (rule.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page}</b></span><span>${esc(e.block_type||'')}</span></div><blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
+  const ev = (rule.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page}</b></span><span>${esc(e.block_type||'')}</span></div>${evThumb(e, e.physical_page)}<blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
   $('#reviewDrawerTitle').textContent = `${rule.rule_id} — ${rule.name}`;
   $('#reviewDrawerBody').innerHTML = `<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div><div class="detail-section"><h4>原文证据</h4>${ev}</div>`;
   $('#reviewDetailPanel').classList.remove('hidden');
@@ -535,7 +576,7 @@ function renderSemanticTable(modF, stF, allResults) {
 function openSemanticDrawer(rid, rtype, allResults) {
   const rule = (allResults||[]).find(r => r.rule_id===rid); if (!rule) return;
   const th = rule.threshold||{}; const ev = rule.evidence||[];
-  const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
+  const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div>${evThumb(e, e.page)}<blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
   const sjHtml = rule.semantic_judgment ? `<div class="detail-section"><h4>语义判断指引</h4><p>${esc(rule.semantic_judgment)}</p></div>` : '';
   $('#semanticDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
   $('#semanticDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'—'}</div><div><b>阈值要求</b><br>${th.value!==undefined?esc(`${th.operator||''} ${th.value}${th.unit||''}`):'—'}</div></div></div>${sjHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;

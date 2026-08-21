@@ -74,13 +74,14 @@ def load_calculation_rules() -> list[dict[str, Any]]:
     return rules
 
 
-def _extract_calculation_text(document: MinerUDocument) -> str:
-    """从文档中提取计算书相关文本。"""
+def _extract_calculation_segments(
+    document: MinerUDocument,
+) -> list[dict[str, Any]]:
+    """从文档中按 block 收集计算书相关文本段（带 block 定位，供证据回溯图片/页码）。"""
     calc_keywords = ["计算", "验算", "荷载组合", "长细比", "稳定", "抗弯", "抗剪",
                      "挠度", "侧压力", "轴力", "倾覆", "承载力"]
-    sections: list[str] = []
+    segments: list[dict[str, Any]] = []
     in_calc_section = False
-    current_text = ""
     for page in document.pages:
         if page.parse_status == "unreadable":
             continue
@@ -90,19 +91,37 @@ def _extract_calculation_text(document: MinerUDocument) -> str:
                 continue
             norm = unicodedata.normalize("NFKC", text)
             if block.block_type == "title":
-                if current_text and in_calc_section:
-                    sections.append(current_text)
                 in_calc_section = any(kw in norm for kw in calc_keywords)
-                current_text = text + "\n"
-            elif in_calc_section:
-                current_text += text + "\n"
+            if in_calc_section:
+                segments.append({
+                    "text": text,
+                    "block_id": block.block_id,
+                    "block_type": block.block_type,
+                    "physical_page": page.physical_page,
+                })
         # Also check page-level text
         page_text = page.text or ""
         if page_text and any(kw in unicodedata.normalize("NFKC", page_text) for kw in calc_keywords):
-            sections.append(page_text[:3000])
-    if current_text and in_calc_section:
-        sections.append(current_text)
-    return "\n\n".join(sections)[:50000]
+            segments.append({
+                "text": page_text[:3000],
+                "block_id": None,
+                "block_type": "page",
+                "physical_page": page.physical_page,
+            })
+    return segments
+
+
+def _quote_around(text: str, keyword: str, before: int = 50, after: int = 100) -> str:
+    """在片段中截取关键词前后文；NFKC 归一化后才能命中时退回归一化文本截取。"""
+    idx = text.find(keyword)
+    target = text
+    if idx < 0:
+        target = unicodedata.normalize("NFKC", text)
+        idx = target.find(keyword)
+    if idx < 0:
+        return text[: before + after].strip()
+    start = max(0, idx - before)
+    return target[start: idx + len(keyword) + after].strip()
 
 
 def run_calculation_engine(
@@ -111,14 +130,15 @@ def run_calculation_engine(
 ) -> dict[str, Any]:
     """执行计算规则验证引擎。"""
     rules = load_calculation_rules()
-    calc_text = _extract_calculation_text(document)
+    segments = _extract_calculation_segments(document)
+    calc_text = "\n".join(seg["text"] for seg in segments)[:50000]
     facts = (project_facts or {}).get("facts", {})
     support_system = facts.get("support_system", {})
     system_value = support_system.get("value", "unknown")
 
     results: list[dict[str, Any]] = []
     for rule in rules:
-        result = _evaluate_calculation(rule, calc_text, system_value)
+        result = _evaluate_calculation(rule, calc_text, system_value, segments)
         results.append(result)
 
     compliant = sum(1 for r in results if r["status"] == "COMPLIANT")
@@ -145,6 +165,7 @@ def _evaluate_calculation(
     rule: dict[str, Any],
     calc_text: str,
     system_value: str,
+    segments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """评估单条计算规则——检查验算项目是否存在于计算书中。"""
     rule_id = rule.get("rule_id", "")
@@ -171,11 +192,27 @@ def _evaluate_calculation(
     matched_keywords = [kw for kw in keywords if kw in norm_text]
     matched_count = len(matched_keywords)
 
-    # 提取证据片段
+    # 提取证据片段（定位到来源 block，便于回查表格图像与页码）
     evidence: list[dict[str, Any]] = []
     for kw in matched_keywords[:3]:
-        idx = norm_text.find(kw)
-        if idx >= 0:
+        seg = next(
+            (
+                s
+                for s in (segments or [])
+                if kw in unicodedata.normalize("NFKC", s["text"])
+            ),
+            None,
+        )
+        if seg is not None:
+            evidence.append({
+                "quote": _quote_around(seg["text"], kw),
+                "page": seg["physical_page"],
+                "keyword": kw,
+                "block_id": seg["block_id"],
+                "block_type": seg["block_type"],
+            })
+        elif kw in norm_text:
+            idx = norm_text.find(kw)
             start = max(0, idx - 50)
             end = min(len(calc_text), idx + len(kw) + 100)
             evidence.append({

@@ -262,7 +262,7 @@ def get_review(job_id: str) -> dict[str, Any]:
     summary = _read_json(job_dir / "completeness_summary.json", "审查汇总不存在")
     decisions_path = job_dir / "decisions.json"
     decisions = _read_json(decisions_path, "人工复核记录不存在") if decisions_path.exists() else []
-    return {
+    return _with_evidence_images(job_dir, {
         "agent_role": "执行 10 条完整性规则并组织可追溯证据",
         "summary": {
             key: summary.get(key)
@@ -270,34 +270,42 @@ def get_review(job_id: str) -> dict[str, Any]:
         },
         "results": results,
         "decisions": decisions,
-    }
+    })
 
 
 @app.get("/api/jobs/{job_id}/precheck")
 def get_precheck(job_id: str) -> dict[str, Any]:
     job_dir = _completed_job_dir(job_id)
-    return _read_json(job_dir / "review_results.json", "智能预审汇总不存在")
+    return _with_evidence_images(
+        job_dir, _read_json(job_dir / "review_results.json", "智能预审汇总不存在")
+    )
 
 
 @app.get("/api/jobs/{job_id}/rule-engine")
 def get_rule_engine(job_id: str) -> dict[str, Any]:
     """返回 v4.0 规则引擎确定性规则审查结果。"""
     job_dir = _completed_job_dir(job_id)
-    return _read_json(job_dir / "rule_engine_results.json", "规则引擎结果不存在")
+    return _with_evidence_images(
+        job_dir, _read_json(job_dir / "rule_engine_results.json", "规则引擎结果不存在")
+    )
 
 
 @app.get("/api/jobs/{job_id}/semantic")
 def get_semantic(job_id: str) -> dict[str, Any]:
     """返回语义规则审查结果。"""
     job_dir = _completed_job_dir(job_id)
-    return _read_json(job_dir / "semantic_results.json", "语义审查结果不存在")
+    return _with_evidence_images(
+        job_dir, _read_json(job_dir / "semantic_results.json", "语义审查结果不存在")
+    )
 
 
 @app.get("/api/jobs/{job_id}/calculation")
 def get_calculation(job_id: str) -> dict[str, Any]:
     """返回计算规则审查结果。"""
     job_dir = _completed_job_dir(job_id)
-    return _read_json(job_dir / "calculation_results.json", "计算审查结果不存在")
+    return _with_evidence_images(
+        job_dir, _read_json(job_dir / "calculation_results.json", "计算审查结果不存在")
+    )
 
 
 @app.get("/api/jobs/{job_id}/report")
@@ -1219,6 +1227,76 @@ def _read_json(path: Path, missing_message: str) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=500, detail="任务数据暂时无法读取") from exc
+
+
+_BLOCK_INDEX_CACHE: dict[str, tuple[float, dict[str, dict[str, Any]]]] = {}
+
+
+def _block_image_index(job_dir: Path) -> dict[str, dict[str, Any]]:
+    """block_id -> {block_type, image_path, physical_page} 索引（按 mtime 缓存）。"""
+    doc_path = job_dir / "mineru_document.json"
+    try:
+        mtime = doc_path.stat().st_mtime
+    except OSError:
+        return {}
+    key = str(job_dir)
+    cached = _BLOCK_INDEX_CACHE.get(key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        doc = json.loads(doc_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    idx: dict[str, dict[str, Any]] = {}
+    for page in doc.get("pages", []):
+        for block in page.get("blocks", []):
+            bid = block.get("block_id")
+            if bid:
+                idx[bid] = {
+                    "block_type": block.get("block_type"),
+                    "image_path": block.get("image_path"),
+                    "table_html": block.get("table_html"),
+                    "physical_page": page.get("physical_page"),
+                }
+    _BLOCK_INDEX_CACHE[key] = (mtime, idx)
+    return idx
+
+
+_IMAGE_EVIDENCE_KEYS = ("evidence", "text_evidence", "drawing_evidence")
+
+
+def _attach_evidence_images(node: Any, idx: dict[str, dict[str, Any]]) -> None:
+    """递归为证据条目按 block_id 补 image_path/页码，审查结果页直接展示原图表图像。"""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in _IMAGE_EVIDENCE_KEYS and isinstance(value, list):
+                for ev in value:
+                    if not isinstance(ev, dict):
+                        continue
+                    info = idx.get(ev.get("block_id"))
+                    if not info:
+                        continue
+                    if info.get("image_path") and not ev.get("image_path"):
+                        ev["image_path"] = info["image_path"]
+                    if info.get("table_html") and not ev.get("table_html"):
+                        ev["table_html"] = info["table_html"]
+                    if not ev.get("block_type") and info.get("block_type"):
+                        ev["block_type"] = info["block_type"]
+                    if ev.get("page") is None and info.get("physical_page") is not None:
+                        ev["page"] = info["physical_page"]
+            else:
+                _attach_evidence_images(value, idx)
+    elif isinstance(node, list):
+        for item in node:
+            _attach_evidence_images(item, idx)
+
+
+def _with_evidence_images(job_dir: Path, payload: Any) -> Any:
+    """审查结果出口统一附加证据图片信息（对老任务即刻生效，无需重跑）。"""
+    idx = _block_image_index(job_dir)
+    if idx:
+        _attach_evidence_images(payload, idx)
+    return payload
 
 
 def _page_summary(page: dict[str, Any]) -> dict[str, Any]:

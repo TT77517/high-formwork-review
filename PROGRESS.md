@@ -43,6 +43,7 @@
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
 - [x] Web UI 页面改进（P0，识别驱动重构 9 个提交：规范注册表/适用规范展示/章节聚合/待确认状态/统一复核工作台/重跑闭环）
 - [x] 审查结果页体验增强：五处分页（10/20/50）+统计卡点击联动筛选、计算校核页改公式验算/参数一致性双卡片组（双侧对比+证据页跳转）、图文卡片展示正文值vs图纸标注值、drawing_review 交叉比对结果补正文 text_evidence；浏览器冒烟通过
+- [x] 证据图像/表格展示：API 出口层按 block_id 动态补 image_path+table_html（老任务免重跑生效）；计算/语义引擎证据补 block 定位（page 不再为 None）；前端证据缩略图+灯箱（表格真渲染/图像大图/打开所在页/查看原图/404降级）；MinerU 缓存携带 raw 图像资源（命中时还原）；重跑 demo 验证全链路
 
 ## 🚧 当前阻塞
 
@@ -52,6 +53,7 @@
 
 1. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`），可复用本次的 PENDING_CONFIRMATION/重跑闭环机制
 2. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
+3. 配置 MINERU_API_TOKEN 后重新解析样例：当前 .env token 为空，存量任务的 image/chart block 无 jpg 文件（缓存只存过 JSON）；表格类证据已用 table_html 真渲染不受影响，token 就绪后新解析/缓存命中任务将带全量图像（缓存层已支持携带 raw 资源）
 
 ## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
 
@@ -199,3 +201,7 @@
 - [2026-08-21 18:20] claude 签到 — 开始处理：修复 3 个存量测试失败（test_web 过期断言 2 + DR-01→DR-90 编号迁移）
 
 - [2026-08-21 18:23] claude 签退 — 完成了：修复 3 个存量测试失败（54f1f1a）：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed/1 skipped/0 failed；下一步建议：按 docs/semantic_agent_design.md 实施语义审查 Agent（复用 PENDING_CONFIRMATION/重跑闭环）；规则库 standard_id 落盘
+
+- [2026-08-21 18:31] claude 签到 — 开始处理：审查结果页证据图片展示：API出口层按block_id补image_path + 前端缩略图/灯箱 + 计算引擎公式验算证据补定位
+
+- [2026-08-21 18:52] claude 签退 — 完成了：证据图像/表格展示全链路：API出口层按block_id补image_path+table_html、计算/语义引擎证据补block定位、前端缩略图+灯箱（表格真渲染）、MinerU缓存携带raw图像；157测试全绿+浏览器冒烟通过+重跑demo验证；下一步建议：配置MINERU_API_TOKEN后重解析补图像jpg；随后按设计文档实施语义审查Agent
