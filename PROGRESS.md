@@ -5,7 +5,7 @@
 ## 📊 当前状态总览
 
 - **项目版本**：v4.0（规则引擎 + 规则库 CRUD + AntD Pro 风格 UI）
-- **最近提交**：`54f1f1a` fix: 修复 3 个存量测试失败，全套件转绿（156 passed）
+- **最近提交**：`aea8018` feat: 审查证据带图展示——表格真渲染灯箱+图像通道+缓存携图
 - **分支**：main（远程 origin/main）
 - **最后更新**：2026-08-21
 
@@ -57,7 +57,7 @@
 
 ## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
 
-> ✅ 全部解决（2026-08-21 claude）：①py3.9 收集错误 3 处已修复；②test_web 两个过期断言已更新（文案改现行五模式、compliance→smart）；③DR-01 召回测试按其编号迁移改为 DR-90（召回类条目从 DR-01 移至 DR-90，功能本身一直正常）。当前基线：**156 passed / 1 skipped / 0 failed**。
+> ✅ 全部解决（2026-08-21 claude）：①py3.9 收集错误 3 处已修复；②test_web 两个过期断言已更新（文案改现行五模式、compliance→smart）；③DR-01 召回测试按其编号迁移改为 DR-90（召回类条目从 DR-01 移至 DR-90，功能本身一直正常）。当前基线：**157 passed / 1 skipped / 0 failed**。
 
 > 更新（2026-08-21 claude）：py3.9 收集错误 3 处已修复（test_dify_cache/test_review 加 `from __future__ import annotations`、test_dify 去 `zip(..., strict=True)`），全量测试解锁为 140 passed / 3 failed / 1 skipped；剩余失败即下文第 2、3 两项。
 
