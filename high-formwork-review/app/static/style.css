@@ -256,6 +256,9 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .section-row { cursor: pointer; background: #fcfcfc; }
 .section-row:hover { background: var(--primary-bg); }
 .page-sub { cursor: pointer; }
+.tree-caret { display: inline-block; width: 14px; margin-right: 4px; font-size: 10px; color: var(--text-tertiary); transition: transform .15s; }
+.tree-caret.open { transform: rotate(90deg); }
+.tree-caret.leaf { color: var(--border); }
 .inner-page-table { margin: 4px 0 8px; background: #fff; }
 .dist-bars { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .dist-row { display: flex; align-items: center; gap: 8px; }

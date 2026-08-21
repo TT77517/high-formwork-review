@@ -220,6 +220,7 @@ function _chapterGroups() {
   });
   return unc.pages.length ? [unc, ...chapters] : chapters;
 }
+let docChapters = [];
 function _pageRow(p, ci, si) {
   return `<tr class="page-sub hidden ${p.parse_status==='unreadable'?'row-unreadable':p.parse_status==='partial'?'row-partial':''}" data-ch="${ci}" data-sec="${si}" data-page="${p.physical_page}">
     <td style="padding-left:44px">${p.physical_page}</td><td>${esc(p.printed_page||'—')}</td><td>${esc(p.page_type)}</td><td>${esc(p.parse_status)}</td>
@@ -229,13 +230,15 @@ function _pageRow(p, ci, si) {
 function renderChapterTable(f) {
   const match = p => f==='all'||(f==='unreadable'&&p.parse_status==='unreadable')||(f==='partial'&&p.parse_status==='partial')||(f==='human-review'&&p.requires_human_review);
   const sum = (ps, k) => ps.reduce((a,p) => a+(p[k]||0), 0);
+  docChapters = _chapterGroups();
   const rows = [];
-  _chapterGroups().forEach((c, ci) => {
+  docChapters.forEach((c, ci) => {
     const shown = f==='all' ? c.pages : c.pages.filter(match);
     if (f!=='all' && !shown.length) return;
     const partial = c.pages.filter(p => p.parse_status==='partial').length;
     const review = c.pages.filter(p => p.requires_human_review).length;
-    rows.push(`<tr class="chapter-row" data-ch="${ci}"><td><b>${esc(c.title)}</b><small style="color:var(--text-tertiary)"> ${c.subs.length} 节</small></td><td>${c.start}-${c.end}</td><td>${c.pages.length}</td><td>${sum(c.pages,'text_length')}</td><td>${sum(c.pages,'image_count')}/${sum(c.pages,'table_count')}/${sum(c.pages,'formula_count')}</td><td>${partial}</td><td class="${review?'review-yes':''}">${review?`是(${review})`:'否'}</td></tr>`);
+    const leaf = !c.subs.length;
+    rows.push(`<tr class="chapter-row" data-ch="${ci}"><td>${leaf?'<span class="tree-caret leaf">•</span>':'<span class="tree-caret">▶</span>'}<b>${esc(c.title)}</b><small style="color:var(--text-tertiary)"> ${c.subs.length} 节 · ${c.pages.length} 页</small> <button type="button" class="btn-small btn-content" data-ch="${ci}">查看内容</button></td><td>${c.start}-${c.end}</td><td>${c.pages.length}</td><td>${sum(c.pages,'text_length')}</td><td>${sum(c.pages,'image_count')}/${sum(c.pages,'table_count')}/${sum(c.pages,'formula_count')}</td><td>${partial}</td><td class="${review?'review-yes':''}">${review?`是(${review})`:'否'}</td></tr>`);
     (f==='all' ? c._direct : c._direct.filter(match)).forEach(p => rows.push(_pageRow(p, ci, -1)));
     c.subs.forEach((s, si) => {
       const sp = f==='all' ? s._pages : s._pages.filter(match);
@@ -243,40 +246,79 @@ function renderChapterTable(f) {
       const depth = Math.min(3, (s.path||[]).length - 2);
       const spartial = s._pages.filter(p => p.parse_status==='partial').length;
       const sreview = s._pages.filter(p => p.requires_human_review).length;
-      rows.push(`<tr class="section-row hidden" data-ch="${ci}" data-sec="${si}"><td style="padding-left:${20+depth*16}px">${esc(s.title)}</td><td>${s.physical_page_start}-${s.physical_page_end}</td><td>${s._pages.length}</td><td>${sum(s._pages,'text_length')}</td><td>${sum(s._pages,'image_count')}/${sum(s._pages,'table_count')}/${sum(s._pages,'formula_count')}</td><td>${spartial}</td><td class="${sreview?'review-yes':''}">${sreview?`是(${sreview})`:'否'}</td></tr>`);
+      rows.push(`<tr class="section-row hidden" data-ch="${ci}" data-sec="${si}"><td style="padding-left:${20+depth*16}px"><span class="tree-caret">▶</span>${esc(s.title)}<small style="color:var(--text-tertiary)"> ${s._pages.length} 页</small> <button type="button" class="btn-small btn-content" data-ch="${ci}" data-sec="${si}">查看内容</button></td><td>${s.physical_page_start}-${s.physical_page_end}</td><td>${s._pages.length}</td><td>${sum(s._pages,'text_length')}</td><td>${sum(s._pages,'image_count')}/${sum(s._pages,'table_count')}/${sum(s._pages,'formula_count')}</td><td>${spartial}</td><td class="${sreview?'review-yes':''}">${sreview?`是(${sreview})`:'否'}</td></tr>`);
       sp.forEach(p => rows.push(_pageRow(p, ci, si)));
     });
   });
   $('#chapterRows').innerHTML = rows.join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary)">无符合条件的页面</td></tr>';
   $$('#chapterRows tr.chapter-row').forEach(r => r.addEventListener('click', () => {
-    const ci = r.dataset.ch;
-    const secs = $$(`#chapterRows tr.section-row[data-ch="${ci}"]`);
-    const opening = secs.length && secs[0].classList.contains('hidden');
-    $$(`#chapterRows tr[data-ch="${ci}"]`).forEach(k => { if (!k.classList.contains('chapter-row')) k.classList.add('hidden'); });
-    if (opening) $$(`#chapterRows tr[data-ch="${ci}"]`).forEach(k => {
-      if (k.classList.contains('section-row') || (k.classList.contains('page-sub') && k.dataset.sec === '-1')) k.classList.remove('hidden');
-    });
+    const ci = +r.dataset.ch; const c = docChapters[ci];
+    if (!c.subs.length) { openSectionReader(c.title, c.pages); return; }
+    const open = !r.querySelector('.tree-caret').classList.contains('open');
+    setChapterOpen(ci, open);
   }));
   $$('#chapterRows tr.section-row').forEach(r => r.addEventListener('click', () => {
-    const { ch, sec } = r.dataset;
-    $$(`#chapterRows tr.page-sub[data-ch="${ch}"][data-sec="${sec}"]`).forEach(k => k.classList.toggle('hidden'));
+    const ch = +r.dataset.ch, sec = +r.dataset.sec;
+    const open = !r.querySelector('.tree-caret').classList.contains('open');
+    setSectionOpen(ch, sec, open);
+  }));
+  $$('#chapterRows .btn-content').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const c = docChapters[+b.dataset.ch];
+    if (b.dataset.sec !== undefined) { const s = c.subs[+b.dataset.sec]; openSectionReader(s.title, s._pages); }
+    else openSectionReader(c.title, c.pages);
   }));
   $$('#chapterRows tr[data-page]').forEach(r => r.addEventListener('click', e => { e.stopPropagation(); openPageDrawer(+r.dataset.page); }));
+  // 默认展开第一个非叶子章节，让层级结构一眼可见
+  const first = docChapters.findIndex(c => c.subs.length && (f==='all' || c.pages.some(match)));
+  if (first >= 0) setChapterOpen(first, true);
+}
+function setChapterOpen(ci, open) {
+  const caret = $(`#chapterRows tr.chapter-row[data-ch="${ci}"] .tree-caret`);
+  if (caret) caret.classList.toggle('open', open);
+  $$(`#chapterRows tr[data-ch="${ci}"]`).forEach(k => {
+    if (k.classList.contains('chapter-row')) return;
+    if (!open) { k.classList.add('hidden'); return; }
+    if (k.classList.contains('section-row') || (k.classList.contains('page-sub') && k.dataset.sec === '-1')) k.classList.remove('hidden');
+  });
+}
+function setSectionOpen(ch, sec, open) {
+  const caret = $(`#chapterRows tr.section-row[data-ch="${ch}"][data-sec="${sec}"] .tree-caret`);
+  if (caret) caret.classList.toggle('open', open);
+  $$(`#chapterRows tr.page-sub[data-ch="${ch}"][data-sec="${sec}"]`).forEach(k => k.classList.toggle('hidden', !open));
+}
+function renderBlocks(p) {
+  return (p.blocks||[]).map(b => {
+    const meta = `<div class="meta"><span><b>${esc(b.block_type)}</b></span><span>${esc(b.block_id)}</span><small>${esc(b.source_pointer||'')}</small></div>`;
+    if (b.block_type==='table' && b.table_html) return `<div class="evidence-block">${meta}<div class="table-html">${b.table_html}</div></div>`;
+    if ((b.block_type==='image'||b.block_type==='drawing') && b.image_path) return `<div class="evidence-block">${meta}<img src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(b.image_path)}"></div>`;
+    if (b.block_type==='title') return `<div class="evidence-block">${meta}<h4 style="margin:4px 0">${esc(b.text||'')}</h4></div>`;
+    return `<div class="evidence-block">${meta}<p style="margin:4px 0;white-space:pre-wrap">${esc(b.text||'无文本')}</p></div>`;
+  }).join('');
 }
 async function openPageDrawer(pn) {
   try {
     const r = await fetch(`/api/jobs/${curJob}/document/pages/${pn}`); const p = await r.json(); if (!r.ok) return;
-    const blocks = (p.blocks||[]).map(b => {
-      const meta = `<div class="meta"><span><b>${esc(b.block_type)}</b></span><span>${esc(b.block_id)}</span><small>${esc(b.source_pointer||'')}</small></div>`;
-      if (b.block_type==='table' && b.table_html) return `<div class="evidence-block">${meta}<div class="table-html">${b.table_html}</div></div>`;
-      if ((b.block_type==='image'||b.block_type==='drawing') && b.image_path) return `<div class="evidence-block">${meta}<img src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(b.image_path)}"></div>`;
-      if (b.block_type==='title') return `<div class="evidence-block">${meta}<h4 style="margin:4px 0">${esc(b.text||'')}</h4></div>`;
-      return `<div class="evidence-block">${meta}<p style="margin:4px 0;white-space:pre-wrap">${esc(b.text||'无文本')}</p></div>`;
-    }).join('');
     $('#drawerTitle').textContent = `第 ${p.physical_page} 页详情`;
-    $('#drawerBody').innerHTML = `${blocks || '<p style="color:var(--text-tertiary)">本页无可用内容</p>'}<details class="fold-section" style="margin-top:12px"><summary>整页原始文本</summary><div class="fold-body"><p style="white-space:pre-wrap">${esc(p.text||'')}</p></div></details>`;
+    $('#drawerBody').innerHTML = `${renderBlocks(p) || '<p style="color:var(--text-tertiary)">本页无可用内容</p>'}<details class="fold-section" style="margin-top:12px"><summary>整页原始文本</summary><div class="fold-body"><p style="white-space:pre-wrap">${esc(p.text||'')}</p></div></details>`;
     $('#pageDetailPanel').classList.remove('hidden');
   } catch(_){}
+}
+async function openSectionReader(title, pages) {
+  const list = (pages||[]).slice(0, 12);
+  let html = '';
+  for (const p of list) {
+    try {
+      const r = await fetch(`/api/jobs/${curJob}/document/pages/${p.physical_page}`);
+      if (!r.ok) continue;
+      const d = await r.json();
+      html += `<h4 style="margin:12px 0 6px;color:var(--text-secondary);border-bottom:1px solid var(--border);padding-bottom:4px">第 ${d.physical_page} 页</h4>${renderBlocks(d)}`;
+    } catch(_){}
+  }
+  if ((pages||[]).length > list.length) html += `<p class="mode-hint">仅展示前 ${list.length} 页，其余 ${(pages||[]).length - list.length} 页请展开左侧行后点击页码查看。</p>`;
+  $('#drawerTitle').textContent = `章节内容：${title}`;
+  $('#drawerBody').innerHTML = html || '<p style="color:var(--text-tertiary)">无可用内容</p>';
+  $('#pageDetailPanel').classList.remove('hidden');
 }
 $('#drawerClose').addEventListener('click', () => $('#pageDetailPanel').classList.add('hidden'));
 $('#pageDetailPanel').addEventListener('click', e => { if (e.target === $('#pageDetailPanel')) $('#pageDetailPanel').classList.add('hidden'); });
