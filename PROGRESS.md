@@ -5,7 +5,7 @@
 ## 📊 当前状态总览
 
 - **项目版本**：v4.0（规则引擎 + 规则库 CRUD + AntD Pro 风格 UI）
-- **最近提交**：`f789271` feat: 审查结果页分页与统计卡联动筛选，计算校核双卡片组及证据展示
+- **最近提交**：`54f1f1a` fix: 修复 3 个存量测试失败，全套件转绿（156 passed）
 - **分支**：main（远程 origin/main）
 - **最后更新**：2026-08-21
 
@@ -197,3 +197,5 @@
 - [2026-08-21 18:11] claude 签退 — 完成了：收尾提交 f789271：审查结果页分页+统计卡联动筛选、计算校核双卡片组、图文证据展示、drawing_review 补正文证据；重启 dev server 后浏览器冒烟全部通过；下一步建议：修复 3 个存量测试失败（test_web 过期断言 2 + DR-01 召回 1）；随后按 docs/semantic_agent_design.md 实施语义审查 Agent
 
 - [2026-08-21 18:20] claude 签到 — 开始处理：修复 3 个存量测试失败（test_web 过期断言 2 + DR-01→DR-90 编号迁移）
+
+- [2026-08-21 18:23] claude 签退 — 完成了：修复 3 个存量测试失败（54f1f1a）：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed/1 skipped/0 failed；下一步建议：按 docs/semantic_agent_design.md 实施语义审查 Agent（复用 PENDING_CONFIRMATION/重跑闭环）；规则库 standard_id 落盘
