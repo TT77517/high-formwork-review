@@ -53,7 +53,8 @@
 
 1. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`），可复用本次的 PENDING_CONFIRMATION/重跑闭环机制
 2. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
-3. 配置 MINERU_API_TOKEN 后重新解析样例：当前 .env token 为空，存量任务的 image/chart block 无 jpg 文件（缓存只存过 JSON）；表格类证据已用 table_html 真渲染不受影响，token 就绪后新解析/缓存命中任务将带全量图像（缓存层已支持携带 raw 资源）
+
+> ✅ 已完成（2026-08-21）：MINERU_API_TOKEN 已配置（.env，gitignore），样例已重解析——922 张图像落盘新任务 `12a62f8b`（mineru_api/raw），缓存条目开始携带 raw 资源，文档解析抽屉/证据图像通道浏览器验证 200。旧任务 `129b4a90` 无图（解析早于 token），重跑不触发重解析，如需图像可重新上传。
 
 ## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
 
@@ -205,3 +206,7 @@
 - [2026-08-21 18:31] claude 签到 — 开始处理：审查结果页证据图片展示：API出口层按block_id补image_path + 前端缩略图/灯箱 + 计算引擎公式验算证据补定位
 
 - [2026-08-21 18:52] claude 签退 — 完成了：证据图像/表格展示全链路：API出口层按block_id补image_path+table_html、计算/语义引擎证据补block定位、前端缩略图+灯箱（表格真渲染）、MinerU缓存携带raw图像；157测试全绿+浏览器冒烟通过+重跑demo验证；下一步建议：配置MINERU_API_TOKEN后重解析补图像jpg；随后按设计文档实施语义审查Agent
+
+- [2026-08-21 19:39] claude 签到 — 开始处理：MinerU重解析样例验证图像证据（token已配置，922图落盘）
+
+- [2026-08-21 19:41] claude 签退 — 完成了：MinerU重解析完成：token配置+922图落盘新任务12a62f8b+缓存携raw生效+抽屉图像200验证；表格证据真渲染+图像通道全部就绪；下一步建议：NEXT=语义审查Agent实施（docs/semantic_agent_design.md）；规则库standard_id落盘
