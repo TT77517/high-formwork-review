@@ -43,6 +43,7 @@ from .review_summary import build_review_results
 from .report_generator import build_review_report_from_job_dir
 from .rule_engine import load_rule_library, run_rule_engine_safe
 from .semantic_engine import run_semantic_engine_safe
+from .standards import extract_standard_refs, get_standards_registry
 from .calculation_engine import run_calculation_engine_safe
 from .substantive_review import build_substantive_review
 
@@ -319,6 +320,20 @@ def download_review_report(job_id: str) -> FileResponse:
 
 # ===== 规则库管理 API =====
 
+@app.get("/api/standards")
+def list_standards() -> dict[str, Any]:
+    """规范注册表：工程基础信息"适用规范"与规则库管理规范筛选的同一词汇。"""
+    counts: dict[str, int] = {}
+    for rule in load_rule_library():
+        for sid in extract_standard_refs((rule.get("code_ref") or {}).get("standard")):
+            counts[sid] = counts.get(sid, 0) + 1
+    standards = [
+        {**entry, "rule_count": counts.get(str(entry["standard_id"]), 0)}
+        for entry in get_standards_registry()
+    ]
+    return {"total": len(standards), "standards": standards}
+
+
 @app.get("/api/rules")
 def list_rules(
     module: str | None = None,
@@ -328,7 +343,10 @@ def list_rules(
     standard: str | None = None,
 ) -> dict[str, Any]:
     """浏览/筛选规则库（164条）。"""
-    rules = load_rule_library()
+    rules = []
+    for rule in load_rule_library():
+        refs = extract_standard_refs((rule.get("code_ref") or {}).get("standard"))
+        rules.append({**rule, "standard_refs": refs, "standard_id": refs[0] if refs else None})
     if module:
         rules = [r for r in rules if r.get("module") == module]
     if check_type:
@@ -338,13 +356,16 @@ def list_rules(
     if status:
         rules = [r for r in rules if r.get("status") == status]
     if standard:
-        import re
-        # Remove spaces from both pattern and target for tolerant matching
-        std_norm = standard.replace(" ", "").replace("/", "")
-        rules = [
-            r for r in rules
-            if std_norm in (r.get("code_ref", {}).get("standard", "") or "").replace(" ", "").replace("/", "")
-        ]
+        known_ids = {str(e["standard_id"]) for e in get_standards_registry()}
+        if standard in known_ids:
+            rules = [r for r in rules if standard in r.get("standard_refs", [])]
+        else:
+            # 回退：非注册表词汇时保留旧的宽松子串匹配，兼容旧调用
+            std_norm = standard.replace(" ", "").replace("/", "")
+            rules = [
+                r for r in rules
+                if std_norm in (r.get("code_ref", {}).get("standard", "") or "").replace(" ", "").replace("/", "")
+            ]
     modules_summary: dict[str, int] = {}
     for r in rules:
         m = r.get("module", "unknown")
@@ -361,7 +382,12 @@ def get_rule(rule_id: str) -> dict[str, Any]:
     """查询单条规则详情。"""
     for rule in load_rule_library():
         if rule.get("rule_id") == rule_id:
-            return rule
+            refs = extract_standard_refs((rule.get("code_ref") or {}).get("standard"))
+            return {
+                **rule,
+                "standard_refs": refs,
+                "standard_id": refs[0] if refs else None,
+            }
     raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
 
 

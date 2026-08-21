@@ -711,3 +711,20 @@ def test_no_sensitive_data_in_files_output(client: TestClient) -> None:
     sensitive_files = [f for f in data["files"] if f["name"] in ("dify_request.json", "dify_raw_response.json")]
     for sf in sensitive_files:
         assert "api" not in sf["description"].lower() or "审计" in sf["description"]
+
+
+def test_standards_endpoint_and_rule_standard_filter(client: TestClient) -> None:
+    """规范注册表端点与规则库 standard_id 精确过滤。"""
+    response = client.get("/api/standards")
+    assert response.status_code == 200
+    data = response.json()
+    ids = {s["standard_id"]: s for s in data["standards"]}
+    assert "JGJT231-2021" in ids and "JGJ162-2016" in ids
+    assert ids["JGJ162-2016"]["rule_count"] > 0
+
+    filtered = client.get("/api/rules", params={"standard": "JGJT231-2021"}).json()
+    assert filtered["total"] == ids["JGJT231-2021"]["rule_count"]
+    assert all("JGJT231-2021" in (r.get("standard_refs") or []) for r in filtered["rules"])
+
+    all_rules = client.get("/api/rules").json()
+    assert all("standard_id" in r for r in all_rules["rules"])

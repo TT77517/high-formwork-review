@@ -22,6 +22,7 @@
 - [x] Web 审查模块重构（4 核心 Tab + 规则库管理）
 - [x] 图文一致性校验（正文参数与图纸文本数值交叉比对）
 - [x] 规范筛选 + 规则详情编辑入口
+- [x] 规范注册表（config/standards.json + app/standards.py；/api/standards；规则 standard_id/standard_refs 标注与规范精确过滤）
 
 ## 🔲 待完成
 

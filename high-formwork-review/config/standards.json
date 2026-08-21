@@ -1,0 +1,133 @@
+{
+  "version": "1.0.0",
+  "description": "高支模专项方案审查规范注册表。standard_id 为唯一标识（用于筛选/跳转），full_code 为规范代号书写形式，applies_to 与规则库 applicable_types 同词汇（universal/pankou/koujian/wankou）。",
+  "standards": [
+    {
+      "standard_id": "JGJT231-2021",
+      "name": "建筑施工承插型盘扣式钢管支架安全技术标准",
+      "full_code": "JGJ/T 231-2021",
+      "category": "industry",
+      "applies_to": ["pankou"]
+    },
+    {
+      "standard_id": "JGJ130-2011",
+      "name": "建筑施工扣件式钢管脚手架安全技术规范",
+      "full_code": "JGJ 130-2011",
+      "category": "industry",
+      "applies_to": ["koujian"]
+    },
+    {
+      "standard_id": "JGJ162-2016",
+      "name": "建筑施工模板安全技术规范",
+      "full_code": "JGJ 162-2016",
+      "category": "industry",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "JGJ166-2016",
+      "name": "建筑施工碗扣式钢管脚手架安全技术规范",
+      "full_code": "JGJ 166-2016",
+      "category": "industry",
+      "applies_to": ["wankou"]
+    },
+    {
+      "standard_id": "JGJ300-2013",
+      "name": "建筑施工安全检查标准",
+      "full_code": "JGJ 300-2013",
+      "category": "industry",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "JGJ59-2011",
+      "name": "建筑施工安全检查标准",
+      "full_code": "JGJ 59-2011",
+      "category": "industry",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "JGJ80-2016",
+      "name": "建筑施工高处作业安全技术规范",
+      "full_code": "JGJ 80-2016",
+      "category": "industry",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB55023-2022",
+      "name": "施工脚手架通用规范",
+      "full_code": "GB 55023-2022",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB55001-2021",
+      "name": "工程结构通用规范",
+      "full_code": "GB 55001-2021",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB55008-2021",
+      "name": "建筑施工与建筑施工现场安全卫生通用规范",
+      "full_code": "GB 55008-2021",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB50666-2011",
+      "name": "混凝土结构工程施工规范",
+      "full_code": "GB 50666-2011",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB50017-2017",
+      "name": "钢结构设计标准",
+      "full_code": "GB 50017-2017",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB50009-2012",
+      "name": "建筑结构荷载规范",
+      "full_code": "GB 50009-2012",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GB15831",
+      "name": "钢管脚手架扣件",
+      "full_code": "GB 15831",
+      "category": "national",
+      "applies_to": ["koujian"]
+    },
+    {
+      "standard_id": "GBT3091",
+      "name": "低压流体输送用焊接钢管",
+      "full_code": "GB/T 3091",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "GBT17656",
+      "name": "混凝土模板用胶合板",
+      "full_code": "GB/T 17656",
+      "category": "national",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "MOHURD-ORDER-37",
+      "name": "危险性较大的分部分项工程安全管理规定",
+      "full_code": "住建部37号令",
+      "category": "regulation",
+      "applies_to": ["universal"]
+    },
+    {
+      "standard_id": "JIANBANZHI-2018-31",
+      "name": "关于印发起重机械、基坑工程等五项危险性较大的分部分项工程施工安全要点的通知（含危大工程范围附件）",
+      "full_code": "建办质〔2018〕31号",
+      "category": "document",
+      "applies_to": ["universal"],
+      "notes": "规则库中“住建部令[2018]31号”疑似本文件误写，统一映射至此，待人工清洗。"
+    }
+  ]
+}
