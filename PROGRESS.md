@@ -40,7 +40,7 @@
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
 - [ ] 更多规范规则的补充与完善
 - [ ] 测试覆盖补充
-- [ ] 修复剩余 3 个存量测试失败（test_web 过期断言 2 + DR-01 1；py3.9 收集错误已于 2026-08-21 修复）
+- [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
 - [x] Web UI 页面改进（P0，识别驱动重构 9 个提交：规范注册表/适用规范展示/章节聚合/待确认状态/统一复核工作台/重跑闭环）
 - [x] 审查结果页体验增强：五处分页（10/20/50）+统计卡点击联动筛选、计算校核页改公式验算/参数一致性双卡片组（双侧对比+证据页跳转）、图文卡片展示正文值vs图纸标注值、drawing_review 交叉比对结果补正文 text_evidence；浏览器冒烟通过
 
@@ -50,11 +50,12 @@
 
 ## 📌 下一步建议
 
-1. 修复剩余 3 个存量测试失败（test_web 过期断言 2 + DR-01 图纸召回 1）
-2. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`），可复用本次的 PENDING_CONFIRMATION/重跑闭环机制
-3. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
+1. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`），可复用本次的 PENDING_CONFIRMATION/重跑闭环机制
+2. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
 
 ## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
+
+> ✅ 全部解决（2026-08-21 claude）：①py3.9 收集错误 3 处已修复；②test_web 两个过期断言已更新（文案改现行五模式、compliance→smart）；③DR-01 召回测试按其编号迁移改为 DR-90（召回类条目从 DR-01 移至 DR-90，功能本身一直正常）。当前基线：**156 passed / 1 skipped / 0 failed**。
 
 > 更新（2026-08-21 claude）：py3.9 收集错误 3 处已修复（test_dify_cache/test_review 加 `from __future__ import annotations`、test_dify 去 `zip(..., strict=True)`），全量测试解锁为 140 passed / 3 failed / 1 skipped；剩余失败即下文第 2、3 两项。
 
@@ -194,3 +195,5 @@
 - [2026-08-21 17:58] claude 签到 — 开始处理：收尾未提交改动：审查结果页分页+卡片联动筛选+证据展示，验证后提交
 
 - [2026-08-21 18:11] claude 签退 — 完成了：收尾提交 f789271：审查结果页分页+统计卡联动筛选、计算校核双卡片组、图文证据展示、drawing_review 补正文证据；重启 dev server 后浏览器冒烟全部通过；下一步建议：修复 3 个存量测试失败（test_web 过期断言 2 + DR-01 召回 1）；随后按 docs/semantic_agent_design.md 实施语义审查 Agent
+
+- [2026-08-21 18:20] claude 签到 — 开始处理：修复 3 个存量测试失败（test_web 过期断言 2 + DR-01→DR-90 编号迁移）

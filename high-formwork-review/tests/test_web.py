@@ -319,11 +319,12 @@ def test_home_page_shows_modular_review_modes(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
     text = response.text
-    for label in ("智能预审", "完整性审查", "规范符合性审查", "参数一致性检查", "图文复核提示"):
+    for label in ("智能预审", "完整性审查", "规范语义审查", "图文一致性校验", "计算校核"):
         assert label in text
     assert "工程识别</button>" not in text
     assert "工程基础信息" in text
     assert "内容符合性" not in text
+    assert "规范符合性审查" not in text
     assert "部分可用" in text
 
 
@@ -349,7 +350,7 @@ def test_file_over_50mb_is_rejected(
 def test_upload_creates_job(client: TestClient) -> None:
     response = client.post(
         "/api/jobs",
-        data={"review_mode": "compliance"},
+        data={"review_mode": "smart"},
         files={"file": ("方案.pdf", b"%PDF-1.7\n%%EOF", "application/pdf")},
     )
     assert response.status_code == 202
@@ -357,7 +358,7 @@ def test_upload_creates_job(client: TestClient) -> None:
     job_dir = web.JOBS_ROOT / data["job_id"]
     assert (job_dir / "source.pdf").is_file()
     assert data["status"] == "uploaded"
-    assert data["review_mode"] == "compliance"
+    assert data["review_mode"] == "smart"
 
 
 def test_parameter_consistency_review_mode_is_accepted(client: TestClient) -> None:

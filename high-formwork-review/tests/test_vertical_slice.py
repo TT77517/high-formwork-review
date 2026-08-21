@@ -292,9 +292,9 @@ def test_drawing_review_recalls_related_drawing_pages() -> None:
     result = build_drawing_review(doc, facts)
 
     by_id = {item["review_item_id"]: item for item in result}
-    assert by_id["DR-01"]["status"] == "REVIEW"
-    assert by_id["DR-01"]["drawing_evidence"][0]["physical_page"] == 2
-    assert by_id["DR-01"]["automation_level"] == "evidence_recall_only"
+    assert by_id["DR-90"]["status"] == "REVIEW"
+    assert by_id["DR-90"]["drawing_evidence"][0]["physical_page"] == 2
+    assert by_id["DR-90"]["automation_level"] == "evidence_recall_only"
 
 
 def test_consistency_review_compares_design_and_calculation_values() -> None:
