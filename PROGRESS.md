@@ -30,7 +30,7 @@
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
 - [ ] 更多规范规则的补充与完善
 - [ ] 测试覆盖补充
-- [ ] 修复 6 个存量测试失败/错误（见下方"已知测试问题"，2026-08-21 claude 发现并诊断）
+- [ ] 修复剩余 3 个存量测试失败（test_web 过期断言 2 + DR-01 1；py3.9 收集错误已于 2026-08-21 修复）
 - [ ] Web UI 页面改进（P0，需与用户沟通具体方向）
 
 ## 🚧 当前阻塞
@@ -44,6 +44,8 @@
 3. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`）
 
 ## ⚠️ 已知测试问题（2026-08-21 claude 诊断，a20b549 基线）
+
+> 更新（2026-08-21 claude）：py3.9 收集错误 3 处已修复（test_dify_cache/test_review 加 `from __future__ import annotations`、test_dify 去 `zip(..., strict=True)`），全量测试解锁为 140 passed / 3 failed / 1 skipped；剩余失败即下文第 2、3 两项。
 
 `cd high-formwork-review && .venv/bin/python -m pytest` 结果：**4 failed, 99 passed, 1 skipped, 2 collection errors**（Desktop 与 dewuclaw 两份副本结果完全一致，确认为存量问题）：
 
@@ -170,3 +172,7 @@
 2. 规范语义审查 Agent 架构规划
 
 - [2026-08-21 10:30] claude 签到 — 开始处理：Desktop 副本同步至 a20b549 + 基线测试验证；发现并诊断 6 个存量测试失败（详见"已知测试问题"），准备进入 P0 Web UI 改进
+
+- [2026-08-21 13:24] claude 签到 — 开始处理：P0 Web UI 页面改进——现状梳理 + 与用户沟通改进方向
+
+- [2026-08-21 13:59] claude 签到 — 开始处理：P0 Web UI 改进——针对用户 4 点反馈（工程基础信息展示/规则包按规范展示/解析明细可视化/按工程特征匹配规则/人工复核定位）梳理现状并讨论改进方案

@@ -348,7 +348,7 @@ def test_rule_driven_batches_send_one_rule_per_batch() -> None:
         ["HF-COMP-001"],
         ["HF-COMP-007"],
     ]
-    for batch, rule in zip(batches, _rules(), strict=True):
+    for batch, rule in zip(batches, _rules()):
         assert batch["expected_rule_count"] == 1
         assert batch["inputs"]["expected_rule_count"] == 1
         assert json.loads(batch["inputs"]["review_rules"]) == [rule]
