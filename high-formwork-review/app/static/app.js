@@ -518,9 +518,14 @@ function renderReviewTable(f) {
     const difyLbl = c && Object.keys(c).length ? (DIFY_CN[c.dify_result_source]||'未请求') : '未请求';
     const compLbl = c?.comparison_status ? (COMP_CN[c.comparison_status]||'') : '未请求';
     const humanLbl = d && d.human_decision !== 'pending' ? (HUMAN_CN[d.human_decision]||'') : '待复核';
+    // 本地 PASS 但部分要素匹配、已送 Dify 复核的，标注口径差异
+    const localNote = (r.status==='PASS' && r.needs_semantic_review) ? '<br><small>部分要素匹配，已送 Dify 复核</small>' : '';
+    // 未送 Dify 复核的，展示跳过原因
+    const difyNote = (c.dify_result_source==='not_requested') ? `<br><small>${esc(r.semantic_review_reason||'本地置信度较高，无需复核')}</small>` : '';
+    const difyTitle = dl ? `Dify 结论：${STATUS_CN[dl]||dl}（绿=合规 橙=无法核验 红=缺失）` : '该规则未送 Dify 复核，保留本地结果';
     return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.name)}</td>
-      <td><span class="status-chip status-${r.status}">${ll}</span></td>
-      <td><span class="status-chip status-${dl||'uncertain'}">${esc(difyLbl)}</span></td>
+      <td><span class="status-chip status-${r.status}">${ll}</span>${localNote}</td>
+      <td><span class="status-chip status-${dl||'uncertain'}" title="${esc(difyTitle)}">${esc(difyLbl)}</span>${difyNote}</td>
       <td>${esc(compLbl)}</td><td>${esc(humanLbl)}</td>
       <td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
   }).join('');
