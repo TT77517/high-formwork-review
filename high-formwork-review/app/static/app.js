@@ -163,21 +163,26 @@ function renderOverview() {
 function renderQualification() {
   const q = preData?.project_qualification; if (!q) { $('#qualificationPanel').innerHTML = '<div class="stat-card"><div class="stat-value">未生成</div><div class="stat-title">工程基础信息</div></div>'; $('#qualificationStandards').innerHTML = ''; return; }
   const p = q.identified_parameters||{}; const h = p.support_height||{}; const sp = p.support_span||{}; const t = p.total_load_design||{}; const l = p.concentrated_line_load_design||{};
-  const rows = [['工程类型',q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label],['支撑高度',vwu(h)],['跨度',vwu(sp)],['总荷载',vwu(t)],['线荷载',vwu(l)]];
+  const rows = [['工程类型',q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label]];
+  // 参数卡只展示已识别出值的项
+  [[h,'支撑高度'],[sp,'跨度'],[t,'总荷载'],[l,'线荷载']].forEach(([param,label]) => { if (param.value != null) rows.push([label, vwu(param)]); });
   $('#qualificationPanel').innerHTML = rows.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${esc(l)}</div><div class="stat-value">${esc(v||'未识别')}</div></div>`).join('');
-  // 关键参数识别：识别结果 + 来源页 + 驱动的下游审查环节
-  const kps = q.key_parameters||[];
+  // 关键参数识别：只展示已识别项（识别结果 + 来源页 + 驱动的下游审查环节）
+  const kps = (q.key_parameters||[]).filter(kp => kp.status==='confirmed');
   $('#qualificationKeyParams').innerHTML = kps.length ? `<div class="std-head">关键参数识别</div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>参数</th><th>识别结果</th><th>来源页</th><th>驱动的审查环节</th></tr></thead><tbody>
-    ${kps.map(kp => `<tr><td><b>${esc(kp.label)}</b></td><td>${kp.status==='confirmed'
-      ? `<span class="tag-green">${esc(kp.value_text||'已识别')}</span>`
-      : kp.status==='missing' ? '<span class="tag-default">未识别</span>'
-      : '<span class="tag-orange">需复核</span>'}</td><td>${kp.evidence_page?('p.'+kp.evidence_page):'—'}</td><td><small>${esc((kp.drives||[]).join('；'))}</small></td></tr>`).join('')}
+    ${kps.map(kp => `<tr><td><b>${esc(kp.label)}</b></td><td><span class="tag-green">${esc(kp.value_text||'已识别')}</span></td><td>${kp.evidence_page?('p.'+kp.evidence_page):'—'}</td><td><small>${esc((kp.drives||[]).join('；'))}</small></td></tr>`).join('')}
     </tbody></table></div>` : '';
   const stds = q.applicable_standards||[];
   const note = stds.length && stds[0].note ? `<p class="mode-hint">${esc(stds[0].note)}，确认后重跑适用规则</p>` : '';
+  const STD_CAT_CN = { regulation:'法规文件', document:'政策文件', national:'国家标准', industry:'行业标准' };
+  const stdChip = s => `<button type="button" class="std-chip" data-std="${esc(s.standard_id)}" title="${esc(s.name)}">${esc(s.full_code)}<small>${esc(s.name)}${s.rule_count ? ' · ' + s.rule_count + '条规则' : ''}</small></button>`;
+  const stdGroups = ['regulation','document','national','industry'].map(cat => {
+    const list = stds.filter(s => (s.category||'') === cat);
+    return list.length ? `<div class="std-head">${STD_CAT_CN[cat] || cat}</div><div class="std-chips">${list.map(stdChip).join('')}</div>` : '';
+  }).join('');
   $('#qualificationStandards').innerHTML = stds.length
-    ? `<div class="std-head">适用规范</div><div class="std-chips">${stds.map(s => `<button type="button" class="std-chip" data-std="${esc(s.standard_id)}" title="${esc(s.name)}">${esc(s.full_code)}<small>${esc(s.name)}${s.rule_count ? ' · ' + s.rule_count + '条规则' : ''}</small></button>`).join('')}</div>${note}`
+    ? `<div class="std-head">适用规范（识别工程信息后自动匹配）</div>${stdGroups}${note}`
     : '';
   $$('#qualificationStandards .std-chip').forEach(b => b.addEventListener('click', () => {
     switchTab('rule-library');
