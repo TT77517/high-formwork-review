@@ -69,6 +69,7 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 /* Panel */
 .panel { background: var(--bg-container); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-card); }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
 .section-header h2 { font-size: 16px; font-weight: 600; }
 
 /* Tags */
@@ -195,6 +196,13 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 
 /* Drawer */
 .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; display: flex; justify-content: flex-end; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.modal-content { background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.15); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.modal-head h3 { font-size: 16px; font-weight: 600; margin: 0; }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); padding: 4px 8px; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 24px; }
 .drawer { width: 560px; max-width: 100vw; background: #fff; display: flex; flex-direction: column; box-shadow: -6px 0 16px rgba(0,0,0,.08); }
 .drawer-head { height: 48px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-secondary); flex-shrink: 0; }
 .drawer-head h3 { font-size: 15px; }

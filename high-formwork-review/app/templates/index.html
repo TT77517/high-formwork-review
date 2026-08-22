@@ -235,6 +235,9 @@
           <label class="ml-16">规范：</label>
           <select id="semanticStandardFilter" class="select-field sel-fixed"><option value="all">全部</option></select>
         </div>
+        <div class="review-desc" style="margin-bottom:12px">
+          <p><b>状态说明：</b>合规 = 满足规范要求；违规 = 不满足规范要求；无法判定 = 方案中未找到相关内容或内容不充分；不适用 = 该规则不适用于本方案（如支架类型不匹配）；<b>待确认</b> = 支撑体系未识别，该规则仅适用于特定支撑体系，需在工程基础信息中确认支撑体系后重跑审查。</p>
+        </div>
         <div class="table-wrap"><table class="data-table table-compact" id="semanticTable">
           <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>等级</th><th>状态</th><th>实际值/阈值</th><th>操作</th></tr></thead>
           <tbody id="semanticRows"></tbody>
@@ -300,8 +303,10 @@
       <section class="panel tab-panel hidden" id="tab-rule-library">
         <div class="section-header">
           <h2>规则库管理 <span class="tag-blue ml-8">v4.0 · 164条</span></h2>
-          <button id="addRuleBtn" type="button" class="btn-primary">新增规则</button>
-          <button id="versionValidationBtn" type="button" class="btn-default ml-8">规范版本校验</button>
+          <div class="header-actions">
+            <button id="addRuleBtn" type="button" class="btn-primary">新增规则</button>
+            <button id="versionValidationBtn" type="button" class="btn-default ml-8">规范版本校验</button>
+          </div>
         </div>
         <div id="ruleLibraryStats" class="stat-card-grid"></div>
         <div id="versionValidationAlert" class="alert-inline hidden" style="margin-bottom:12px"></div>
@@ -326,10 +331,12 @@
           <div class="drawer"><div class="drawer-head"><h3 id="rlDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="rule-library">✕</button></div><div id="rlDrawerBody" class="drawer-body"></div></div>
         </div>
         <!-- Version Validation Modal -->
-        <div id="versionValidationModal" class="drawer-overlay hidden">
-          <div class="drawer" style="width:700px"><div class="drawer-head"><h3>规范版本校验</h3><button class="drawer-close" data-drawer="version-validation">✕</button></div>
-          <div class="drawer-body" id="versionValidationBody"></div>
-          <div class="action-row" style="padding:0 24px 24px"><button id="versionValidationClose" type="button" class="btn-default">关闭</button></div>
+        <div id="versionValidationModal" class="modal-overlay hidden">
+          <div class="modal-content" style="width:700px;max-height:80vh;overflow-y:auto">
+            <div class="modal-head"><h3>规范版本校验</h3><button class="modal-close" id="versionValidationCloseBtn">✕</button></div>
+            <div class="modal-body" id="versionValidationBody"></div>
+            <div class="action-row" style="padding:16px 24px"><button id="versionValidationClose" type="button" class="btn-default">关闭</button></div>
+          </div>
         </div>
         <!-- Add/Edit Rule Modal -->
         <div id="ruleEditModal" class="drawer-overlay hidden">

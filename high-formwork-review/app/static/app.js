@@ -167,13 +167,9 @@ function renderQualification() {
   // 卡片只保留文字项
   const rows = [['工程类型',PTYPE_CN[q.project_type]||q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label]];
   $('#qualificationPanel').innerHTML = rows.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${esc(l)}</div><div class="stat-value">${esc(v||'未识别')}</div></div>`).join('');
-  // 关键参数表格：展示已识别的数值参数
-  const paramRows = [];
-  [[h,'支撑高度'],[sp,'跨度'],[t,'总荷载'],[l,'线荷载']].forEach(([param,label]) => { 
-    if (param.value != null) paramRows.push([label, vwu(param)]); 
-  });
+  // 关键参数表格：展示已识别的数值参数（直接用 key_parameters，不再重复前三行）
   const kps = (q.key_parameters||[]).filter(kp => kp.status==='confirmed');
-  const allParams = [...paramRows.map(([l,v]) => ({label:l, value:v, evidence_page:null, drives:[]})), ...kps];
+  const allParams = kps;
   $('#qualificationKeyParams').innerHTML = allParams.length ? `<div class="std-head">关键参数识别</div>
     <div class="table-wrap"><table class="data-table table-compact"><thead><tr><th>参数</th><th>识别结果</th><th>来源页</th><th>驱动的审查环节</th></tr></thead><tbody>
     ${allParams.map(kp => `<tr><td><b>${esc(kp.label)}</b></td><td><span class="tag-green">${esc(kp.value||kp.value_text||'已识别')}</span></td><td>${kp.evidence_page?('p.'+kp.evidence_page):'—'}</td><td><small>${esc((kp.drives||[]).join('；')||'—')}</small></td></tr>`).join('')}
@@ -1110,7 +1106,8 @@ ruleEditModal.addEventListener('click', e => { if (e.target === ruleEditModal) r
 
 const versionValidationModal = $('#versionValidationModal');
 if (versionValidationModal) {
-  versionValidationModal.querySelector('.drawer-close').addEventListener('click', () => versionValidationModal.classList.add('hidden'));
+  const vvb = $('#versionValidationCloseBtn');
+  if (vvb) vvb.addEventListener('click', () => versionValidationModal.classList.add('hidden'));
   versionValidationModal.addEventListener('click', e => { if (e.target === versionValidationModal) versionValidationModal.classList.add('hidden'); });
 }
 
