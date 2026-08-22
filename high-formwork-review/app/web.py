@@ -1131,7 +1131,14 @@ def _web_dify_mode() -> str:
 def _run_optional_dify_review(job_dir: Path, rules: list[dict[str, Any]]) -> None:
     from .main import _run_dify_review
 
-    _run_dify_review(job_dir, rules)
+    def _progress(done: int, total: int) -> None:
+        _update_status(
+            job_dir,
+            "completeness_review",
+            f"Dify 完整性语义复核进行中（{done}/{total}）",
+        )
+
+    _run_dify_review(job_dir, rules, progress_callback=_progress)
 
 
 def _write_precheck_summary_if_ready(job_dir: Path) -> None:

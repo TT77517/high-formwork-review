@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import sys
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .completeness_review import (
     build_evidence_check_markdown,
@@ -156,6 +157,7 @@ def _run_dify_review(
     rules: list[dict[str, Any]],
     mode: str | None = None,
     selected_rule_ids: list[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> None:
     """执行 Dify 追加流程，并保证任意阶段失败都留下状态文件。"""
     try:
@@ -164,6 +166,7 @@ def _run_dify_review(
             rules,
             mode=mode,
             selected_rule_ids=selected_rule_ids,
+            progress_callback=progress_callback,
         )
     except (OSError, RuntimeError, ValueError) as exc:
         error_path = output_dir / "dify_error.json"
@@ -185,6 +188,7 @@ def _run_dify_review_impl(
     *,
     mode: str | None = None,
     selected_rule_ids: list[str] | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> None:
     """读取已落盘的规范化文档并追加执行 Dify 完整性审查。"""
     from .dify_cache import (
@@ -415,8 +419,12 @@ def _run_dify_review_impl(
             )
         return
     try:
+        if progress_callback is not None:
+            progress_callback(0, len(batches))
         raw_records, parsed_records = asyncio.run(
-            _execute_dify_batches(batches, task_id, output_dir)
+            _execute_dify_batches(
+                batches, task_id, output_dir, progress_callback=progress_callback
+            )
         )
         from .services.dify_client import merge_batch_review_results
 
@@ -625,8 +633,14 @@ async def _execute_dify_batches(
     batches: list[dict[str, Any]],
     task_id: str,
     output_dir: Path,
+    *,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """顺序执行批次；失败前已完成的原始响应仍会落盘。"""
+    """并发执行批次（并发数 DIFY_COMPLETENESS_CONCURRENCY，默认 3）；失败时已完成的原始响应仍会落盘。
+
+    错误语义与串行版一致：任一批次失败时，等待进行中的批次收尾后抛出首个错误
+    （携带 batch_index 与已完成的部分记录），尚未开始的批次不再发起。
+    """
     from .services.dify_client import (
         DifyClient,
         DifyError,
@@ -638,14 +652,58 @@ async def _execute_dify_batches(
     parsed_records: list[dict[str, Any]] = []
     if not batches:
         return raw_records, parsed_records
+
+    try:
+        concurrency = max(1, int(os.getenv("DIFY_COMPLETENESS_CONCURRENCY", "3")))
+    except ValueError:
+        concurrency = 3
     client = DifyClient.from_env()
-    for batch in batches:
+    semaphore = asyncio.Semaphore(concurrency)
+    lock = asyncio.Lock()
+    total = len(batches)
+    first_error: list[DifyError] = []
+
+    def _flush_raw_locked() -> None:
+        raw_records.sort(key=lambda item: int(item["batch_index"]))
+        _write_json(
+            output_dir / "dify_raw_response.json",
+            {"task_id": task_id, "batches": raw_records},
+        )
+
+    async def run_batch(batch: dict[str, Any]) -> None:
+        if first_error:
+            return
         batch_index = int(batch["batch_index"])
         try:
-            raw_response = await client.run_workflow(
-                batch["inputs"],
-                user=task_id,
+            async with semaphore:
+                raw_response = await client.run_workflow(
+                    batch["inputs"],
+                    user=task_id,
+                )
+            parsed_result, validation_warnings = validate_review_result_with_warnings(
+                extract_review_result(raw_response),
+                batch["rule_ids"],
+                allow_unrequested=True,
             )
+        except DifyError as exc:
+            async with lock:
+                if exc.raw_response is not None:
+                    raw_records.append(
+                        {
+                            "batch_index": batch_index,
+                            "rule_ids": batch["rule_ids"],
+                            "response": exc.raw_response,
+                        }
+                    )
+                    _flush_raw_locked()
+                exc.batch_index = batch_index
+                exc.partial_raw_records = list(raw_records)
+                exc.partial_parsed_records = list(parsed_records)
+                first_error.append(exc)
+                if progress_callback is not None:
+                    progress_callback(len(raw_records), total)
+            return
+        async with lock:
             raw_records.append(
                 {
                     "batch_index": batch_index,
@@ -653,15 +711,7 @@ async def _execute_dify_batches(
                     "response": raw_response,
                 }
             )
-            _write_json(
-                output_dir / "dify_raw_response.json",
-                {"task_id": task_id, "batches": raw_records},
-            )
-            parsed_result, validation_warnings = validate_review_result_with_warnings(
-                extract_review_result(raw_response),
-                batch["rule_ids"],
-                allow_unrequested=True,
-            )
+            _flush_raw_locked()
             parsed_records.append(
                 {
                     "batch_index": batch_index,
@@ -670,23 +720,14 @@ async def _execute_dify_batches(
                     "warnings": validation_warnings,
                 }
             )
-        except DifyError as exc:
-            if exc.raw_response is not None:
-                raw_records.append(
-                    {
-                        "batch_index": batch_index,
-                        "rule_ids": batch["rule_ids"],
-                        "response": exc.raw_response,
-                    }
-                )
-                _write_json(
-                    output_dir / "dify_raw_response.json",
-                    {"task_id": task_id, "batches": raw_records},
-                )
-            exc.batch_index = batch_index
-            exc.partial_raw_records = list(raw_records)
-            exc.partial_parsed_records = list(parsed_records)
-            raise
+            parsed_records.sort(key=lambda item: int(item["batch_index"]))
+            done = len(parsed_records)
+        if progress_callback is not None:
+            progress_callback(done, total)
+
+    await asyncio.gather(*(run_batch(batch) for batch in batches))
+    if first_error:
+        raise first_error[0]
     return raw_records, parsed_records
 
 

@@ -636,7 +636,7 @@ def test_cli_without_dify_never_calls_dify(
     monkeypatch.setattr(
         main_module,
         "_run_dify_review",
-        lambda output_dir, rules: pytest.fail("不应调用 Dify"),
+        lambda output_dir, rules, **_: pytest.fail("不应调用 Dify"),
     )
 
     code = main_module.main(
@@ -658,7 +658,7 @@ def test_cli_with_dify_calls_after_parse(
     monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "on_demand")
     called: dict = {}
 
-    def fake_dify(output_dir: Path, rules: list[dict]) -> None:
+    def fake_dify(output_dir: Path, rules: list[dict], **kwargs) -> None:
         assert (output_dir / "mineru_document.json").is_file()
         called["output_dir"] = output_dir
 
@@ -690,7 +690,7 @@ def test_cli_parse_failure_does_not_call_dify(
     monkeypatch.setattr(
         main_module,
         "_run_dify_review",
-        lambda output_dir, rules: pytest.fail("解析失败后不应调用 Dify"),
+        lambda output_dir, rules, **_: pytest.fail("解析失败后不应调用 Dify"),
     )
 
     code = main_module.main(
@@ -714,7 +714,7 @@ def test_cli_dify_failure_preserves_existing_outputs(
     monkeypatch.setattr(
         main_module,
         "_run_dify_review",
-        lambda output_dir, rules: (_ for _ in ()).throw(RuntimeError("Dify 失败")),
+        lambda output_dir, rules, **_: (_ for _ in ()).throw(RuntimeError("Dify 失败")),
     )
     output_dir = tmp_path / "out"
 
@@ -761,7 +761,7 @@ def test_dify_orchestration_saves_request_raw_and_review_result(
     )
     rules = [_rules()[0]]
 
-    async def fake_execute(batches, task_id, target_dir):
+    async def fake_execute(batches, task_id, target_dir, **kwargs):
         assert len(batches) == 1
         assert batches[0]["expected_rule_count"] == 1
         assert "scheme_text_metadata" not in batches[0]["inputs"]
@@ -836,7 +836,7 @@ def test_on_demand_orchestration_requests_only_selected_rules(
     )
     captured: dict = {}
 
-    async def fake_execute(batches, task_id, target_dir):
+    async def fake_execute(batches, task_id, target_dir, **kwargs):
         captured["batches"] = batches
         raw = {
             "data": {
@@ -922,7 +922,7 @@ def test_full_orchestration_keeps_all_rules_when_selection_is_full(
     )
     captured: dict = {}
 
-    async def fake_execute(batches, task_id, target_dir):
+    async def fake_execute(batches, task_id, target_dir, **kwargs):
         captured["rule_ids"] = [rule_id for batch in batches for rule_id in batch["rule_ids"]]
         return [], []
 
@@ -943,7 +943,7 @@ def test_dify_orchestration_failure_writes_error_without_deleting_parse_result(
     original = json.dumps(_document_dict(), ensure_ascii=False)
     parse_path.write_text(original, encoding="utf-8")
 
-    async def fail_execute(batches, task_id, target_dir):
+    async def fail_execute(batches, task_id, target_dir, **kwargs):
         error = DifyError("模拟 Dify 失败")
         error.batch_index = 1
         raise error
@@ -973,7 +973,7 @@ def test_dify_orchestration_keeps_technical_failure_details_in_audit(
         json.dumps(_document_dict(), ensure_ascii=False), encoding="utf-8"
     )
 
-    async def fail_execute(batches, task_id, target_dir):
+    async def fail_execute(batches, task_id, target_dir, **kwargs):
         error = DifyError(
             "Dify 返回了非 JSON 响应（HTTP 504）",
             technical_details={

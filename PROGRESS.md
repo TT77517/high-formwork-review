@@ -46,6 +46,7 @@
 - [x] 证据图像/表格展示：API 出口层按 block_id 动态补 image_path+table_html（老任务免重跑生效）；计算/语义引擎证据补 block 定位（page 不再为 None）；前端证据缩略图+灯箱（表格真渲染/图像大图/打开所在页/查看原图/404降级）；MinerU 缓存携带 raw 图像资源（命中时还原）；重跑 demo 验证全链路
 - [x] 语义审查 Agent 代码侧实施（系统侧全就绪，待 Dify Workflow 建台联调）：app/services/semantic_dify.py（适用性门禁本地判定不进 LLM / 本地证据提取分批 / Dify Workflow 调用 / 结果校验 / 批次级缓存 / 单批失败降级本地关键词）；SEMANTIC_REVIEW_MODE=local|dify 开关（默认 local，行为不变）；DIFY_SEMANTIC_API_KEY 配置（回退 DIFY_API_KEY）；web+CLI 双接线；5 个测试；Workflow 建台规格：docs/semantic_review_workflow_spec.md；Dify Cloud 连通性已验证（完整性 workflow key 有效）
 - [x] Dify"规范语义审查"Workflow 建台完成并接入（2026-08-22）：用户输入→LLM（低温+JSON 输出）→结束（result_json）；curl 冒烟测试通过（T-1 COMPLIANT、证据逐字引用、1.8s/564 tokens）；DIFY_SEMANTIC_API_KEY + SEMANTIC_REVIEW_MODE=dify 已写入 .env（本地，不入 git）；162 测试全绿
+- [x] 完整性 Dify 复核体验改进（2026-08-23）：①复核阶段状态实时更新（"Dify 完整性语义复核进行中 x/N"，不再看似卡死）；②批次串行改并发（DIFY_COMPLETENESS_CONCURRENCY 默认 3，信号量+锁，错误语义不变：任一批失败仍带部分记录落盘后抛出）；实测用户任务 5 条复核串行约 14 分钟（53~109s/条，单条 12K tokens），并发后预计 4 分钟级。复核质量抽查：施工计划→MISSING(缺设备计划，带页码证据)、验收要求/应急措施 UNCERTAIN→PASS。169 测试全绿（测试假函数签名同步）；新任务 bfcbbcfe 全缓存命中验证无回归
 - [x] 扣件式语义规则补录+体系匹配修正（2026-08-23）：修正 8 条体系专属规则 applicable_types 错标 universal（4.24/5.1/5.3/5.6/5.7/5.18→koujian，5.4/5.5→pankou），消除盘扣方案被扣件规格误审（此前联调 5.1 对盘扣方案 VIOLATED 即此误报）；从审查规则提取表补录 3 条扣件式语义规则（4.34 扫地杆≤200mm、4.35 螺杆外伸≤300mm、4.36 搭设高度≤30m，含与盘扣限值差异注释）。语义规则 84→87：盘扣方案执行 78 条/扣件 83 条/未识别 74 条通用。另：WEB_ENABLE_DIFY=true 已开启（完整性 on_demand 复核）。169 测试全绿（新增门禁回归）
 - [x] 工程基础信息展示优化（2026-08-23，6bea5e1）：只展示已识别信息（参数表/卡片过滤未识别项）+适用规范按 法规/政策/国标/行标 分组
 - [x] 工程基础信息页改版（2026-08-23，Part C）：qualification 增 key_parameters（11 项关键参数：识别结果+来源页+驱动的下游审查环节），前端增"关键参数识别"表（已识别绿/需复核橙/未识别灰），报告"工程基础信息"章增关键参数小节；实测样例风险属性由 unknown 转 over_scale_dangerous（高度13.88m≥8m 判定打通），10/11 参数确认。168 测试全绿（新增 1 回归）
@@ -240,3 +241,5 @@
 - [2026-08-23 03:30] claude 签到 — 开始处理：展示优化（只展示已识别+规范分组）+ 完整性 Dify 开启 + 扣件式语义规则补录与体系匹配修正
 
 - [2026-08-23 04:10] claude 签退 — 完成了：①展示优化 6bea5e1（只展示已识别、规范按类别分组）；②WEB_ENABLE_DIFY=true 开启完整性 on_demand 复核；③修正 8 条体系规则错标（消除 5.1 对盘扣方案的误报根因）+ 补录 3 条扣件式语义规则（4.34/4.35/4.36），语义规则 84→87，门禁生效（盘扣78/扣件83/未识别74）；169 测试全绿；下一步建议：重传样例验证新门禁下的语义结果与完整性 Dify 复核；人工复核语义 VIOLATED
+
+- [2026-08-23 05:00] claude 补充提交 — 完整性 Dify 复核改进：进度实时更新（x/N）+ 批次并发（默认 3）；用户样例 5 条复核串行 14 分钟→预计 4 分钟级；复核缓存命中验证无回归（任务 bfcbbcfe）

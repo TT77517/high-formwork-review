@@ -20,7 +20,7 @@ def _write_job(output_dir: Path, document: dict | None = None) -> None:
 
 
 def _fake_execute_factory(calls: list[list[str]]):
-    async def fake_execute(batches, task_id, target_dir):
+    async def fake_execute(batches, task_id, target_dir, **kwargs):
         calls.append([rule_id for batch in batches for rule_id in batch["rule_ids"]])
         parsed = []
         raw = []
@@ -337,7 +337,7 @@ def test_partial_api_failure_caches_only_completed_rules(
     monkeypatch: pytest.MonkeyPatch,
     cache_environment: Path,
 ) -> None:
-    async def partial_failure(batches, task_id, target_dir):
+    async def partial_failure(batches, task_id, target_dir, **kwargs):
         error = DifyError("mock partial failure")
         error.batch_index = 2
         error.partial_raw_records = []

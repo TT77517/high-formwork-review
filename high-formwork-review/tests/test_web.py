@@ -447,7 +447,7 @@ def test_web_pipeline_dify_disabled_keeps_existing_behavior(
     monkeypatch.setattr(
         main_module,
         "_run_dify_review",
-        lambda output_dir, rules: pytest.fail("WEB_ENABLE_DIFY=false 时不应调用 Dify"),
+        lambda output_dir, rules, **_: pytest.fail("WEB_ENABLE_DIFY=false 时不应调用 Dify"),
     )
     job_id = _pending_job(web.JOBS_ROOT)
 
@@ -472,7 +472,7 @@ def test_web_pipeline_dify_enabled_success(
     monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "on_demand")
     _mock_web_pipeline(monkeypatch)
 
-    def fake_dify(output_dir: Path, rules: list[dict]) -> None:
+    def fake_dify(output_dir: Path, rules: list[dict], **kwargs) -> None:
         _write_json(output_dir / "dify_request.json", {"batches": []})
         _write_json(output_dir / "dify_raw_response.json", {"batches": []})
         _write_json(
@@ -512,7 +512,7 @@ def test_web_pipeline_dify_failure_keeps_local_results(
     monkeypatch.setenv("DIFY_COMPLETENESS_MODE", "full")
     _mock_web_pipeline(monkeypatch)
 
-    def fail_dify(output_dir: Path, rules: list[dict]) -> None:
+    def fail_dify(output_dir: Path, rules: list[dict], **kwargs) -> None:
         _write_json(
             output_dir / "dify_error.json",
             {"status": "DIFY_FAILED", "message": "模拟 Dify 失败"},
