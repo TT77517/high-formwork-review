@@ -44,6 +44,7 @@
 - [x] Web UI 页面改进（P0，识别驱动重构 9 个提交：规范注册表/适用规范展示/章节聚合/待确认状态/统一复核工作台/重跑闭环）
 - [x] 审查结果页体验增强：五处分页（10/20/50）+统计卡点击联动筛选、计算校核页改公式验算/参数一致性双卡片组（双侧对比+证据页跳转）、图文卡片展示正文值vs图纸标注值、drawing_review 交叉比对结果补正文 text_evidence；浏览器冒烟通过
 - [x] 证据图像/表格展示：API 出口层按 block_id 动态补 image_path+table_html（老任务免重跑生效）；计算/语义引擎证据补 block 定位（page 不再为 None）；前端证据缩略图+灯箱（表格真渲染/图像大图/打开所在页/查看原图/404降级）；MinerU 缓存携带 raw 图像资源（命中时还原）；重跑 demo 验证全链路
+- [x] 语义审查 Agent 代码侧实施（系统侧全就绪，待 Dify Workflow 建台联调）：app/services/semantic_dify.py（适用性门禁本地判定不进 LLM / 本地证据提取分批 / Dify Workflow 调用 / 结果校验 / 批次级缓存 / 单批失败降级本地关键词）；SEMANTIC_REVIEW_MODE=local|dify 开关（默认 local，行为不变）；DIFY_SEMANTIC_API_KEY 配置（回退 DIFY_API_KEY）；web+CLI 双接线；5 个测试；Workflow 建台规格：docs/semantic_review_workflow_spec.md；Dify Cloud 连通性已验证（完整性 workflow key 有效）
 
 ## 🚧 当前阻塞
 
@@ -51,7 +52,7 @@
 
 ## 📌 下一步建议
 
-1. 语义审查 Agent 实施（设计文档：`high-formwork-review/docs/semantic_agent_design.md`），可复用本次的 PENDING_CONFIRMATION/重跑闭环机制
+1. **在 Dify 控制台创建"规范语义审查"Workflow**（规格：`high-formwork-review/docs/semantic_review_workflow_spec.md`，含验收自测命令）→ 拿到新 app key 填 `DIFY_SEMANTIC_API_KEY`、设 `SEMANTIC_REVIEW_MODE=dify`，上传样例联调
 2. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
 
 > ✅ 已完成（2026-08-21）：MINERU_API_TOKEN 已配置（.env，gitignore），样例已重解析——922 张图像落盘新任务 `12a62f8b`（mineru_api/raw），缓存条目开始携带 raw 资源，文档解析抽屉/证据图像通道浏览器验证 200。旧任务 `129b4a90` 无图（解析早于 token），重跑不触发重解析，如需图像可重新上传。
@@ -210,3 +211,5 @@
 - [2026-08-21 19:39] claude 签到 — 开始处理：MinerU重解析样例验证图像证据（token已配置，922图落盘）
 
 - [2026-08-21 19:41] claude 签退 — 完成了：MinerU重解析完成：token配置+922图落盘新任务12a62f8b+缓存携raw生效+抽屉图像200验证；表格证据真渲染+图像通道全部就绪；下一步建议：NEXT=语义审查Agent实施（docs/semantic_agent_design.md）；规则库standard_id落盘
+
+- [2026-08-22 21:59] claude 签到 — 开始处理：语义审查Agent实施：Dify集成（设计规格文档+代码实现+降级机制）

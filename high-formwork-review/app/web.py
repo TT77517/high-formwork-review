@@ -927,6 +927,13 @@ def _process_job(job_id: str) -> None:
         )
 
 
+def _run_semantic_stage(document: MinerUDocument, project_facts: dict) -> dict:
+    """语义审查阶段：按 SEMANTIC_REVIEW_MODE 选择 Dify LLM 或本地关键词模式。"""
+    from .services.semantic_dify import run_semantic_stage
+
+    return run_semantic_stage(document, project_facts)
+
+
 def _run_review_stages(
     job_dir: Path,
     document: MinerUDocument,
@@ -940,7 +947,7 @@ def _run_review_stages(
         project_facts = build_project_facts(document)
     project_qualification = build_project_qualification(document, project_facts)
     rule_engine_result = run_rule_engine_safe(document, project_facts)
-    semantic_result = run_semantic_engine_safe(document, project_facts)
+    semantic_result = _run_semantic_stage(document, project_facts)
     calculation_result = run_calculation_engine_safe(document, project_facts)
     substantive_review = build_substantive_review(project_qualification, project_facts)
     consistency_review = build_consistency_review(project_facts, document)

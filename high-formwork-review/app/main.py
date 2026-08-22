@@ -88,7 +88,9 @@ def main(argv: list[str] | None = None) -> int:
         project_facts = build_project_facts(document)
         project_qualification = build_project_qualification(document, project_facts)
         rule_engine_result = run_rule_engine_safe(document, project_facts)
-        semantic_result = run_semantic_engine_safe(document, project_facts)
+        from .services.semantic_dify import run_semantic_stage
+
+        semantic_result = run_semantic_stage(document, project_facts)
         calculation_result = run_calculation_engine_safe(document, project_facts)
         substantive_review = build_substantive_review(project_qualification, project_facts)
         consistency_review = build_consistency_review(project_facts, document)

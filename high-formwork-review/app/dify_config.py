@@ -85,6 +85,38 @@ def resolve_dify_completeness_mode(
     return mode  # type: ignore[return-value]
 
 
+def resolve_semantic_review_mode(
+    *,
+    explicit_mode: str | None = None,
+    load_environment: bool = True,
+) -> str:
+    """语义审查模式：``local``（关键词匹配）或 ``dify``（LLM 语义判定）。
+
+    默认 ``local``。设为 ``dify`` 时需要可用的语义审查 Workflow
+    （DIFY_SEMANTIC_API_KEY，未配置时回退 DIFY_API_KEY）；
+    调用失败时逐批降级回本地模式，任务不中断。
+    """
+    if load_environment:
+        load_dotenv()
+    mode = explicit_mode
+    if mode is None and load_environment:
+        mode = os.getenv("SEMANTIC_REVIEW_MODE")
+    mode = (mode or "local").strip().lower()
+    if mode not in {"local", "dify"}:
+        raise ValueError("SEMANTIC_REVIEW_MODE 无效，允许值：local, dify")
+    return mode
+
+
+def resolve_semantic_api_key(*, load_environment: bool = True) -> str:
+    """语义审查 Workflow 的 API Key；未单独配置时回退完整性审查的 Key。"""
+    if load_environment:
+        load_dotenv()
+    key = os.getenv("DIFY_SEMANTIC_API_KEY", "").strip()
+    if key:
+        return key
+    return os.getenv("DIFY_API_KEY", "").strip()
+
+
 def _truthy(value: str | bool) -> bool:
     if isinstance(value, bool):
         return value
