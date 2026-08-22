@@ -136,7 +136,11 @@
     "check_content": "纵横向扫地杆应设置在距地面（垫板）上方200mm以内（扣件式）；盘扣式最底层水平杆中心线离底板≤550mm；纵向扫地杆应贯通，横向扫地杆设在纵向扫地杆下方",
     "check_logic": {
       "description": "纵横向扫地杆应设置在距地面（垫板）上方200mm以内（扣件式）；盘扣式最底层水平杆中心线离底板≤550mm；纵向扫地杆应贯通，横向扫地杆设在纵向扫地杆下方",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "扫地杆",
+        "纵向",
+        "横向"
+      ]
     },
     "threshold": [
       {
@@ -233,7 +237,10 @@
     "check_content": "主节点处必须设置一根横向水平杆，用直角扣件扣接且严禁拆除",
     "check_logic": {
       "description": "主节点处必须设置一根横向水平杆，用直角扣件扣接且严禁拆除",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "横向水平杆",
+        "设置"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "修改方案使其满足：主节点处必须设置一根横向水平杆，用直角扣件扣接且严禁拆除",
@@ -362,7 +369,12 @@
     "check_content": "剪刀撑斜杆与地面（或水平面）的夹角应在45°~60°之间",
     "check_logic": {
       "description": "剪刀撑斜杆与地面（或水平面）的夹角应在45°~60°之间",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "剪刀撑",
+        "夹角",
+        "45°",
+        "60°"
+      ]
     },
     "threshold": {
       "param": "剪刀撑夹角",
@@ -397,7 +409,10 @@
     "check_content": "高支模支架应与已浇筑的混凝土结构（柱、墙）进行可靠连接；连墙件应从底层第一步纵向水平杆处开始设置，间距不大于两步两跨；优先采用刚性连墙件",
     "check_logic": {
       "description": "高支模支架应与已浇筑的混凝土结构（柱、墙）进行可靠连接；连墙件应从底层第一步纵向水平杆处开始设置，间距不大于两步两跨；优先采用刚性连墙件",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "连墙件",
+        "设置"
+      ]
     },
     "threshold": {
       "param": "连墙件间距",
@@ -857,7 +872,12 @@
     "check_content": "可调底座和可调托撑螺杆插入立杆钢管内的间隙不应大于2.5mm（GB55023强制）；立杆外径与螺母台阶内径差不应大于2mm（JGJ/T231）",
     "check_logic": {
       "description": "可调底座和可调托撑螺杆插入立杆钢管内的间隙不应大于2.5mm（GB55023强制）；立杆外径与螺母台阶内径差不应大于2mm（JGJ/T231）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "螺杆",
+        "立杆",
+        "间隙",
+        "2.5mm"
+      ]
     },
     "threshold": [
       {
@@ -901,7 +921,12 @@
     "check_content": "支撑架可调底座丝杆插入立杆≥150mm；最底层水平杆（扫地杆）中心线离底板高度不应大于550mm",
     "check_logic": {
       "description": "支撑架可调底座丝杆插入立杆≥150mm；最底层水平杆（扫地杆）中心线离底板高度不应大于550mm",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "扫地杆",
+        "距底板",
+        "高度",
+        "550mm"
+      ]
     },
     "threshold": [
       {
@@ -982,7 +1007,14 @@
     "check_content": "模板及支架应根据施工过程中的各种控制工况进行设计，并应满足承载力、刚度和整体稳固性要求（三要素缺一不可）",
     "check_logic": {
       "description": "模板及支架应根据施工过程中的各种控制工况进行设计，并应满足承载力、刚度和整体稳固性要求（三要素缺一不可）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "模板",
+        "支架",
+        "设计",
+        "承载力",
+        "刚度",
+        "稳固性"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 55008-2021 第5.2.1条(全文强制)要求修改方案，确保满足模板及支架设计三要素的具体规定：模板及支架应根据施工过程中的各种控制工况进行设计，并应满足承载力、刚度和整体稳固性要求（三要素缺一不可）",
@@ -1011,7 +1043,12 @@
     "check_content": "扣件式满堂支撑架步距与立杆间距不宜超过附录C表C-2~C-5上限值；底层步距不应大于2m；立杆伸出顶层水平杆中心线至支撑点长度a不应超过0.5m",
     "check_logic": {
       "description": "扣件式满堂支撑架步距与立杆间距不宜超过附录C表C-2~C-5上限值；底层步距不应大于2m；立杆伸出顶层水平杆中心线至支撑点长度a不应超过0.5m",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "扣件式",
+        "立杆间距",
+        "步距",
+        "上限"
+      ]
     },
     "threshold": [
       {

@@ -164,15 +164,19 @@ function renderQualification() {
   const q = preData?.project_qualification; if (!q) { $('#qualificationPanel').innerHTML = '<div class="stat-card"><div class="stat-value">未生成</div><div class="stat-title">工程基础信息</div></div>'; $('#qualificationStandards').innerHTML = ''; return; }
   const p = q.identified_parameters||{}; const h = p.support_height||{}; const sp = p.support_span||{}; const t = p.total_load_design||{}; const l = p.concentrated_line_load_design||{};
   const PTYPE_CN = { concrete_formwork_support: '混凝土模板支撑（高支模）' };
+  // 卡片只保留文字项
   const rows = [['工程类型',PTYPE_CN[q.project_type]||q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label]];
-  // 参数卡只展示已识别出值的项
-  [[h,'支撑高度'],[sp,'跨度'],[t,'总荷载'],[l,'线荷载']].forEach(([param,label]) => { if (param.value != null) rows.push([label, vwu(param)]); });
   $('#qualificationPanel').innerHTML = rows.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${esc(l)}</div><div class="stat-value">${esc(v||'未识别')}</div></div>`).join('');
-  // 关键参数识别：只展示已识别项（识别结果 + 来源页 + 驱动的下游审查环节）
+  // 关键参数表格：展示已识别的数值参数
+  const paramRows = [];
+  [[h,'支撑高度'],[sp,'跨度'],[t,'总荷载'],[l,'线荷载']].forEach(([param,label]) => { 
+    if (param.value != null) paramRows.push([label, vwu(param)]); 
+  });
   const kps = (q.key_parameters||[]).filter(kp => kp.status==='confirmed');
-  $('#qualificationKeyParams').innerHTML = kps.length ? `<div class="std-head">关键参数识别</div>
-    <div class="table-wrap"><table class="data-table"><thead><tr><th>参数</th><th>识别结果</th><th>来源页</th><th>驱动的审查环节</th></tr></thead><tbody>
-    ${kps.map(kp => `<tr><td><b>${esc(kp.label)}</b></td><td><span class="tag-green">${esc(kp.value_text||'已识别')}</span></td><td>${kp.evidence_page?('p.'+kp.evidence_page):'—'}</td><td><small>${esc((kp.drives||[]).join('；'))}</small></td></tr>`).join('')}
+  const allParams = [...paramRows.map(([l,v]) => ({label:l, value:v, evidence_page:null, drives:[]})), ...kps];
+  $('#qualificationKeyParams').innerHTML = allParams.length ? `<div class="std-head">关键参数识别</div>
+    <div class="table-wrap"><table class="data-table table-compact"><thead><tr><th>参数</th><th>识别结果</th><th>来源页</th><th>驱动的审查环节</th></tr></thead><tbody>
+    ${allParams.map(kp => `<tr><td><b>${esc(kp.label)}</b></td><td><span class="tag-green">${esc(kp.value||kp.value_text||'已识别')}</span></td><td>${kp.evidence_page?('p.'+kp.evidence_page):'—'}</td><td><small>${esc((kp.drives||[]).join('；')||'—')}</small></td></tr>`).join('')}
     </tbody></table></div>` : '';
   const stds = q.applicable_standards||[];
   const note = stds.length && stds[0].note ? `<p class="mode-hint">${esc(stds[0].note)}，确认后重跑适用规则</p>` : '';
@@ -284,9 +288,6 @@ function renderChapterTable(f) {
     else openSectionReader(c.title, c.pages);
   }));
   $$('#chapterRows tr[data-page]').forEach(r => r.addEventListener('click', e => { e.stopPropagation(); openPageDrawer(+r.dataset.page); }));
-  // 默认展开第一个非叶子章节，让层级结构一眼可见
-  const first = docChapters.findIndex(c => c.subs.length && (f==='all' || c.pages.some(match)));
-  if (first >= 0) setChapterOpen(first, true);
 }
 function setChapterOpen(ci, open) {
   const caret = $(`#chapterRows tr.chapter-row[data-ch="${ci}"] .tree-caret`);
@@ -516,18 +517,45 @@ function renderReviewTable(f) {
   $('#reviewRows').innerHTML = filtered.map(r => {
     const c = cb[r.rule_id]||{}; const d = db[r.rule_id];
     const ll = STATUS_CN[r.status]||r.status; const dl = c.dify_status;
-    const difyLbl = c && Object.keys(c).length ? (DIFY_CN[c.dify_result_source]||'未请求') : '未请求';
     const compLbl = c?.comparison_status ? (COMP_CN[c.comparison_status]||'') : '未请求';
     const humanLbl = d && d.human_decision !== 'pending' ? (HUMAN_CN[d.human_decision]||'') : '待复核';
-    // 本地 PASS 但部分要素匹配、已送 Dify 复核的，标注口径差异
-    const localNote = (r.status==='PASS' && r.needs_semantic_review) ? '<div class="cell-note">部分要素匹配，已送复核</div>' : '';
-    // 未送 Dify 复核的，展示简短跳过原因（完整原因放悬停提示）
-    const difyNote = (c.dify_result_source==='not_requested') ? `<div class="cell-note" title="${esc(r.semantic_review_reason||'')}">本地置信度高，未复核</div>` : '';
-    const difyTitle = dl ? `Dify 结论：${STATUS_CN[dl]||dl}（绿=合规 橙=无法核验 红=缺失）` : '该规则未送 Dify 复核，保留本地结果';
+    
+    // 本地预审列：部分匹配显示黄色"部分匹配"，完全匹配显示绿色"已识别"
+    let localChip, localClass;
+    if (r.status === 'PASS' && r.needs_semantic_review) {
+      localChip = '部分匹配';
+      localClass = 'status-PARTIAL';
+    } else if (r.status === 'PASS') {
+      localChip = '已识别';
+      localClass = 'status-PASS';
+    } else {
+      localChip = ll;
+      localClass = `status-${r.status}`;
+    }
+    
+    // Dify列：只有三种状态 - 已复核(绿)、未复核(绿)、复核失败(橙)
+    let difyChip, difyClass;
+    const src = c.dify_result_source;
+    const comp = c.comparison_status;
+    if (src === 'failed') {
+      difyChip = '复核失败';
+      difyClass = 'status-UNCERTAIN'; // 橙色
+    } else if (src === 'not_requested') {
+      difyChip = '未复核';
+      difyClass = 'status-PASS'; // 绿色
+    } else if (src === 'cache' || src === 'api' || comp === 'AGREEMENT' || comp === 'DISAGREEMENT') {
+      difyChip = '已复核';
+      difyClass = 'status-PASS'; // 绿色
+    } else {
+      difyChip = '未复核';
+      difyClass = 'status-PASS'; // 绿色
+    }
+    
+    const compClass = c?.comparison_status === 'DISAGREEMENT' ? 'comp-disagree' : '';
     return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.name)}</td>
-      <td><div class="cell-status"><span class="status-chip status-${r.status}">${ll}</span>${localNote}</div></td>
-      <td><div class="cell-status"><span class="status-chip status-${dl||'uncertain'}" title="${esc(difyTitle)}">${esc(difyLbl)}</span>${difyNote}</div></td>
-      <td>${esc(compLbl)}</td><td>${esc(humanLbl)}</td>
+      <td><span class="status-chip ${localClass}">${localChip}</span></td>
+      <td><span class="status-chip ${difyClass}">${difyChip}</span></td>
+      <td class="${compClass}">${esc(compLbl)}</td><td>${esc(humanLbl)}</td>
       <td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
   }).join('');
   $$('#reviewRows .btn-detail').forEach(b => b.addEventListener('click', () => openReviewDrawer(b.dataset.rule)));
@@ -557,7 +585,7 @@ function renderSemantic() {
   const pendingConf = (ruleEngineData?.pending_confirmation||0) + (semanticData?.pending_confirmation||0);
   if (!total) {
     $('#semanticStats').innerHTML = '<div class="stat-card"><div class="stat-value">—</div><div class="stat-title">规范语义审查未运行</div></div>';
-    $('#semanticRows').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>';
+    $('#semanticRows').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary)">请先上传方案执行审查</td></tr>';
     return;
   }
   $('#semanticStats').innerHTML = statCardsHtml([
@@ -566,31 +594,62 @@ function renderSemantic() {
   $$('#semanticStats .stat-card').forEach(c => c.addEventListener('click', () => {
     $('#semanticStatusFilter').value = c.dataset.f;
     semState.page = 1;
-    renderSemanticTable($('#semanticModuleFilter').value, c.dataset.f, allResults);
+    renderSemanticTable();
   }));
   // Populate module filter from all results
   const mods = [...new Set(allResults.map(r => r.module))].filter(Boolean);
-  const sel = $('#semanticModuleFilter');
-  if (sel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); }); }
-  renderSemanticTable('all','all', allResults);
-  $('#semanticModuleFilter').onchange = function() { renderSemanticTable(this.value, $('#semanticStatusFilter').value, allResults); };
-  $('#semanticStatusFilter').onchange = function() { renderSemanticTable($('#semanticModuleFilter').value, this.value, allResults); };
+  const modSel = $('#semanticModuleFilter');
+  if (modSel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; modSel.appendChild(o); }); }
+  // Populate standard filter from results
+  const stdSel = $('#semanticStandardFilter');
+  if (stdSel.options.length <= 1 && standardsData) {
+    const stdIds = new Set();
+    allResults.forEach(r => { (r.standard_refs||[]).forEach(id => stdIds.add(id)); });
+    (standardsData.standards||[]).forEach(s => {
+      if (stdIds.has(s.standard_id)) {
+        const o = document.createElement('option');
+        o.value = s.standard_id;
+        o.textContent = s.full_code;
+        o.title = s.name;
+        stdSel.appendChild(o);
+      }
+    });
+  }
+  renderSemanticTable();
+  const refilter = () => { semState.page = 1; renderSemanticTable(); };
+  $('#semanticModuleFilter').onchange = refilter;
+  $('#semanticStatusFilter').onchange = refilter;
+  $('#semanticSeverityFilter').onchange = refilter;
+  $('#semanticStandardFilter').onchange = refilter;
   const drawer = $('#semanticDetailPanel');
   drawer.querySelector('.drawer-close').addEventListener('click', () => drawer.classList.add('hidden'));
   drawer.addEventListener('click', e => { if (e.target === drawer) drawer.classList.add('hidden'); });
 }
-function renderSemanticTable(modF, stF, allResults) {
+function renderSemanticTable() {
+  const allResults = [...(ruleEngineData?.results||[]), ...(semanticData?.results||[])];
+  const modF = $('#semanticModuleFilter').value;
+  const stF = $('#semanticStatusFilter').value;
+  const sevF = $('#semanticSeverityFilter').value;
+  const stdF = $('#semanticStandardFilter').value;
   $$('#semanticStats .stat-card').forEach(x => x.classList.toggle('active', x.dataset.f === stF));
-  const results = (allResults||[]).filter(r => (modF==='all'||r.module===modF) && (stF==='all'||r.status===stF));
+  const results = allResults.filter(r => {
+    if (modF!=='all' && r.module!==modF) return false;
+    if (stF!=='all' && r.status!==stF) return false;
+    if (sevF!=='all' && r.severity!==sevF) return false;
+    if (stdF!=='all' && !(r.standard_refs||[]).includes(stdF)) return false;
+    return true;
+  });
   const shown = slicePage(results, semState);
   $('#semanticRows').innerHTML = shown.length ? shown.map(r => {
-    const th = r.threshold||{}; const thStr = th.value!==undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
+    const th = r.threshold||{};
+    const thStr = th.value!==undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
     const valStr = r.actual_value!==null && r.actual_value!==undefined ? `${r.actual_value}${th.unit||''}` : '—';
+    const combined = valStr !== '—' || thStr !== '—' ? `${valStr} / ${thStr}` : '—';
     const typeTag = r.check_type==='semantic' ? '<span class="tag-blue">语义</span>' : '<span class="tag-default">确定性</span>';
-    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${typeTag}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${valStr}</td><td>${thStr}</td><td><small>${esc(r.reason||'')}</small></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}" data-type="${esc(r.check_type||'')}">详情</button></td></tr>`;
-  }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${typeTag}</td><td>${esc(MODULE_CN[r.module]||r.module)}</td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${esc(combined)}</td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}" data-type="${esc(r.check_type||'')}">详情</button></td></tr>`;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
   $('#semanticPager').innerHTML = pagerHtml(semState, results.length);
-  bindPager('#semanticPager', semState, () => renderSemanticTable(modF, stF, allResults));
+  bindPager('#semanticPager', semState, renderSemanticTable);
   $$('#semanticRows .btn-detail').forEach(b => b.addEventListener('click', () => openSemanticDrawer(b.dataset.rule, b.dataset.type, allResults)));
 }
 function openSemanticDrawer(rid, rtype, allResults) {
@@ -614,7 +673,7 @@ function renderCalculation() {
     ['all','验算项',calc?.total_rules||0], ['COMPLIANT','验算通过',calc?.compliant||0], ['VIOLATED','验算问题',calc?.violated||0], ['UNCERTAIN','无法判定',calc?.uncertain||0]
   ], calcFilter);
   $('#consStats').innerHTML = statCardsHtml([
-    ['all','一致性检查项',items.length],
+    ['all','参数校核项',items.length],
     ['PASS','一致',items.filter(i => i.status==='PASS').length],
     ['ISSUE','不一致',items.filter(i => i.status==='ISSUE').length],
     ['REVIEW','需复核',items.filter(i => i.status==='REVIEW').length]
@@ -622,41 +681,65 @@ function renderCalculation() {
   $$('#calcStats .stat-card').forEach(c => c.addEventListener('click', () => { calcFilter = c.dataset.f; calcState.page = 1; renderCalculation(); }));
   $$('#consStats .stat-card').forEach(c => c.addEventListener('click', () => { consFilter = c.dataset.f; consState.page = 1; renderCalculation(); }));
 
-  // 公式验算卡片
+  // 公式验算表格
   const filteredCalc = calcResults.filter(r => calcFilter==='all' || r.status===calcFilter);
   const shownCalc = slicePage(filteredCalc, calcState);
-  $('#calcCards').innerHTML = shownCalc.length ? shownCalc.map(r => {
-    const evs = (r.evidence||[]).slice(0,2).map(e => evLine(e,'原文')).join('');
-    return `<div class="review-card"><div class="review-card-head"><div><b>${esc(r.rule_id)} · ${esc(r.rule_name)}</b></div><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></div>
-      ${r.formula?`<p class="cmp-line">验算要求：<code>${esc(r.formula)}</code></p>`:''}
-      <p class="review-card-conclusion">${esc(r.reason||'')}</p>
-      ${evs?`<div class="ev-block"><h5>原文证据</h5>${evs}</div>`:''}</div>`;
-  }).join('') : '<p style="color:var(--text-tertiary)">无符合条件的验算项</p>';
+  $('#calcRows').innerHTML = shownCalc.length ? shownCalc.map(r => {
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td>${esc(MODULE_CN[r.module]||r.module)}</td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">无符合条件的验算项</td></tr>';
   $('#calcPager').innerHTML = pagerHtml(calcState, filteredCalc.length);
   bindPager('#calcPager', calcState, renderCalculation);
 
-  // 参数一致性对比卡片
+  // 参数一致性表格
   const filteredCons = items.filter(i => consFilter==='all' || i.status===consFilter);
   const shownCons = slicePage(filteredCons, consState);
-  $('#consCards').innerHTML = shownCons.length ? shownCons.map(i => `
-    <div class="review-card"><div class="review-card-head"><div><b>${esc(i.review_item_id)} · ${esc(i.title)}</b></div><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></div>
-    <div class="cmp-grid">
-      <div class="cmp-side"><h5>正文/构造侧</h5><div class="cmp-val">${sideTxt(i.design_side)}</div>${(i.design_side?.evidence||[]).slice(0,1).map(e => evLine(e,'原文')).join('')}</div>
-      <div class="cmp-side"><h5>计算书侧</h5><div class="cmp-val">${sideTxt(i.calculation_side)}</div>${(i.calculation_side?.evidence||[]).slice(0,1).map(e => evLine(e,'原文')).join('')}</div>
-    </div>
-    <p class="review-card-conclusion">${esc(i.conclusion||'')}</p></div>`).join('') : '<p style="color:var(--text-tertiary)">无符合条件的检查项</p>';
+  $('#consRows').innerHTML = shownCons.length ? shownCons.map(i => {
+    const dv = i.design_side?.value;
+    const cv = i.calculation_side?.value;
+    const dvStr = dv!=null ? (Array.isArray(dv) ? dv.join('/') : `${dv}`) : '—';
+    const cvStr = cv!=null ? (Array.isArray(cv) ? cv.join('/') : `${cv}`) : '—';
+    return `<tr><td><b>${esc(i.review_item_id)}</b></td><td>${esc(i.title)}</td><td>${esc(dvStr)}</td><td>${esc(cvStr)}</td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td><button class="btn-small btn-detail" data-id="${esc(i.review_item_id)}">详情</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">无符合条件的检查项</td></tr>';
   $('#consPager').innerHTML = pagerHtml(consState, filteredCons.length);
   bindPager('#consPager', consState, renderCalculation);
-  $$('#tab-calculation .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
+  $$('#calcRows .btn-detail').forEach(b => b.addEventListener('click', () => openCalcDrawer(b.dataset.rule)));
+  $$('#consRows .btn-detail').forEach(b => b.addEventListener('click', () => openConsDrawer(b.dataset.id)));
+}
+function openCalcDrawer(ruleId) {
+  const calc = calcData; if (!calc) return;
+  const rule = (calc.results||[]).find(r => r.rule_id === ruleId); if (!rule) return;
+  const evs = (rule.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span><span>${esc(e.block_type||'')}</span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
+  const formulaHtml = rule.formula ? `<p><code>${esc(rule.formula)}</code></p>` : '';
+  $('#calcDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
+  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p>${formulaHtml}</div><div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</div><div class="detail-section"><h4>证据</h4>${evs}</div>`;
+  $('#calcDetailPanel').classList.remove('hidden');
+  const drawer = $('#calcDetailPanel');
+  drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');
+  drawer.onclick = e => { if (e.target === drawer) drawer.classList.add('hidden'); };
+}
+function openConsDrawer(id) {
+  const items = preData?.consistency_review||[];
+  const item = items.find(i => i.review_item_id === id); if (!item) return;
+  const dEv = (item.design_side?.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
+  const cEv = (item.calculation_side?.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
+  const dv = item.design_side?.value; const cv = item.calculation_side?.value;
+  const dvStr = dv!=null ? (Array.isArray(dv) ? dv.join('/') : `${dv}`) : '未识别';
+  const cvStr = cv!=null ? (Array.isArray(cv) ? cv.join('/') : `${cv}`) : '未识别';
+  $('#calcDrawerTitle').textContent = `${item.review_item_id} — ${item.title}`;
+  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${item.status}">${stTxt(item.status)}</span></p><p>${esc(item.conclusion||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>正文/构造侧</b><br>${esc(dvStr)}</div><div><b>计算书侧</b><br>${esc(cvStr)}</div></div></div><div class="detail-section"><h4>正文/构造侧证据</h4>${dEv}</div><div class="detail-section"><h4>计算书侧证据</h4>${cEv}</div>${item.boundary?`<div class="detail-section"><h4>说明</h4><p style="color:var(--text-tertiary)">${esc(item.boundary)}</p></div>`:''}`;
+  $('#calcDetailPanel').classList.remove('hidden');
+  const drawer = $('#calcDetailPanel');
+  drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');
+  drawer.onclick = e => { if (e.target === drawer) drawer.classList.add('hidden'); };
 }
 
 // ===== Drawing =====
-let drawState = { page: 1, size: 5 };
+let drawState = { page: 1, size: 10 };
 let drawFilter = 'all';
 function renderDrawing() {
   const items = preData?.drawing_review||[]; const s = preData?.summary||{};
   $('#drawingStats').innerHTML = statCardsHtml([
-    ['all','复核卡片',s.drawing_total??items.length],
+    ['all','检查项',s.drawing_total??items.length],
     ['review','需人工复核',s.drawing_review??items.filter(i => i.requires_human_review).length],
     ['PASS','一致',items.filter(i => i.status==='PASS').length],
     ['ISSUE','不一致',items.filter(i => i.status==='ISSUE').length]
@@ -664,23 +747,35 @@ function renderDrawing() {
   $$('#drawingStats .stat-card').forEach(c => c.addEventListener('click', () => { drawFilter = c.dataset.f; drawState.page = 1; renderDrawing(); }));
   const filtered = items.filter(i => drawFilter==='all' || (drawFilter==='review' ? i.requires_human_review : i.status===drawFilter));
   const shown = slicePage(filtered, drawState);
-  $('#drawingCards').innerHTML = shown.length ? shown.map(i => {
-    const cmp = (i.body_value!=null || i.drawing_value!=null) ? `<div class="cmp-line"><span>正文值 <b>${i.body_value??'—'}</b></span><span>图纸标注值 <b class="${i.status==='ISSUE'?'review-yes':''}">${i.drawing_value??'—'}</b></span></div>` : '';
-    const evT = (i.text_evidence||[]).slice(0,3).map(e => evLine(e,'原文')).join('');
-    const evD = (i.drawing_evidence||[]).slice(0,4).map(e => {
-      const pg = e.physical_page||e.page;
-      const lbl = e.quote ? `标注「${esc(e.quote)}」` : (e.keyword_hits||[]).map(esc).join('、');
-      return `<div class="ev-line"><span>${lbl}${e.value!=null?` = <b>${e.value}</b>`:''}</span>${pg?`<button type="button" class="btn-small jq-page" data-page="${pg}">图纸 P${pg}</button>`:''}</div>`;
-    }).join('');
-    return `<div class="review-card"><div class="review-card-head"><div><b>${esc(i.review_item_id)} · ${esc(i.title)}</b></div><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></div>
-      <p class="review-card-conclusion">${esc(i.conclusion||'')}</p>${cmp}
-      ${evT?`<div class="ev-block"><h5>正文原文证据</h5>${evT}</div>`:''}
-      ${evD?`<div class="ev-block"><h5>图纸标注/图纸页证据</h5>${evD}</div>`:''}
-      ${i.boundary?`<p class="boundary-note">${esc(i.boundary)}</p>`:''}</div>`;
-  }).join('') : '<p style="color:var(--text-tertiary)">暂无结果</p>';
+  $('#drawingRows').innerHTML = shown.length ? shown.map(i => {
+    const bv = i.body_value!=null ? `${i.body_value}` : '—';
+    const dv = i.drawing_value!=null ? `${i.drawing_value}` : '—';
+    return `<tr><td><b>${esc(i.review_item_id)}</b></td><td>${esc(i.title)}</td><td>${esc(bv)}</td><td>${esc(dv)}</td><td><span class="status-chip status-${i.status}">${stTxt(i.status)}</span></td><td><button class="btn-small btn-detail" data-id="${esc(i.review_item_id)}">详情</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无结果</td></tr>';
   $('#drawingPager').innerHTML = pagerHtml(drawState, filtered.length);
   bindPager('#drawingPager', drawState, renderDrawing);
-  $$('#drawingCards .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
+  $$('#drawingRows .btn-detail').forEach(b => b.addEventListener('click', () => openDrawingDrawer(b.dataset.id)));
+}
+function openDrawingDrawer(id) {
+  const items = preData?.drawing_review||[];
+  const item = items.find(i => i.review_item_id === id); if (!item) return;
+  const evT = (item.text_evidence||[]).map(e => {
+    const pg = e.page || e.physical_page;
+    return `<div class="evidence-block"><div class="meta"><span><b>页 ${pg||'—'}</b></span><span>${esc(e.section||'')}</span></div>${evThumb(e, pg)}<blockquote>${esc(e.quote||'')}</blockquote></div>`;
+  }).join('') || '<p style="color:var(--text-tertiary)">无正文证据</p>';
+  const evD = (item.drawing_evidence||[]).map(e => {
+    const pg = e.physical_page||e.page;
+    const lbl = e.quote ? `标注「${esc(e.quote)}」` : (e.keyword_hits||[]).map(esc).join('、');
+    return `<div class="evidence-block"><div class="meta"><span><b>页 ${pg||'—'}</b></span></div>${pg?`<div class="ev-thumb-wrap"><button class="btn-small jq-page" data-page="${pg}">查看图纸 P${pg}</button></div>`:''}<blockquote>${esc(lbl)}${e.value!=null?` = <b>${e.value}</b>`:''}</blockquote></div>`;
+  }).join('') || '<p style="color:var(--text-tertiary)">无图纸证据</p>';
+  const cmp = (item.body_value!=null || item.drawing_value!=null) ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><div><b>正文值</b><br>${esc(item.body_value??'—')}</div><div><b>图纸标注值</b><br>${esc(item.drawing_value??'—')}</div></div>` : '';
+  $('#drawingDrawerTitle').textContent = `${item.review_item_id} — ${item.title}`;
+  $('#drawingDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${item.status}">${stTxt(item.status)}</span></p><p>${esc(item.conclusion||'')}</p>${cmp}</div><div class="detail-section"><h4>正文原文证据</h4>${evT}</div><div class="detail-section"><h4>图纸证据</h4>${evD}</div>${item.boundary?`<div class="detail-section"><h4>说明</h4><p style="color:var(--text-tertiary)">${esc(item.boundary)}</p></div>`:''}`;
+  $('#drawingDetailPanel').classList.remove('hidden');
+  $$('#drawingDrawerBody .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
+  const drawer = $('#drawingDetailPanel');
+  drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');
+  drawer.onclick = e => { if (e.target === drawer) drawer.classList.add('hidden'); };
 }
 
 // ===== Manual（统一复核工作台） =====
@@ -787,6 +882,7 @@ async function saveAllDecisions() {
 
 // ===== Rule Library Management =====
 let ruleLibraryData = null;
+let rlState = { page: 1, size: 10 };
 
 async function loadRuleLibrary(mod='', type='', sev='', search='', std='') {
   const params = new URLSearchParams();
@@ -799,6 +895,7 @@ async function loadRuleLibrary(mod='', type='', sev='', search='', std='') {
     const r = await fetch(`/api/rules?${params}`);
     if (!r.ok) throw new Error('加载失败');
     ruleLibraryData = await r.json();
+    rlState.page = 1;
     renderRuleLibrary();
   } catch(e) { console.error('规则库加载失败:', e); }
 }
@@ -825,12 +922,19 @@ function renderRuleLibrary() {
       const list = (standardsData.standards||[]).filter(s => (s.tier||'core') === tier);
       if (!list.length) return;
       const og = document.createElement('optgroup'); og.label = label;
-      list.forEach(s => { const o = document.createElement('option'); o.value = s.standard_id; o.textContent = `${s.full_code} ${s.name}（${s.rule_count||0}条）`; og.appendChild(o); });
+      list.forEach(s => { 
+        const o = document.createElement('option'); 
+        o.value = s.standard_id; 
+        o.textContent = s.full_code;
+        o.title = `${s.name}（${s.rule_count||0}条）`;
+        og.appendChild(o); 
+      });
       stdSel.appendChild(og);
     });
   }
-  // Render table
-  $('#ruleLibraryRows').innerHTML = rules.length ? rules.map(r => {
+  // Paginate and render table
+  const shown = slicePage(rules, rlState);
+  $('#ruleLibraryRows').innerHTML = shown.length ? shown.map(r => {
     const typeLabel = { deterministic:'确定性', semantic:'语义', calculation:'计算' }[r.check_type]||r.check_type;
     const sevClass = r.severity==='A-mandatory'?'orange':'default';
     const sevLabel = SEVERITY_CN[r.severity]||r.severity;
@@ -838,8 +942,10 @@ function renderRuleLibrary() {
     const actions = r.status==='active'
       ? `<button class="btn-small btn-detail" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button>`
       : `<button class="btn-small btn-detail" onclick="openRuleLibraryDrawer('${esc(r.rule_id)}')">详情</button>`;
-    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td><small>${esc(MODULE_CN[r.module]||r.module)}</small></td><td>${typeLabel}</td><td><span class="tag-${sevClass}">${sevLabel}</span></td><td><small>${esc(stdText)}</small></td><td>${r.status==='active'?'<span class="tag-green">启用</span>':'<span class="tag-default">停用</span>'}</td><td>${actions}</td></tr>`;
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)}</td><td>${esc(MODULE_CN[r.module]||r.module)}</td><td>${typeLabel}</td><td><span class="tag-${sevClass}">${sevLabel}</span></td><td>${esc(stdText)}</td><td>${r.status==='active'?'<span class="tag-green">启用</span>':'<span class="tag-default">停用</span>'}</td><td>${actions}</td></tr>`;
   }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
+  $('#ruleLibraryPager').innerHTML = pagerHtml(rlState, rules.length);
+  bindPager('#ruleLibraryPager', rlState, renderRuleLibrary);
 }
 
 async function openRuleLibraryDrawer(rid) {
@@ -924,6 +1030,44 @@ $('#addRuleBtn')?.addEventListener('click', () => {
   $('#ruleEditBody').innerHTML = renderRuleEditForm({ rule_id:'', rule_name:'', module:'04_construction_requirements', category:'', check_type:'deterministic', severity:'B-required', risk_level:'medium', check_content:'', remedy_suggestion:'', typical_violation:'', notes:'' });
   $('#ruleEditModal').classList.remove('hidden');
 });
+
+// 规范版本校验
+$('#versionValidationBtn')?.addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/rules/version-validation');
+    const data = await res.json();
+    let html = '';
+    if (data.conflicts && data.conflicts.length > 0) {
+      html += '<p style="color:var(--error);font-weight:600;margin-bottom:12px">⚠ 发现 ' + data.conflicts.length + ' 个规范存在版本冲突：</p>';
+      data.conflicts.forEach(c => {
+        html += '<div style="margin-bottom:16px;padding:12px;border:1px solid var(--error);border-radius:8px;background:var(--error-bg)">';
+        html += '<p><b>' + c.standard + '</b> 存在多个版本：</p>';
+        c.versions.forEach(v => {
+          html += '<p style="margin:4px 0 4px 16px">v' + v.version + '：' + v.rule_ids.length + ' 条规则 → ' + v.rule_ids.slice(0, 5).join(', ') + (v.rule_ids.length > 5 ? '...' : '') + '</p>';
+        });
+        html += '</div>';
+      });
+    } else {
+      html += '<p style="color:var(--success);font-weight:600;margin-bottom:12px">✅ 未发现规范版本冲突</p>';
+    }
+    html += '<h4 style="margin-top:20px">规范版本清单（共 ' + data.total_standards + ' 个规范）：</h4>';
+    html += '<table class="data-table table-compact"><thead><tr><th>规范编号</th><th>版本</th><th>规则数</th></tr></thead><tbody>';
+    const registry = data.registry || {};
+    Object.keys(registry).sort().forEach(std => {
+      const vers = registry[std];
+      vers.forEach(v => {
+        html += '<tr><td>' + std + '</td><td>' + v + '</td><td>—</td></tr>';
+      });
+    });
+    html += '</tbody></table>';
+    $('#versionValidationBody').innerHTML = html;
+    $('#versionValidationModal').classList.remove('hidden');
+  } catch (e) {
+    $('#versionValidationBody').innerHTML = '<p style="color:var(--error)">校验失败：' + e.message + '</p>';
+    $('#versionValidationModal').classList.remove('hidden');
+  }
+});
+$('#versionValidationClose')?.addEventListener('click', () => $('#versionValidationModal').classList.add('hidden'));
 $('#ruleEditCancel')?.addEventListener('click', () => $('#ruleEditModal').classList.add('hidden'));
 $('#ruleEditSave')?.addEventListener('click', async () => {
   const data = {};
@@ -963,6 +1107,12 @@ rlDrawer.addEventListener('click', e => { if (e.target === rlDrawer) rlDrawer.cl
 const ruleEditModal = $('#ruleEditModal');
 ruleEditModal.querySelector('.drawer-close').addEventListener('click', () => ruleEditModal.classList.add('hidden'));
 ruleEditModal.addEventListener('click', e => { if (e.target === ruleEditModal) ruleEditModal.classList.add('hidden'); });
+
+const versionValidationModal = $('#versionValidationModal');
+if (versionValidationModal) {
+  versionValidationModal.querySelector('.drawer-close').addEventListener('click', () => versionValidationModal.classList.add('hidden'));
+  versionValidationModal.addEventListener('click', e => { if (e.target === versionValidationModal) versionValidationModal.classList.add('hidden'); });
+}
 
 // ===== Records =====
 function renderRecords() {

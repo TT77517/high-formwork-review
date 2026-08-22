@@ -19,7 +19,12 @@
     "check_content": "模板面板抗弯承载力应满足σ=M/W≤f，其中M为弯矩设计值，W为截面模量，f为材料抗弯强度设计值",
     "check_logic": {
       "description": "模板面板抗弯承载力应满足σ=M/W≤f，其中M为弯矩设计值，W为截面模量，f为材料抗弯强度设计值",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "面板",
+        "抗弯",
+        "承载力",
+        "σ=M/W"
+      ],
       "formula": "σ = M/W ≤ f"
     },
     "threshold": null,
@@ -49,7 +54,12 @@
     "check_content": "模板面板抗剪承载力应满足τ=VS/(Itw)≤fv，其中V为剪力设计值，S为截面面积矩，I为截面惯性矩，tw为腹板厚度",
     "check_logic": {
       "description": "模板面板抗剪承载力应满足τ=VS/(Itw)≤fv，其中V为剪力设计值，S为截面面积矩，I为截面惯性矩，tw为腹板厚度",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "面板",
+        "抗剪",
+        "承载力",
+        "τ=VS"
+      ],
       "formula": "τ = VS/(I·tw) ≤ fv"
     },
     "threshold": null,
@@ -79,7 +89,12 @@
     "check_content": "模板面板挠度应满足ω≤[ω]：结构表面外露l/400，结构表面隐蔽l/250；脚手板/水平杆l/150与10mm取小；模板支撑受弯杆件l/400",
     "check_logic": {
       "description": "模板面板挠度应满足ω≤[ω]：结构表面外露l/400，结构表面隐蔽l/250；脚手板/水平杆l/150与10mm取小；模板支撑受弯杆件l/400",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "面板",
+        "挠度",
+        "验算",
+        "l/250"
+      ],
       "formula": "ω ≤ [ω]：外露l/400, 隐蔽l/250, 脚手板l/150与10取小, 支撑受弯l/400"
     },
     "threshold": null,
@@ -109,7 +124,11 @@
     "check_content": "次楞（次龙骨）抗弯承载力应满足σ=M/W≤f",
     "check_logic": {
       "description": "次楞（次龙骨）抗弯承载力应满足σ=M/W≤f",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "次楞",
+        "抗弯",
+        "承载力"
+      ],
       "formula": "σ = M/W ≤ f"
     },
     "threshold": null,
@@ -139,7 +158,11 @@
     "check_content": "次楞挠度应满足ω≤l/150（外露）或l/250（隐蔽）",
     "check_logic": {
       "description": "次楞挠度应满足ω≤l/150（外露）或l/250（隐蔽）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "次楞",
+        "挠度",
+        "验算"
+      ],
       "formula": "ω ≤ l/150 或 l/250"
     },
     "threshold": null,
@@ -169,7 +192,11 @@
     "check_content": "主楞（主龙骨）抗弯承载力应满足σ=M/W≤f",
     "check_logic": {
       "description": "主楞（主龙骨）抗弯承载力应满足σ=M/W≤f",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "主楞",
+        "抗弯",
+        "承载力"
+      ],
       "formula": "σ = M/W ≤ f"
     },
     "threshold": null,
@@ -199,7 +226,11 @@
     "check_content": "主楞挠度应满足ω≤l/150（外露）或l/250（隐蔽）",
     "check_logic": {
       "description": "主楞挠度应满足ω≤l/150（外露）或l/250（隐蔽）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "主楞",
+        "挠度",
+        "验算"
+      ],
       "formula": "ω ≤ l/150 或 l/250"
     },
     "threshold": null,
@@ -229,7 +260,12 @@
     "check_content": "扣件式支架立杆轴向力设计值N=1.3ΣNGk+1.5ΣNQk（不组合风载时）；组合风载时N=1.3ΣNGk+0.9×1.5(ΣNQk+Mw/W)A",
     "check_logic": {
       "description": "扣件式支架立杆轴向力设计值N=1.3ΣNGk+1.5ΣNQk（不组合风载时）；组合风载时N=1.3ΣNGk+0.9×1.5(ΣNQk+Mw/W)A",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "立杆",
+        "轴力",
+        "设计值",
+        "扣件式"
+      ],
       "formula": "N = 1.3·ΣNGk + 1.5·ΣNQk（无风）; N = 1.3·ΣNGk + 0.9·1.5·(ΣNQk + Mw/W)·A（有风）"
     },
     "threshold": null,
@@ -259,7 +295,12 @@
     "check_content": "盘扣式支架立杆轴向力设计值：无风时N=γG·ΣNGk+γQ·ΣNQk；有风时N=γG·ΣNGk+0.9×γQ·ΣNQk（γG=1.3, γQ=1.5）",
     "check_logic": {
       "description": "盘扣式支架立杆轴向力设计值：无风时N=γG·ΣNGk+γQ·ΣNQk；有风时N=γG·ΣNGk+0.9×γQ·ΣNQk（γG=1.3, γQ=1.5）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "立杆",
+        "轴力",
+        "设计值",
+        "盘扣式"
+      ],
       "formula": "N = 1.3·ΣNGk + 1.5·ΣNQk (无风); N = 1.3·ΣNGk + 0.9×1.5·ΣNQk (有风)"
     },
     "threshold": null,
@@ -418,7 +459,12 @@
     "check_content": "扣件式支架立杆长细比λ=l0/i应满足λ≤[λ]=210（支撑架）",
     "check_logic": {
       "description": "扣件式支架立杆长细比λ=l0/i应满足λ≤[λ]=210（支撑架）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "长细比",
+        "限值",
+        "扣件式",
+        "210"
+      ],
       "formula": "λ = l0/i ≤ 210"
     },
     "threshold": null,
@@ -448,7 +494,12 @@
     "check_content": "盘扣式支架立杆稳定性应满足N/(φA)≤f（无风）或N/(φA)+Mw/W≤f（有风），稳定系数φ按附录C查取",
     "check_logic": {
       "description": "盘扣式支架立杆稳定性应满足N/(φA)≤f（无风）或N/(φA)+Mw/W≤f（有风），稳定系数φ按附录C查取",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "立杆",
+        "稳定性",
+        "验算",
+        "盘扣式"
+      ],
       "formula": "N/(φ·A) ≤ f 或 N/(φ·A) + Mw/W ≤ f"
     },
     "threshold": null,
@@ -478,7 +529,11 @@
     "check_content": "盘扣式支架立杆计算长度取两公式较大值：l0=βH·η·h 与 l0=βH·γ·h'+2ka，其中βH为搭设高度调整系数(表5.3.2)，η为计算长度修正系数，k=0.6",
     "check_logic": {
       "description": "盘扣式支架立杆计算长度取两公式较大值：l0=βH·η·h 与 l0=βH·γ·h'+2ka，其中βH为搭设高度调整系数(表5.3.2)，η为计算长度修正系数，k=0.6",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "立杆",
+        "计算长度",
+        "盘扣式"
+      ],
       "formula": "l0 = max(βH·η·h, βH·γ·h'+2ka), k=0.6"
     },
     "threshold": null,
@@ -508,7 +563,12 @@
     "check_content": "盘扣式支撑架立杆几何长细比λ=l0/i应满足λ≤150（JGJ/T231-2021第5.1.6条）；作业架≤210；受压杆件≤230；受拉杆件≤350",
     "check_logic": {
       "description": "盘扣式支撑架立杆几何长细比λ=l0/i应满足λ≤150（JGJ/T231-2021第5.1.6条）；作业架≤210；受压杆件≤230；受拉杆件≤350",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "长细比",
+        "限值",
+        "盘扣式",
+        "150"
+      ],
       "formula": "λ = l0/i ≤ 150(支撑架)"
     },
     "threshold": null,
@@ -538,7 +598,12 @@
     "check_content": "碗扣式支架立杆稳定性应满足N/(φA)≤f，φ按碗扣式构件表查取；Q235钢材f取205N/mm²",
     "check_logic": {
       "description": "碗扣式支架立杆稳定性应满足N/(φA)≤f，φ按碗扣式构件表查取；Q235钢材f取205N/mm²",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "立杆",
+        "稳定性",
+        "验算",
+        "碗扣式"
+      ],
       "formula": "N/(φ·A) ≤ f"
     },
     "threshold": null,
@@ -568,7 +633,11 @@
     "check_content": "扣件抗滑移承载力应满足R≤Rc，直角扣件和旋转扣件抗滑承载力设计值Rc=8.0kN/个；当使用双扣件时Rc=12.0kN",
     "check_logic": {
       "description": "扣件抗滑移承载力应满足R≤Rc，直角扣件和旋转扣件抗滑承载力设计值Rc=8.0kN/个；当使用双扣件时Rc=12.0kN",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "扣件",
+        "抗滑移",
+        "承载力"
+      ],
       "formula": "R ≤ Rc = 8.0kN(单扣件) / 12.0kN(双扣件)"
     },
     "threshold": null,
@@ -598,7 +667,11 @@
     "check_content": "可调托撑（顶托）承载力应满足N≤Nd，其中Nd为可调托撑螺杆受压承载力设计值，一般取40kN（Q235材质Φ38丝杆）",
     "check_logic": {
       "description": "可调托撑（顶托）承载力应满足N≤Nd，其中Nd为可调托撑螺杆受压承载力设计值，一般取40kN（Q235材质Φ38丝杆）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "可调托撑",
+        "承载力",
+        "验算"
+      ],
       "formula": "N ≤ Nd = 40kN"
     },
     "threshold": null,
@@ -628,7 +701,10 @@
     "check_content": "连墙件轴向力设计值Nl=Nlw+N0，其中Nlw为风荷载产生的连墙件轴向力，N0为连墙件约束脚手架平面外变形所产生的轴向力（取3kN）；应满足Nl/(φA)≤f",
     "check_logic": {
       "description": "连墙件轴向力设计值Nl=Nlw+N0，其中Nlw为风荷载产生的连墙件轴向力，N0为连墙件约束脚手架平面外变形所产生的轴向力（取3kN）；应满足Nl/(φA)≤f",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "连墙件",
+        "计算"
+      ],
       "formula": "Nl = Nlw + N0 (N0=3kN), Nl/(φ·A) ≤ f"
     },
     "threshold": null,
@@ -658,7 +734,11 @@
     "check_content": "立杆底部地基承载力应满足P≤fa，其中P=N/A（立杆底座面积），fa为地基承载力特征值；垫板面积不应小于0.01m²（即100cm²）",
     "check_logic": {
       "description": "立杆底部地基承载力应满足P≤fa，其中P=N/A（立杆底座面积），fa为地基承载力特征值；垫板面积不应小于0.01m²（即100cm²）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "地基",
+        "承载力",
+        "验算"
+      ],
       "formula": "P = N/A底 ≤ fa, A底 ≥ 0.01m²"
     },
     "threshold": null,

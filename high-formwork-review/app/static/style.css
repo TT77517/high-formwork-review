@@ -142,6 +142,11 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .status-COMPLIANT, .status-PASS { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
 .status-VIOLATED, .status-ISSUE, .status-MISSING { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
 .status-UNCERTAIN, .status-REVIEW, .status-uncertain, .status-PENDING_CONFIRMATION { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+.status-PARTIAL { background: #fff7e6; color: #fa8c16; border: 1px solid #fa8c16; }
+.comp-disagree { color: var(--error); font-weight: 600; }
+.review-desc { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 13px; line-height: 1.8; color: var(--text-secondary); }
+.review-desc b { color: var(--text-primary); }
+.review-desc p { margin: 0 0 4px 0; }
 .status-NOT_APPLICABLE { background: #f5f5f5; color: var(--text-tertiary); border: 1px solid var(--border); }
 
 /* Filter Bar */
@@ -149,10 +154,16 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .filter-bar label { font-size: 13px; color: var(--text-secondary); }
 .select-field { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: #fff; cursor: pointer; }
 .select-field:focus { border-color: var(--primary); outline: none; }
+/* Fixed-width select fields for filter bars */
+.sel-fixed { min-width: 120px; max-width: 160px; }
+/* Compact table: single-row cells, no wrap on key columns */
+.table-compact td, .table-compact th { white-space: nowrap; }
+.table-compact td:nth-child(2) { white-space: normal; min-width: 120px; max-width: 220px; }
+
 
 /* Table cell status group & note（chip + 灰字备注成组，行高一致） */
 #reviewTable td { vertical-align: top; }
-.cell-status { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 22px; }
+.cell-status { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; }
 .cell-note { font-size: 12px; color: var(--text-tertiary); line-height: 1.4; white-space: normal; max-width: 200px; cursor: help; }
 
 /* Legend bar（表头图例/口径说明） */

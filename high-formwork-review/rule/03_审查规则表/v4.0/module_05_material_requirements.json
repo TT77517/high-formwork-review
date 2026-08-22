@@ -19,7 +19,13 @@
     "check_content": "扣件式钢管脚手架钢管规格应为Φ48.3×3.6mm（外径48.3mm，壁厚3.6mm）；旧规范Φ48×3.5mm已淘汰",
     "check_logic": {
       "description": "扣件式钢管脚手架钢管规格应为Φ48.3×3.6mm（外径48.3mm，壁厚3.6mm）；旧规范Φ48×3.5mm已淘汰",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢管",
+        "规格",
+        "扣件式",
+        "Φ48.3",
+        "3.6"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按JGJ 130-2011 第3.1.2条要求修改方案，确保满足钢管规格-扣件式的具体规定：扣件式钢管脚手架钢管规格应为Φ48.3×3.6mm（外径48.3mm，壁厚3.6mm）；旧规范Φ48×3.5mm已淘汰",
@@ -86,7 +92,12 @@
     "check_content": "扣件式钢管材质应为Q235普通钢管（力学性能：屈服强度≥235MPa，抗拉强度≥375MPa，伸长率≥20%）",
     "check_logic": {
       "description": "扣件式钢管材质应为Q235普通钢管（力学性能：屈服强度≥235MPa，抗拉强度≥375MPa，伸长率≥20%）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢管",
+        "材质",
+        "扣件式",
+        "Q235"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按JGJ 130-2011 第3.1.1条要求修改方案，确保满足钢管材质-扣件式的具体规定：扣件式钢管材质应为Q235普通钢管（力学性能：屈服强度≥235MPa，抗拉强度≥375MPa，伸长率≥20%）",
@@ -115,7 +126,13 @@
     "check_content": "盘扣式钢管支架立杆规格为Φ48×3.25mm（B型）或Φ60×3.25mm（B型重型），水平杆Φ48×2.5mm",
     "check_logic": {
       "description": "盘扣式钢管支架立杆规格为Φ48×3.25mm（B型）或Φ60×3.25mm（B型重型），水平杆Φ48×2.5mm",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢管",
+        "规格",
+        "盘扣式",
+        "Φ48.3",
+        "3.2"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按JGJ/T231-2021 第3.0.1条(JG/T503)要求修改方案，确保满足钢管规格-盘扣式的具体规定：盘扣式钢管支架立杆规格为Φ48×3.25mm（B型）或Φ60×3.25mm（B型重型），水平杆Φ48×2.5mm",
@@ -144,7 +161,12 @@
     "check_content": "盘扣式支架立杆材质应为Q345（屈服强度≥345MPa），水平杆和斜杆可采用Q235",
     "check_logic": {
       "description": "盘扣式支架立杆材质应为Q345（屈服强度≥345MPa），水平杆和斜杆可采用Q235",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢管",
+        "材质",
+        "盘扣式",
+        "Q355"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按JGJ/T231-2021 第3.0.1条 / 附录B表B.0.1要求修改方案，确保满足钢管材质-盘扣式的具体规定：盘扣式支架立杆材质应为Q345（屈服强度≥345MPa），水平杆和斜杆可采用Q235",
@@ -173,7 +195,14 @@
     "check_content": "扣件应采用可锻铸铁或钢板压制，分为直角扣件、旋转扣件、对接扣件三种；直角扣件和旋转扣件抗滑移承载力标准值≥8.0kN/个，对接扣件抗拉承载力≥3.0kN",
     "check_logic": {
       "description": "扣件应采用可锻铸铁或钢板压制，分为直角扣件、旋转扣件、对接扣件三种；直角扣件和旋转扣件抗滑移承载力标准值≥8.0kN/个，对接扣件抗拉承载力≥3.0kN",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "扣件",
+        "类型",
+        "性能",
+        "直角",
+        "旋转",
+        "对接"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按JGJ 130-2011 第3.2节 / GB 15831要求修改方案，确保满足扣件类型与性能的具体规定：扣件应采用可锻铸铁或钢板压制，分为直角扣件、旋转扣件、对接扣件三种；直角扣件和旋转扣件抗滑移承载力标准值≥8.0kN/个",
@@ -202,7 +231,11 @@
     "check_content": "可锻铸铁扣件单件重量：直角扣件≥1.0kg，旋转扣件≥1.0kg，对接扣件≥1.0kg；重量过轻可能为劣质产品",
     "check_logic": {
       "description": "可锻铸铁扣件单件重量：直角扣件≥1.0kg，旋转扣件≥1.0kg，对接扣件≥1.0kg；重量过轻可能为劣质产品",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "扣件",
+        "重量",
+        "要求"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 15831要求修改方案，确保满足扣件重量要求的具体规定：可锻铸铁扣件单件重量：直角扣件≥1.0kg，旋转扣件≥1.0kg，对接扣件≥1.0kg；重量过轻可能为劣质产品",
@@ -231,7 +264,12 @@
     "check_content": "可调托撑螺杆直径不应小于36mm（扣件式）或38mm（盘扣式）；螺杆材质应为Q235或以上",
     "check_logic": {
       "description": "可调托撑螺杆直径不应小于36mm（扣件式）或38mm（盘扣式）；螺杆材质应为Q235或以上",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "可调托撑",
+        "螺杆",
+        "直径",
+        "36mm"
+      ]
     },
     "threshold": [
       {
@@ -275,7 +313,12 @@
     "check_content": "可调托撑顶部钢板（托板）厚度不应小于5mm，托板尺寸不应小于100mm×100mm",
     "check_logic": {
       "description": "可调托撑顶部钢板（托板）厚度不应小于5mm，托板尺寸不应小于100mm×100mm",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "可调托撑",
+        "钢板",
+        "厚度",
+        "5mm"
+      ]
     },
     "threshold": [
       {
@@ -317,7 +360,10 @@
     "check_content": "可调底座螺杆直径不应小于36mm，底板厚度不应小于5mm，底板尺寸不应小于100mm×100mm",
     "check_logic": {
       "description": "可调底座螺杆直径不应小于36mm，底板厚度不应小于5mm，底板尺寸不应小于100mm×100mm",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "可调底座",
+        "要求"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "修改方案使其满足：可调底座螺杆直径不应小于36mm，底板厚度不应小于5mm，底板尺寸不应小于100mm×100mm",
@@ -438,7 +484,11 @@
     "check_content": "次楞方木截面不应小于40mm×60mm，主楞方木截面不应小于50mm×80mm；方木含水率不应大于25%",
     "check_logic": {
       "description": "次楞方木截面不应小于40mm×60mm，主楞方木截面不应小于50mm×80mm；方木含水率不应大于25%",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "方木",
+        "规格",
+        "要求"
+      ]
     },
     "threshold": [
       {
@@ -478,7 +528,13 @@
     "check_content": "Q235钢材抗拉/抗压/抗弯强度设计值f=205N/mm²，抗剪强度设计值fv=120N/mm²，端面承压强度设计值fce=310N/mm²（厚度≤16mm）",
     "check_logic": {
       "description": "Q235钢材抗拉/抗压/抗弯强度设计值f=205N/mm²，抗剪强度设计值fv=120N/mm²，端面承压强度设计值fce=310N/mm²（厚度≤16mm）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢材",
+        "强度",
+        "设计值",
+        "Q235",
+        "205"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 50017-2017 第4.4节 / JGJ 130-2011 第5.1节要求修改方案，确保满足钢材强度设计值-Q235的具体规定：Q235钢材抗拉/抗压/抗弯强度设计值f=205N/mm²，抗剪强度设计值fv=120N/mm²，端面承压强度设计值fc",
@@ -507,7 +563,13 @@
     "check_content": "Q345钢材抗拉/抗压/抗弯强度设计值f=305N/mm²，抗剪强度设计值fv=175N/mm²（厚度≤16mm）",
     "check_logic": {
       "description": "Q345钢材抗拉/抗压/抗弯强度设计值f=305N/mm²，抗剪强度设计值fv=175N/mm²（厚度≤16mm）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢材",
+        "强度",
+        "设计值",
+        "Q345",
+        "300"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 50017-2017 第4.4节 / JGJ/T231-2021 附录B表B.0.1要求修改方案，确保满足钢材强度设计值-Q345的具体规定：Q345钢材抗拉/抗压/抗弯强度设计值f=305N/mm²，抗剪强度设计值fv=175N/mm²（厚度≤16mm）",
@@ -536,7 +598,13 @@
     "check_content": "可调底座和可调托撑螺杆插入立杆钢管内的间隙不应大于2.5mm（GB55023强制）；盘扣式立杆外径与螺母台阶内径差不应大于2mm（JGJ/T231）",
     "check_logic": {
       "description": "可调底座和可调托撑螺杆插入立杆钢管内的间隙不应大于2.5mm（GB55023强制）；盘扣式立杆外径与螺母台阶内径差不应大于2mm（JGJ/T231）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "可调托撑",
+        "底座",
+        "螺杆",
+        "立杆",
+        "配合间隙"
+      ]
     },
     "threshold": [
       {
@@ -580,7 +648,10 @@
     "check_content": "钢管表面应平直光滑，不应有裂缝、结疤、分层、错位、硬弯、毛刺、压痕和深的划道；钢管必须涂防锈漆",
     "check_logic": {
       "description": "钢管表面应平直光滑，不应有裂缝、结疤、分层、错位、硬弯、毛刺、压痕和深的划道；钢管必须涂防锈漆",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "钢管",
+        "表面质量"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "修改方案使其满足：钢管表面应平直光滑，不应有裂缝、结疤、分层、错位、硬弯、毛刺、压痕和深的划道；钢管必须涂防锈漆",
@@ -609,7 +680,10 @@
     "check_content": "扣件表面不得有裂纹、气孔、缩松、夹砂等缺陷；扣件与钢管贴合面应严格整形，保证贴合良好；扣件活动部位应能灵活转动",
     "check_logic": {
       "description": "扣件表面不得有裂纹、气孔、缩松、夹砂等缺陷；扣件与钢管贴合面应严格整形，保证贴合良好；扣件活动部位应能灵活转动",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "扣件",
+        "外观质量"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "修改方案使其满足：扣件表面不得有裂纹、气孔、缩松、夹砂等缺陷；扣件与钢管贴合面应严格整形，保证贴合良好；扣件活动部位应能灵活转动",

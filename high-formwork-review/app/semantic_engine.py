@@ -173,10 +173,18 @@ def build_semantic_evidence(
 ) -> str:
     """为单条语义规则构建方案文本证据。"""
     keywords = rule.get("check_logic", {}).get("extraction_keywords", [])
-    check_content = rule.get("check_content", "")
-    # 从 check_content 提取关键词作为补充搜索词
-    if not keywords and check_content:
-        keywords = re.findall(r"[\u4e00-\u9fff]{2,6}", check_content)[:5]
+    # 关键词为空时，用规则名称和检查内容中的核心名词作为搜索词
+    if not keywords:
+        rule_name = rule.get("rule_name", "")
+        check_content = rule.get("check_content", "")
+        # 从规则名称提取核心词（去掉"限值""设置""验算"等后缀）
+        fallback_terms = [t for t in re.findall(r"[一-鿿]{2,4}", rule_name)
+                          if t not in ("限值", "设置", "验算", "要求", "标准", "取值", "计算")]
+        # 从 check_content 提取关键名词短语
+        if not fallback_terms and check_content:
+            fallback_terms = [t for t in re.findall(r"[一-鿿]{2,4}", check_content)
+                              if t not in ("限值", "设置", "验算", "要求", "标准", "取值", "计算")]
+        keywords = fallback_terms[:5]
     sections = _find_relevant_sections(document, keywords)
     if not sections:
         # 如果没有找到相关章节，用全文前N字符
@@ -278,9 +286,7 @@ def _evaluate_semantic_local(
 ) -> dict[str, Any]:
     """本地降级模式：基于关键词匹配做初步判定。"""
     keywords = rule.get("check_logic", {}).get("extraction_keywords", [])
-    check_content = rule.get("check_content", "")
-    if not keywords and check_content:
-        keywords = re.findall(r"[\u4e00-\u9fff]{2,6}", check_content)[:5]
+    rule_id = rule.get("rule_id", "")
 
     # 适用性检查
     applicability = system_applicability_status(
@@ -293,6 +299,16 @@ def _evaluate_semantic_local(
         )
     if applicability == "NOT_APPLICABLE":
         return _build_sem_result(rule, "NOT_APPLICABLE", "支架类型不适用", [], "")
+
+    # 关键词为空时，不再盲目从 check_content 提取低质量关键词，
+    # 直接标记为需 Dify 语义复核或人工复核
+    if not keywords:
+        evidence = build_semantic_evidence(document, rule)
+        return _build_sem_result(
+            rule, "UNCERTAIN",
+            f"规则 {rule_id} 未配置关键词，无法进行本地关键词匹配，需 Dify 语义复核或人工复核",
+            [], evidence[:500],
+        )
 
     # 关键词匹配
     evidence = build_semantic_evidence(document, rule)

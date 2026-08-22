@@ -389,6 +389,45 @@ def list_rules(
     }
 
 
+
+@app.get("/api/rules/version-validation")
+def validate_standard_versions() -> dict[str, Any]:
+    """校验规则库中规范版本是否有冲突（同一规范出现多个版本）。"""
+    import re as _re
+    std_pattern = _re.compile(r'(GB\s*\d+|JGJ\s*[/\s]?\d+|JGJ/T\s*\d+)[-\s]?(\d{4})')
+    std_versions: dict[str, dict[str, list]] = {}
+    for rule in load_rule_library():
+        cr = rule.get("code_ref", {})
+        if isinstance(cr, dict):
+            cr = cr.get("standard", "")
+        if not cr:
+            continue
+        for m in std_pattern.finditer(cr):
+            std_name = m.group(1).replace(" ", "").replace("/", "")
+            std_ver = m.group(2)
+            if std_name not in std_versions:
+                std_versions[std_name] = {}
+            if std_ver not in std_versions[std_name]:
+                std_versions[std_name][std_ver] = []
+            std_versions[std_name][std_ver].append(rule.get("rule_id", ""))
+
+    conflicts = []
+    for std, vers in sorted(std_versions.items()):
+        if len(vers) > 1:
+            conflicts.append({
+                "standard": std,
+                "versions": [{"version": v, "rule_ids": rules} for v, rules in sorted(vers.items())],
+            })
+
+    # 规范版本清单
+    registry = {std: sorted(vers.keys()) for std, vers in sorted(std_versions.items())}
+
+    return {
+        "total_standards": len(std_versions),
+        "conflicts": conflicts,
+        "registry": registry,
+    }
+
 @app.get("/api/rules/{rule_id}")
 def get_rule(rule_id: str) -> dict[str, Any]:
     """查询单条规则详情。"""

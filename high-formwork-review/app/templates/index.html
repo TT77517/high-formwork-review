@@ -192,12 +192,11 @@
           </select>
           <span id="difyWarning" class="alert-inline hidden"></span>
         </div>
-        <div class="legend-bar">
-          <span class="legend-item"><i class="legend-dot legend-dot-success"></i>合规</span>
-          <span class="legend-item"><i class="legend-dot legend-dot-warning"></i>无法核验</span>
-          <span class="legend-item"><i class="legend-dot legend-dot-error"></i>缺失</span>
-          <span class="legend-sep">|</span>
-          <span class="legend-text">本地预审=关键词/结构匹配，Dify 审查=语义复核；灰字为该列补充说明，悬停可见完整原因</span>
+        <div class="review-desc">
+          <p><b>审查流程说明：</b>本表展示 10 项完整性规则的审查结果，分两阶段执行。</p>
+          <p><b>① 本地预审（规则引擎）：</b>通过关键词与文档结构匹配，判断方案是否包含各必备章节。绿色「已识别」= 完整匹配；黄色「部分匹配」= 部分要素匹配，已送 Dify 语义复核；其余为疑似缺失或无法核验。</p>
+          <p><b>② Dify 语义复核：</b>对本地预审结果进行深度语义比对。绿色「未复核」= 本地置信度高，无需复核；绿色「已复核」= Dify 已完成语义验证。</p>
+          <p><b>一致性列：</b>对比本地预审与 Dify 复核结论。红色「不一致」表示两阶段结论存在分歧，需人工关注。</p>
         </div>
         <div class="table-wrap"><table class="data-table" id="reviewTable">
           <thead><tr><th>规则</th><th>检查事项</th><th>本地预审</th><th>Dify审查</th><th>一致性</th><th>人工状态</th><th>操作</th></tr></thead>
@@ -216,9 +215,9 @@
         <div id="semanticStats" class="stat-card-grid"></div>
         <div class="filter-bar">
           <label>模块：</label>
-          <select id="semanticModuleFilter" class="select-field"><option value="all">全部</option></select>
+          <select id="semanticModuleFilter" class="select-field sel-fixed"><option value="all">全部</option></select>
           <label class="ml-16">状态：</label>
-          <select id="semanticStatusFilter" class="select-field">
+          <select id="semanticStatusFilter" class="select-field sel-fixed">
             <option value="all">全部</option>
             <option value="COMPLIANT">合规</option>
             <option value="VIOLATED">违规</option>
@@ -226,9 +225,18 @@
             <option value="NOT_APPLICABLE">不适用</option>
             <option value="PENDING_CONFIRMATION">待确认</option>
           </select>
+          <label class="ml-16">等级：</label>
+          <select id="semanticSeverityFilter" class="select-field sel-fixed">
+            <option value="all">全部</option>
+            <option value="A-mandatory">A级强制</option>
+            <option value="B-required">B级应执行</option>
+            <option value="C-recommended">C级推荐</option>
+          </select>
+          <label class="ml-16">规范：</label>
+          <select id="semanticStandardFilter" class="select-field sel-fixed"><option value="all">全部</option></select>
         </div>
-        <div class="table-wrap"><table class="data-table" id="semanticTable">
-          <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>等级</th><th>状态</th><th>实际值</th><th>阈值</th><th>判定依据</th><th>操作</th></tr></thead>
+        <div class="table-wrap"><table class="data-table table-compact" id="semanticTable">
+          <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>等级</th><th>状态</th><th>实际值/阈值</th><th>操作</th></tr></thead>
           <tbody id="semanticRows"></tbody>
         </table></div>
         <div id="semanticPager"></div>
@@ -241,8 +249,14 @@
       <section class="panel tab-panel hidden" id="tab-drawing">
         <div class="section-header"><h2>图文一致性校验</h2></div>
         <div id="drawingStats" class="stat-card-grid"></div>
-        <div id="drawingCards" class="card-list"></div>
+        <div class="table-wrap"><table class="data-table table-compact" id="drawingTable">
+          <thead><tr><th>编号</th><th>检查项</th><th>正文值</th><th>图纸值</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="drawingRows"></tbody>
+        </table></div>
         <div id="drawingPager"></div>
+        <div id="drawingDetailPanel" class="drawer-overlay hidden">
+          <div class="drawer"><div class="drawer-head"><h3 id="drawingDrawerTitle">详情</h3><button class="drawer-close" data-drawer="drawing">✕</button></div><div id="drawingDrawerBody" class="drawer-body"></div></div>
+        </div>
       </section>
 
       <!-- Calculation Review (计算校核) -->
@@ -250,12 +264,21 @@
         <div class="section-header"><h2>计算校核 <span class="tag-orange ml-8">部分可用</span></h2></div>
         <h3 class="sub-head">公式验算</h3>
         <div id="calcStats" class="stat-card-grid"></div>
-        <div id="calcCards" class="card-list"></div>
+        <div class="table-wrap"><table class="data-table table-compact" id="calcTable">
+          <thead><tr><th>编号</th><th>验算项</th><th>模块</th><th>等级</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="calcRows"></tbody>
+        </table></div>
         <div id="calcPager"></div>
-        <h3 class="sub-head">正文/计算书参数一致性</h3>
+        <h3 class="sub-head">参数一致性校核</h3>
         <div id="consStats" class="stat-card-grid"></div>
-        <div id="consCards" class="card-list"></div>
+        <div class="table-wrap"><table class="data-table table-compact" id="consTable">
+          <thead><tr><th>编号</th><th>参数</th><th>正文/构造值</th><th>计算书值</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="consRows"></tbody>
+        </table></div>
         <div id="consPager"></div>
+        <div id="calcDetailPanel" class="drawer-overlay hidden">
+          <div class="drawer"><div class="drawer-head"><h3 id="calcDrawerTitle">详情</h3><button class="drawer-close" data-drawer="calc">✕</button></div><div id="calcDrawerBody" class="drawer-body"></div></div>
+        </div>
       </section>
 
       <!-- Manual -->
@@ -278,26 +301,35 @@
         <div class="section-header">
           <h2>规则库管理 <span class="tag-blue ml-8">v4.0 · 164条</span></h2>
           <button id="addRuleBtn" type="button" class="btn-primary">新增规则</button>
+          <button id="versionValidationBtn" type="button" class="btn-default ml-8">规范版本校验</button>
         </div>
         <div id="ruleLibraryStats" class="stat-card-grid"></div>
+        <div id="versionValidationAlert" class="alert-inline hidden" style="margin-bottom:12px"></div>
         <div class="filter-bar">
           <label>模块：</label>
-          <select id="rlModuleFilter" class="select-field"><option value="">全部</option></select>
+          <select id="rlModuleFilter" class="select-field sel-fixed"><option value="">全部</option></select>
           <label class="ml-16">类型：</label>
-          <select id="rlTypeFilter" class="select-field"><option value="">全部</option><option value="deterministic">确定性</option><option value="semantic">语义</option><option value="calculation">计算</option></select>
+          <select id="rlTypeFilter" class="select-field sel-fixed"><option value="">全部</option><option value="deterministic">确定性</option><option value="semantic">语义</option><option value="calculation">计算</option></select>
           <label class="ml-16">等级：</label>
-          <select id="rlSeverityFilter" class="select-field"><option value="">全部</option><option value="A-mandatory">A级强制</option><option value="B-required">B级应执行</option><option value="C-recommended">C级推荐</option></select>
+          <select id="rlSeverityFilter" class="select-field sel-fixed"><option value="">全部</option><option value="A-mandatory">A级强制</option><option value="B-required">B级应执行</option><option value="C-recommended">C级推荐</option></select>
           <label class="ml-16">规范：</label>
-          <select id="rlStandardFilter" class="select-field"><option value="">全部</option></select>
+          <select id="rlStandardFilter" class="select-field sel-fixed"><option value="">全部</option></select>
           <label class="ml-16">搜索：</label>
           <input id="rlSearch" type="text" class="select-field" placeholder="规则ID或名称">
         </div>
-        <div class="table-wrap"><table class="data-table" id="ruleLibraryTable">
+        <div class="table-wrap"><table class="data-table table-compact" id="ruleLibraryTable">
           <thead><tr><th>编号</th><th>规则名称</th><th>模块</th><th>类型</th><th>等级</th><th>规范来源</th><th>状态</th><th>操作</th></tr></thead>
           <tbody id="ruleLibraryRows"></tbody>
         </table></div>
+        <div id="ruleLibraryPager"></div>
         <div id="ruleLibraryDetailPanel" class="drawer-overlay hidden">
           <div class="drawer"><div class="drawer-head"><h3 id="rlDrawerTitle">规则详情</h3><button class="drawer-close" data-drawer="rule-library">✕</button></div><div id="rlDrawerBody" class="drawer-body"></div></div>
+        </div>
+        <!-- Version Validation Modal -->
+        <div id="versionValidationModal" class="drawer-overlay hidden">
+          <div class="drawer" style="width:700px"><div class="drawer-head"><h3>规范版本校验</h3><button class="drawer-close" data-drawer="version-validation">✕</button></div>
+          <div class="drawer-body" id="versionValidationBody"></div>
+          <div class="action-row" style="padding:0 24px 24px"><button id="versionValidationClose" type="button" class="btn-default">关闭</button></div>
         </div>
         <!-- Add/Edit Rule Modal -->
         <div id="ruleEditModal" class="drawer-overlay hidden">

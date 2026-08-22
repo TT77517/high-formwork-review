@@ -19,7 +19,11 @@
     "check_content": "模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0kN/m²",
     "check_logic": {
       "description": "模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0kN/m²",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "模板自重",
+        "标准值",
+        "kN/m²"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 50666-2011 第4.1.1条 / JGJ 162-2016 第4.2.1条要求修改方案，确保满足模板自重标准值的具体规定：模板及支架自重标准值应按实际采用材料的重量取值；一般情况下，楼板模板取0.3~0.5kN/m²，梁模板取0.5~1.0k",
@@ -181,7 +185,12 @@
     "check_content": "对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²",
     "check_logic": {
       "description": "对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "振捣",
+        "水平面",
+        "荷载",
+        "2.0kN/m²"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 50666-2011 第4.1.5条 / JGJ 162-2016 第4.2.4条要求修改方案，确保满足振捣混凝土产生的荷载标准值-水平面的具体规定：对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²",
@@ -210,7 +219,12 @@
     "check_content": "对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²",
     "check_logic": {
       "description": "对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "振捣",
+        "垂直面",
+        "荷载",
+        "4.0kN/m²"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 50666-2011 第4.1.5条 / JGJ 162-2016 第4.2.4条要求修改方案，确保满足振捣混凝土产生的荷载标准值-垂直面的具体规定：对垂直面模板（柱、墙），振捣混凝土产生的荷载标准值取4.0kN/m²",
@@ -239,7 +253,12 @@
     "check_content": "向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.2~0.8m³取4kN/m²，料斗>0.8m³取6kN/m²",
     "check_logic": {
       "description": "向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.2~0.8m³取4kN/m²，料斗>0.8m³取6kN/m²",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "倾倒",
+        "冲击荷载",
+        "溜槽",
+        "料斗"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 50666-2011 第4.1.6条 / JGJ 162-2016 第4.2.5条要求修改方案，确保满足倾倒混凝土冲击荷载标准值的具体规定：向模板中倾倒混凝土时产生的冲击荷载，按浇筑方式不同取值：溜槽或导管2kN/m²，料斗≤0.2m³取2kN/m²，料斗0.",
@@ -314,7 +333,12 @@
     "check_content": "混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²",
     "check_logic": {
       "description": "混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "侧压力",
+        "限值",
+        "50kN/m²",
+        "80kN/m²"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "修改方案使其满足：混凝土侧压力计算值不应超过最大限值：采用内部振捣器时取50kN/m²，采用外部振捣器时取80kN/m²",
@@ -391,7 +415,11 @@
     "check_content": "施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0",
     "check_logic": {
       "description": "施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "活载",
+        "分项系数",
+        "1.5"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "修改方案使其满足：施工活荷载（可变作用）分项系数不应小于1.5（不利时）；对结构有利时取0",
@@ -420,7 +448,13 @@
     "check_content": "承载力验算时荷载基本组合设计值S=1.3×SGk+1.5×SQk；永久荷载控制时S=1.35×SGk+1.5×ψc×SQk（ψc为组合值系数，一般取0.7）",
     "check_logic": {
       "description": "承载力验算时荷载基本组合设计值S=1.3×SGk+1.5×SQk；永久荷载控制时S=1.35×SGk+1.5×ψc×SQk（ψc为组合值系数，一般取0.7）",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "承载力",
+        "极限状态",
+        "荷载组合",
+        "1.3",
+        "1.5"
+      ],
       "formula": "S = 1.3·SGk + 1.5·SQk 或 S = 1.35·SGk + 1.5·0.7·SQk"
     },
     "threshold": null,
@@ -450,7 +484,12 @@
     "check_content": "挠度验算时采用荷载标准组合S=SGk+SQk，不考虑分项系数",
     "check_logic": {
       "description": "挠度验算时采用荷载标准组合S=SGk+SQk，不考虑分项系数",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "正常使用",
+        "极限状态",
+        "荷载组合",
+        "标准组合"
+      ],
       "formula": "S = SGk + SQk"
     },
     "threshold": null,
@@ -480,7 +519,11 @@
     "check_content": "高度≥5m的模板支架应考虑风荷载影响；风压标准值wk=μs·μz·w0，其中基本风压w0按当地10年一遇取值，不小于0.3kN/m²",
     "check_logic": {
       "description": "高度≥5m的模板支架应考虑风荷载影响；风压标准值wk=μs·μz·w0，其中基本风压w0按当地10年一遇取值，不小于0.3kN/m²",
-      "extraction_keywords": [],
+      "extraction_keywords": [
+        "风荷载",
+        "风压",
+        "0.3kN/m²"
+      ],
       "formula": "wk = μs·μz·w0"
     },
     "threshold": null,
@@ -510,7 +553,12 @@
     "check_content": "模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重+混凝土重+施工荷载）",
     "check_logic": {
       "description": "模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重+混凝土重+施工荷载）",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "模板",
+        "支架",
+        "承载力",
+        "荷载组合"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 55001-2021 第3.1.7条(强制) / GB 50666-2011 第4.3节 / JGJ 162-2016 第4.3节要求修改方案，确保满足荷载组合-模板及支架承载力的具体规定：模板及支架承载力验算应按承载能力极限状态，取最不利荷载组合；不同构件的荷载组合可能不同（如面板计振捣荷载，立杆计模板自重",
@@ -618,7 +666,12 @@
     "check_content": "支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算",
     "check_logic": {
       "description": "支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算",
-      "extraction_keywords": []
+      "extraction_keywords": [
+        "支撑脚手架",
+        "施工荷载",
+        "2.5kN/m²",
+        "4.0kN/m²"
+      ]
     },
     "threshold": null,
     "remedy_suggestion": "按GB 55023-2022 表4.2.4-2(强制)要求修改方案，确保满足支撑脚手架施工荷载标准值的具体规定：支撑脚手架施工荷载标准值：一般≥2.5kN/m²；有水平泵管设置≥4.0kN/m²；移动设备按自重计算",
