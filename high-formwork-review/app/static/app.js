@@ -558,9 +558,30 @@ function renderReviewTable(f) {
 }
 function openReviewDrawer(rid) {
   const results = revData?.results||[]; const rule = results.find(r => r.rule_id===rid); if (!rule) return;
-  const ev = (rule.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page}</b></span><span>${esc(e.block_type||'')}</span></div>${evThumb(e, e.physical_page)}<blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
+  const cb = {}; (compData?.results||[]).forEach(r => cb[r.rule_id]=r);
+  const comp = cb[rid]||{};
+  const isDisagree = comp.comparison_status === 'DISAGREEMENT';
+  
+  // 本地证据
+  const localEv = (rule.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page}</b></span><span>${esc(e.block_type||'')}</span></div>${evThumb(e, e.physical_page)}<blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
+  
+  // Dify 证据（不一致时显示）
+  let difySection = '';
+  if (isDisagree && comp.dify_evidence && comp.dify_evidence.length > 0) {
+    const difyEv = comp.dify_evidence.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page||'—'}</b></span><span>${esc(e.block_type||'')}</span></div><blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('');
+    difySection = `<div class="detail-section"><h4>Dify 语义复核证据 <span class="status-chip status-MISSING">不一致</span></h4><p style="color:var(--text-secondary);margin-bottom:8px">${esc(comp.dify_reason||'')}</p>${difyEv}</div>`;
+  } else if (isDisagree) {
+    difySection = `<div class="detail-section"><h4>Dify 语义复核证据 <span class="status-chip status-MISSING">不一致</span></h4><p style="color:var(--text-secondary)">${esc(comp.dify_reason||'Dify 未返回证据')}</p></div>`;
+  }
+  
+  // 一致性说明
+  let consistencyNote = '';
+  if (isDisagree) {
+    consistencyNote = `<div class="detail-section" style="background:var(--error-bg);padding:12px;border-radius:8px;margin-bottom:16px"><p style="color:var(--error);font-weight:600;margin:0">⚠ 本地预审与 Dify 复核结论不一致</p><p style="margin:8px 0 0 0;color:var(--text-secondary)">本地判定：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span>，Dify 判定：${esc(comp.dify_status||'未知')}。请以人工复核为准。</p></div>`;
+  }
+  
   $('#reviewDrawerTitle').textContent = `${rule.rule_id} — ${rule.name}`;
-  $('#reviewDrawerBody').innerHTML = `<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div><div class="detail-section"><h4>原文证据</h4>${ev}</div>`;
+  $('#reviewDrawerBody').innerHTML = `${consistencyNote}<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>本地预审结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div><div class="detail-section"><h4>本地预审证据</h4>${localEv}</div>${difySection}`;
   $('#reviewDetailPanel').classList.remove('hidden');
 }
 
