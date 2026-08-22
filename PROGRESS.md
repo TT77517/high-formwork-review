@@ -45,6 +45,7 @@
 - [x] 审查结果页体验增强：五处分页（10/20/50）+统计卡点击联动筛选、计算校核页改公式验算/参数一致性双卡片组（双侧对比+证据页跳转）、图文卡片展示正文值vs图纸标注值、drawing_review 交叉比对结果补正文 text_evidence；浏览器冒烟通过
 - [x] 证据图像/表格展示：API 出口层按 block_id 动态补 image_path+table_html（老任务免重跑生效）；计算/语义引擎证据补 block 定位（page 不再为 None）；前端证据缩略图+灯箱（表格真渲染/图像大图/打开所在页/查看原图/404降级）；MinerU 缓存携带 raw 图像资源（命中时还原）；重跑 demo 验证全链路
 - [x] 语义审查 Agent 代码侧实施（系统侧全就绪，待 Dify Workflow 建台联调）：app/services/semantic_dify.py（适用性门禁本地判定不进 LLM / 本地证据提取分批 / Dify Workflow 调用 / 结果校验 / 批次级缓存 / 单批失败降级本地关键词）；SEMANTIC_REVIEW_MODE=local|dify 开关（默认 local，行为不变）；DIFY_SEMANTIC_API_KEY 配置（回退 DIFY_API_KEY）；web+CLI 双接线；5 个测试；Workflow 建台规格：docs/semantic_review_workflow_spec.md；Dify Cloud 连通性已验证（完整性 workflow key 有效）
+- [x] Dify"规范语义审查"Workflow 建台完成并接入（2026-08-22）：用户输入→LLM（低温+JSON 输出）→结束（result_json）；curl 冒烟测试通过（T-1 COMPLIANT、证据逐字引用、1.8s/564 tokens）；DIFY_SEMANTIC_API_KEY + SEMANTIC_REVIEW_MODE=dify 已写入 .env（本地，不入 git）；162 测试全绿；待上传样例做全量联调
 
 ## 🚧 当前阻塞
 
@@ -52,7 +53,7 @@
 
 ## 📌 下一步建议
 
-1. **在 Dify 控制台创建"规范语义审查"Workflow**（规格：`high-formwork-review/docs/semantic_review_workflow_spec.md`，含验收自测命令）→ 拿到新 app key 填 `DIFY_SEMANTIC_API_KEY`、设 `SEMANTIC_REVIEW_MODE=dify`，上传样例联调
+1. **上传样例全量联调**：Dify"规范语义审查"Workflow 已建好并接入（`.env` 已设 `SEMANTIC_REVIEW_MODE=dify` + `DIFY_SEMANTIC_API_KEY`，curl 冒烟通过），用样例 PDF 跑一次语义审查验证 84 条规则分批调用/缓存/降级全链路
 2. 规则库 standard_id 落盘（目前为运行时归一化附加），便于离线统计与清洗"住建部令[2018]31号"等疑似误写
 
 > ✅ 已完成（2026-08-21）：MINERU_API_TOKEN 已配置（.env，gitignore），样例已重解析——922 张图像落盘新任务 `12a62f8b`（mineru_api/raw），缓存条目开始携带 raw 资源，文档解析抽屉/证据图像通道浏览器验证 200。旧任务 `129b4a90` 无图（解析早于 token），重跑不触发重解析，如需图像可重新上传。
@@ -215,3 +216,7 @@
 - [2026-08-22 21:59] claude 签到 — 开始处理：语义审查Agent实施：Dify集成（设计规格文档+代码实现+降级机制）
 
 - [2026-08-22 22:12] claude 签退 — 完成了：语义审查Agent代码侧完成（9d634c8）：semantic_dify.py全链路+降级+5测试+建台规格文档，162测试全绿，默认local模式行为不变；下一步建议：在Dify按spec建规范语义审查Workflow→填DIFY_SEMANTIC_API_KEY+SEMANTIC_REVIEW_MODE=dify→上传样例联调
+
+- [2026-08-22 22:30] claude 签到 — 开始处理：引导用户在 Dify 控制台按 docs/semantic_review_workflow_spec.md 逐步创建"规范语义审查"Workflow（一步一步交互指导）
+
+- [2026-08-22 23:05] claude 签退 — 完成了：Dify"规范语义审查"Workflow 建台全程引导（用户输入4变量→LLM低温JSON输出→结束节点result_json）；纠正 rule_json→rules_json 命名后 curl 冒烟测试通过（T-1 COMPLIANT/证据逐字引用/1.8s）；DIFY_SEMANTIC_API_KEY+SEMANTIC_REVIEW_MODE=dify 写入本地 .env，162 测试全绿；下一步建议：上传样例 PDF 全量联调（84条规则分批/缓存/降级验证）：semantic_dify.py全链路+降级+5测试+建台规格文档，162测试全绿，默认local模式行为不变；下一步建议：在Dify按spec建规范语义审查Workflow→填DIFY_SEMANTIC_API_KEY+SEMANTIC_REVIEW_MODE=dify→上传样例联调
