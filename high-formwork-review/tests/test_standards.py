@@ -45,6 +45,12 @@ def test_registry_loads_all_entries():
     assert len(registry) >= 18
     ids = {entry["standard_id"] for entry in registry}
     assert {"JGJT231-2021", "JGJ162-2016", "GB55023-2022", "MOHURD-ORDER-37"} <= ids
+    core = [e["standard_id"] for e in registry if e.get("tier") == "core"]
+    # 核心层 = rule/ 文件夹实际收录的 10 本（2 法规 + 5 通用 + 3 技术）
+    assert len(core) == 10
+    assert {"MOHURD-ORDER-37", "JIANBANZHI-2018-31", "GB50666-2011",
+            "GB55008-2021", "GB55023-2022", "GB55001-2021", "GB50009-2012",
+            "JGJT231-2021", "JGJ130-2011", "JGJ162-2016"} == set(core)
 
 
 def test_normalize_standard_ref_maps_real_variants():
@@ -79,10 +85,45 @@ def test_applicable_standards_for_support_systems():
     assert "JGJ130-2011" not in disk
 
     coupler = [s["standard_id"] for s in applicable_standards_for("coupler")]
-    assert "JGJ130-2011" in coupler and "GB15831" in coupler
+    assert "JGJ130-2011" in coupler
+    # 参考层规范不进入适用规范（仅规则库筛选可见）
+    assert "GB15831" not in coupler
     assert "JGJT231-2021" not in coupler
 
     unknown = applicable_standards_for("unknown")
     assert unknown and all(s.get("note") for s in unknown)
     assert "JGJT231-2021" not in [s["standard_id"] for s in unknown]
     assert applicable_standards_for(None) == unknown
+
+
+def test_derive_applicable_standards_from_rules():
+    """从适用规则反推：仅核心层、带规则数、按引用数降序。"""
+    from app.rule_engine import load_rule_library
+    from app.standards import derive_applicable_standards
+
+    rules = load_rule_library()
+
+    disk = derive_applicable_standards(rules, "disk_lock")
+    disk_ids = [s["standard_id"] for s in disk]
+    # 盘扣专属规范计入且排首位（34 条引用）
+    assert disk_ids[0] == "JGJT231-2021"
+    # 通用规则引用的核心规范全部在列，参考层不出现
+    assert {"JGJ162-2016", "GB55023-2022", "MOHURD-ORDER-37"} <= set(disk_ids)
+    assert not {"JGJ166-2016", "GB15831", "GBT3091"} & set(disk_ids)
+    # 全部带规则数且降序
+    assert all(s.get("rule_count", 0) > 0 for s in disk)
+    counts = [s["rule_count"] for s in disk]
+    assert counts == sorted(counts, reverse=True)
+    # 识别后无 note
+    assert not any(s.get("note") for s in disk)
+
+    coupler = derive_applicable_standards(rules, "coupler")
+    coupler_ids = [s["standard_id"] for s in coupler]
+    assert "JGJ130-2011" in coupler_ids
+    # 扣件体系下盘扣专属规则不执行，其引用数低于盘扣项目
+    disk_count = disk[disk_ids.index("JGJT231-2021")]["rule_count"]
+    coupler_count = coupler[coupler_ids.index("JGJT231-2021")]["rule_count"]
+    assert coupler_count < disk_count
+
+    unknown = derive_applicable_standards(rules, "unknown")
+    assert unknown and all(s.get("note") for s in unknown)

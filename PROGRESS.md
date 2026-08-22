@@ -46,6 +46,7 @@
 - [x] 证据图像/表格展示：API 出口层按 block_id 动态补 image_path+table_html（老任务免重跑生效）；计算/语义引擎证据补 block 定位（page 不再为 None）；前端证据缩略图+灯箱（表格真渲染/图像大图/打开所在页/查看原图/404降级）；MinerU 缓存携带 raw 图像资源（命中时还原）；重跑 demo 验证全链路
 - [x] 语义审查 Agent 代码侧实施（系统侧全就绪，待 Dify Workflow 建台联调）：app/services/semantic_dify.py（适用性门禁本地判定不进 LLM / 本地证据提取分批 / Dify Workflow 调用 / 结果校验 / 批次级缓存 / 单批失败降级本地关键词）；SEMANTIC_REVIEW_MODE=local|dify 开关（默认 local，行为不变）；DIFY_SEMANTIC_API_KEY 配置（回退 DIFY_API_KEY）；web+CLI 双接线；5 个测试；Workflow 建台规格：docs/semantic_review_workflow_spec.md；Dify Cloud 连通性已验证（完整性 workflow key 有效）
 - [x] Dify"规范语义审查"Workflow 建台完成并接入（2026-08-22）：用户输入→LLM（低温+JSON 输出）→结束（result_json）；curl 冒烟测试通过（T-1 COMPLIANT、证据逐字引用、1.8s/564 tokens）；DIFY_SEMANTIC_API_KEY + SEMANTIC_REVIEW_MODE=dify 已写入 .env（本地，不入 git）；162 测试全绿
+- [x] 适用规范派生重构（2026-08-23，Part A）：standards.json 增 tier 分层（core=rule/ 文件夹 10 本审查主力：2法规+5通用+3技术；其余 8 本降 reference）；适用规范改从"体系门禁后适用规则引用的规范"反推（仅核心层、带规则数、降序），识别→匹配语义落地；前端 chips 带规则条数、规则库规范筛选按核心/参考分组；163 测试全绿。进行中：参数识别修复（Part B）、工程基础信息页改版（Part C）
 - [x] 全量联调通过（2026-08-23，job 2d6b084f）：214 页样例、84 条规则 **11 批全部走 Dify LLM、0 降级**，约 3 分钟；结果 33 COMPLIANT / 14 VIOLATED / 37 UNCERTAIN（本地基线 30/0/54——LLM 新发现 14 条实质违规：γ₀ 取值、施工荷载取值、立杆接长方式、钢管壁厚等，均带逐字证据引用）；置信度 high 47 / medium 21 / low 16；报告正常生成。联调踩坑记录：①模型账号欠费（阿里云百炼 400）→ 换供应商；②思考型模型单批推理 >2 分钟触发 Dify 网关 504 → 换与完整性审查一致的快速模型后单批 ~19s；③批次缓存指纹含证据全文，历史缓存对旧证据版本不命中属预期
 
 ## 🚧 当前阻塞
@@ -226,3 +227,5 @@
 - [2026-08-22 23:15] claude 签到 — 开始处理：语义审查 Dify 全量联调（样例 PDF 上传，84 条规则分批调用/缓存/降级验证）
 
 - [2026-08-23 00:30] claude 签退 — 完成了：语义审查 Dify 全量联调通过（job 2d6b084f）：84 条规则 11 批全走 LLM、0 降级、约 3 分钟；33 COMPLIANT/14 VIOLATED/37 UNCERTAIN，14 条实质违规均带逐字证据；期间排掉三个坑（百炼欠费 400→换供应商、思考型模型网关 504→换快速模型、旧缓存指纹不命中属预期）；下一步建议：人工复核 14 条 VIOLATED 误报率；规则库 standard_id 落盘；批次并行化评估
+
+- [2026-08-23 01:20] claude 签到 — 开始处理：工程基础信息改版（识别修复+关键信息速览）与适用规范派生重构（核心层=rule/文件夹 10 本规范）

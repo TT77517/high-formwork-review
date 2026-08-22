@@ -168,7 +168,7 @@ function renderQualification() {
   const stds = q.applicable_standards||[];
   const note = stds.length && stds[0].note ? `<p class="mode-hint">${esc(stds[0].note)}，确认后重跑适用规则</p>` : '';
   $('#qualificationStandards').innerHTML = stds.length
-    ? `<div class="std-head">适用规范</div><div class="std-chips">${stds.map(s => `<button type="button" class="std-chip" data-std="${esc(s.standard_id)}" title="${esc(s.name)}">${esc(s.full_code)}<small>${esc(s.name)}</small></button>`).join('')}</div>${note}`
+    ? `<div class="std-head">适用规范</div><div class="std-chips">${stds.map(s => `<button type="button" class="std-chip" data-std="${esc(s.standard_id)}" title="${esc(s.name)}">${esc(s.full_code)}<small>${esc(s.name)}${s.rule_count ? ' · ' + s.rule_count + '条规则' : ''}</small></button>`).join('')}</div>${note}`
     : '';
   $$('#qualificationStandards .std-chip').forEach(b => b.addEventListener('click', () => {
     switchTab('rule-library');
@@ -797,10 +797,17 @@ function renderRuleLibrary() {
   const mods = [...new Set(rules.map(r => r.module))].filter(Boolean);
   const sel = $('#rlModuleFilter');
   if (sel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; sel.appendChild(o); }); }
-  // Populate standard filter from registry（与工程基础信息"适用规范"同一词汇）
+  // Populate standard filter from registry（与工程基础信息"适用规范"同一词汇，按核心/参考分组）
   const stdSel = $('#rlStandardFilter');
   if (stdSel.options.length <= 1 && standardsData) {
-    (standardsData.standards||[]).forEach(s => { const o = document.createElement('option'); o.value = s.standard_id; o.textContent = `${s.full_code} ${s.name}`; stdSel.appendChild(o); });
+    const groups = [['core', '核心规范'], ['reference', '参考规范']];
+    groups.forEach(([tier, label]) => {
+      const list = (standardsData.standards||[]).filter(s => (s.tier||'core') === tier);
+      if (!list.length) return;
+      const og = document.createElement('optgroup'); og.label = label;
+      list.forEach(s => { const o = document.createElement('option'); o.value = s.standard_id; o.textContent = `${s.full_code} ${s.name}（${s.rule_count||0}条）`; og.appendChild(o); });
+      stdSel.appendChild(og);
+    });
   }
   // Render table
   $('#ruleLibraryRows').innerHTML = rules.length ? rules.map(r => {

@@ -7,7 +7,7 @@ from typing import Any
 from .models import ReviewEvidence
 from .project_facts import build_project_facts
 from .rule_engine import load_rule_library
-from .standards import applicable_standards_for
+from .standards import derive_applicable_standards
 
 
 def build_project_qualification(document: Any, project_facts: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -43,7 +43,9 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
         "identified_parameters": identified,
         "triggered_conditions": _triggered_conditions(support_height),
         "applicable_rule_packs": rule_packs,
-        "applicable_standards": applicable_standards_for(system_value),
+        "applicable_standards": derive_applicable_standards(
+            load_rule_library(), system_value
+        ),
         "pending_confirmation": _pending_confirmation(system_value),
         "requires_human_review": requires_review,
         "human_review_reason": (

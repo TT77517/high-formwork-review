@@ -110,15 +110,17 @@ def test_project_qualification_lists_applicable_standards() -> None:
     doc = _document("本工程采用盘扣式钢管架，支撑高度为10.2m。")
     result = build_project_qualification(doc, build_project_facts(doc))
 
+    # 从适用规则反推：盘扣专属规范在列且带规则数，参考层不出现
     ids = [s["standard_id"] for s in result["applicable_standards"]]
     assert "JGJT231-2021" in ids and "JGJ162-2016" in ids
-    assert "JGJ130-2011" not in ids
+    assert not {"JGJ166-2016", "GB15831"} & set(ids)
+    assert all(s.get("rule_count", 0) > 0 for s in result["applicable_standards"])
 
     doc2 = _document("本方案为模板支撑施工方案。")
     unknown = build_project_qualification(doc2, build_project_facts(doc2))
 
     ids2 = [s["standard_id"] for s in unknown["applicable_standards"]]
-    assert "JGJ162-2016" in ids2 and "JGJT231-2021" not in ids2
+    assert "JGJ162-2016" in ids2
     assert all(s.get("note") for s in unknown["applicable_standards"])
 
 

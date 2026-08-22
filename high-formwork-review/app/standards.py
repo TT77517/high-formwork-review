@@ -80,7 +80,11 @@ def normalize_standard_ref(raw: str | None) -> str | None:
 
 
 def applicable_standards_for(support_system: str | None) -> list[dict[str, Any]]:
-    """按支撑体系派生适用规范列表；未识别时仅列通用规范并附 note。"""
+    """按支撑体系派生适用规范列表（注册表核心层）；未识别时附 note。
+
+    保留为无规则上下文的兜底入口；有规则库时优先用
+    ``derive_applicable_standards``（按适用规则引用的规范反推）。
+    """
     codes = _SYSTEM_CODES.get(str(support_system or ""))
     note = ""
     if codes is None:
@@ -88,6 +92,8 @@ def applicable_standards_for(support_system: str | None) -> list[dict[str, Any]]
         note = "支撑体系未识别，仅列出通用规范"
     result = []
     for entry in get_standards_registry():
+        if entry.get("tier", "core") != "core":
+            continue
         if set(entry.get("applies_to", ["universal"])) & codes:
             item = {
                 "standard_id": entry["standard_id"],
@@ -98,6 +104,56 @@ def applicable_standards_for(support_system: str | None) -> list[dict[str, Any]]
             if note:
                 item["note"] = note
             result.append(item)
+    return result
+
+
+def derive_applicable_standards(
+    rules: list[dict[str, Any]],
+    support_system: str | None,
+) -> list[dict[str, Any]]:
+    """从"本项目适用的规则"反推适用规范（识别→匹配语义）。
+
+    口径：体系门禁后仍适用的规则（universal + 体系匹配专属规则）引用的
+    规范并集，仅保留注册表核心层（tier=core），按引用规则数降序。
+    支撑体系未识别时专属规则待确认、不计入，并附 note。
+    """
+    from .rule_engine import system_applicability_status
+
+    counts: dict[str, int] = {}
+    has_pending = False
+    for rule in rules:
+        gate = system_applicability_status(
+            rule.get("applicable_types", ["universal"]), support_system
+        )
+        if gate is not None:
+            has_pending = has_pending or gate == "PENDING_CONFIRMATION"
+            continue
+        standard_raw = (rule.get("code_ref") or {}).get("standard")
+        for standard_id in extract_standard_refs(standard_raw):
+            counts[standard_id] = counts.get(standard_id, 0) + 1
+
+    note = (
+        "支撑体系未识别，体系专属规则暂未执行，此处仅列通用规则引用的核心规范"
+        if has_pending
+        else ""
+    )
+    registry = {str(entry["standard_id"]): entry for entry in get_standards_registry()}
+    order = {str(entry["standard_id"]): i for i, entry in enumerate(get_standards_registry())}
+    result = []
+    for standard_id in sorted(counts, key=lambda sid: (-counts[sid], order.get(sid, 999))):
+        entry = registry.get(standard_id)
+        if not entry or entry.get("tier", "core") != "core":
+            continue
+        item = {
+            "standard_id": entry["standard_id"],
+            "name": entry["name"],
+            "full_code": entry["full_code"],
+            "category": entry.get("category", ""),
+            "rule_count": counts[standard_id],
+        }
+        if note:
+            item["note"] = note
+        result.append(item)
     return result
 
 
