@@ -354,7 +354,7 @@ def list_rules(
     status: str | None = None,
     standard: str | None = None,
 ) -> dict[str, Any]:
-    """浏览/筛选规则库（164条）。"""
+    """浏览/筛选规则库。"""
     rules = []
     for rule in load_rule_library():
         refs = extract_standard_refs((rule.get("code_ref") or {}).get("standard"))

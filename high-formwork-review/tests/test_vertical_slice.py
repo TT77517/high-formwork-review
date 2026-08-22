@@ -422,3 +422,28 @@ def test_project_qualification_key_parameters_carry_drives() -> None:
     assert "；".join(height["drives"]).find("超规模") >= 0
     assert kps["support_span"]["status"] == "missing"
     assert all(kp["drives"] for kp in kps.values())
+
+
+def test_system_specific_rules_gated_by_support_system() -> None:
+    """体系专属规则门禁：扣件式/盘扣式语义规则只对对应体系执行。"""
+    from app.rule_engine import load_rule_library
+
+    rules = load_rule_library()
+    by_id = {str(r["rule_id"]): r for r in rules}
+    # 新增的扣件式语义规则存在且标注正确
+    for rid in ("4.34", "4.35", "4.36"):
+        assert by_id[rid]["applicable_types"] == ["koujian"], rid
+    # 体系专属规则不得再标 universal（防止误审其他体系方案）
+    assert by_id["5.1"]["applicable_types"] == ["koujian"]
+    assert by_id["5.4"]["applicable_types"] == ["pankou"]
+
+    # 盘扣方案：扣件式规则记 NOT_APPLICABLE（走本地引擎，避免测试联网）
+    from app.semantic_engine import run_semantic_engine_local
+
+    doc = _document("本工程采用盘扣式钢管架，支撑高度为10.2m。")
+    facts = build_project_facts(doc)
+    result = run_semantic_engine_local(doc, facts)
+    status_by_id = {str(r["rule_id"]): r["status"] for r in result["results"]}
+    assert status_by_id["4.34"] == "NOT_APPLICABLE"
+    assert status_by_id["5.1"] == "NOT_APPLICABLE"
+    assert status_by_id["5.4"] != "NOT_APPLICABLE"

@@ -1000,7 +1000,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "GB 55023-2022 第4.4.3条(强制) / JGJ 130-2011 第6.9.1条+第6.3.4条",
@@ -1432,6 +1432,115 @@
     "typical_violation": "方案不满足高大模板扣件支架专项构造的要求",
     "manual_review": false,
     "notes": "[原三方映射ID: G-09] 仅适用于扣件式高大模板支架(≥8m)。盘扣式支架有独立的JGJ231参数体系",
+    "status": "active"
+  },
+  {
+    "rule_id": "4.34",
+    "rule_name": "扫地杆设置-扣件式",
+    "module": "04_construction_requirements",
+    "category": "construction",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "koujian"
+    ],
+    "code_ref": {
+      "standard": "JGJ 130-2011 第6.9.3条",
+      "clause": "第6.9.3条",
+      "original_text": "扣件式支撑架扫地杆应设置在距地面不大于200mm处（注意：盘扣式为不大于550mm，两者限值不同，不得混用）"
+    },
+    "legacy_code_ref": null,
+    "check_content": "扣件式支撑架扫地杆应设置在距地面不大于200mm处",
+    "check_logic": {
+      "description": "扣件式支撑架扫地杆距地面高度不应大于200mm",
+      "extraction_keywords": [
+        "扫地杆",
+        "扫地杆距地面",
+        "200mm"
+      ],
+      "semantic_judgment": "核对方案中扫地杆设置描述：扣件式支架扫地杆距地面不应大于200mm；若按550mm（盘扣式限值）取值或未明确扫地杆高度，判违规或无法判定",
+      "operator": "semantic_check",
+      "fail_condition": "扫地杆距地面大于200mm，或误用盘扣式550mm限值"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按JGJ 130-2011第6.9.3条要求，在方案中明确扣件式支架扫地杆设置在距地面不大于200mm处",
+    "typical_violation": "扣件式支架扫地杆距地面超过200mm，或误用盘扣式550mm限值",
+    "manual_review": true,
+    "notes": "来源：审查规则提取表_Part2 R058。扣件式(≤200mm)与盘扣式(≤550mm)限值不同，注意区分",
+    "status": "active"
+  },
+  {
+    "rule_id": "4.35",
+    "rule_name": "可调托撑螺杆外伸长度-扣件式",
+    "module": "04_construction_requirements",
+    "category": "construction",
+    "check_type": "semantic",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "koujian"
+    ],
+    "code_ref": {
+      "standard": "JGJ 130-2011 第6.9.6条",
+      "clause": "第6.9.6条",
+      "original_text": "扣件式支撑架可调托撑螺杆外伸长度不应大于300mm（注意：盘扣式为不大于400mm，两者限值不同，不得混用）"
+    },
+    "legacy_code_ref": null,
+    "check_content": "扣件式支撑架可调托撑螺杆外伸长度不应大于300mm",
+    "check_logic": {
+      "description": "扣件式支撑架可调托撑螺杆外伸长度不应大于300mm",
+      "extraction_keywords": [
+        "可调托撑",
+        "螺杆外伸",
+        "丝杆外露",
+        "300mm"
+      ],
+      "semantic_judgment": "核对方案中可调托撑螺杆/丝杆外伸长度描述：扣件式支架不应大于300mm；若按400mm（盘扣式限值）取值或未明确，判违规或无法判定",
+      "operator": "semantic_check",
+      "fail_condition": "螺杆外伸长度大于300mm，或误用盘扣式400mm限值"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按JGJ 130-2011第6.9.6条要求，在方案中明确扣件式支架可调托撑螺杆外伸长度不大于300mm",
+    "typical_violation": "扣件式支架可调托撑螺杆外伸超过300mm，或误用盘扣式400mm限值",
+    "manual_review": true,
+    "notes": "来源：审查规则提取表_Part2 R059。扣件式(≤300mm)与盘扣式(≤400mm)限值不同，注意区分",
+    "status": "active"
+  },
+  {
+    "rule_id": "4.36",
+    "rule_name": "搭设高度上限-扣件式",
+    "module": "04_construction_requirements",
+    "category": "construction",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "koujian"
+    ],
+    "code_ref": {
+      "standard": "JGJ 130-2011 第6.9.2条",
+      "clause": "第6.9.2条",
+      "original_text": "满堂支撑架搭设高度不宜超过30m（扣件式）"
+    },
+    "legacy_code_ref": null,
+    "check_content": "扣件式满堂支撑架搭设高度不宜超过30m",
+    "check_logic": {
+      "description": "扣件式满堂支撑架搭设高度不宜超过30m",
+      "extraction_keywords": [
+        "搭设高度",
+        "满堂支撑架",
+        "30m"
+      ],
+      "semantic_judgment": "核对方案中扣件式满堂支撑架的搭设高度：不宜超过30m；若方案高度超过30m仍采用扣件式，提示违规风险",
+      "operator": "semantic_check",
+      "fail_condition": "扣件式支撑架搭设高度超过30m"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按JGJ 130-2011第6.9.2条要求，扣件式满堂支撑架搭设高度控制在30m以内，超限应论证或改用其他体系",
+    "typical_violation": "扣件式满堂支撑架搭设高度超过30m",
+    "manual_review": true,
+    "notes": "来源：审查规则提取表_Part3 R078",
     "status": "active"
   }
 ]

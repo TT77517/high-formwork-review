@@ -8,7 +8,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第3.1.2条",
@@ -75,7 +75,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第3.1.1条",
@@ -104,7 +104,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
     ],
     "code_ref": {
       "standard": "JGJ/T231-2021 第3.0.1条(JG/T503)",
@@ -133,7 +133,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
     ],
     "code_ref": {
       "standard": "JGJ/T231-2021 第3.0.1条 / 附录B表B.0.1",
@@ -162,7 +162,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第3.2节 / GB 15831",
@@ -191,7 +191,7 @@
     "severity": "C-recommended",
     "risk_level": "low",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "GB 15831",
@@ -598,7 +598,7 @@
     "severity": "C-recommended",
     "risk_level": "low",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第3.2.3条",
