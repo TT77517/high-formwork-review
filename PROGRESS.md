@@ -32,6 +32,7 @@
 - [x] 统一人工复核队列后端：human_review_queue 增 item_key、引擎 VIOLATED 逐条（按等级排序）、体系待确认聚合项、解析风险页聚合项（带 deep-link）、qualification 队首项 actionable（确认支撑体系选项）；decisions 端点支持 item_key（旧 rule_id payload 兼容）；报告复核表改事项编号
 - [x] 人工复核前端重写为统一工作台：按来源分组（识别/审查范围/规则引擎/语义/完整性/实质性/一致性/图文/文档解析）、证据跳转（页抽屉/规则详情/文档筛选）、确认支撑体系+重跑按钮（startPolling 复用）、概览卡改队列口径；浏览器冒烟通过
 - [x] 重跑闭环：POST /api/jobs/{id}/rerun（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
+- [x] 上下文连续性协议（避免上下文过载）：scripts/context_handoff.sh / .ps1 一键生成 .context/handoff.md（分支/最近提交/未提交改动/当前阻塞/待完成未完成项/可选本轮要点+启动提示词）；make handoff 目标；AGENTS.md 增入口协议"续接检查"步与"上下文连续性协议"小节；.context/ 入 .gitignore（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
 
 ## 🔲 待完成
 
@@ -249,3 +250,6 @@
 - [2026-08-23 06:20] claude 签到 — 开始处理：工程类型英文转中文展示 + 完整性审查表说明文字排版优化
 
 - [2026-08-23 06:35] claude 签退 — 完成了：①工程类型 concrete_formwork_support→"混凝土模板支撑（高支模）"（前端 PTYPE_CN + 报告 _project_type_label 两处）；②完整性表排版重做：说明从裸 br/small 改为 .cell-note 块（chip+备注 flex 成组、行高一致、td 顶对齐）、表头下新增图例条（三色圆点+口径说明常显，颜色释义不再只靠悬停）；浏览器验证+169 测试全绿。下一步建议：用户浏览器确认效果；语义 VIOLATED 人工复核
+
+- [2026-08-23 03:01] codex 签到 — 开始处理：实现上下文连续性协议（上下文达上限自动交接续接）
+- [2026-08-23 03:01] codex 签退 — 完成了：上下文连续性协议三件套（交接脚本 bash+ps1、make handoff、AGENTS.md 协议）；下一步建议：agent 自监测 get_goal 预算低于 20% 时自动跑 make handoff 并提示开新对话

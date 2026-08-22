@@ -3,7 +3,7 @@
 # 所有 agent 都可以用 make 来执行协议步骤，降低"忘记"概率。
 # 不依赖 make 也可以手动执行 scripts/agent-protocol.sh。
 
-.PHONY: checkin checkout test lint hooks
+.PHONY: checkin checkout test lint hooks handoff
 
 # 签到：make checkin AGENT=dewucode TASK="修复xxx"
 checkin:
@@ -21,3 +21,7 @@ test:
 hooks:
 	git config core.hooksPath .githooks
 	@echo "✅ git hooks 已设置到 .githooks"
+
+# 生成上下文交接包（上下文接近上限时用，新对话读 .context/handoff.md 续接）
+handoff:
+	@./scripts/context_handoff.sh

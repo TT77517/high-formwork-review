@@ -12,11 +12,12 @@
 
 > **这不是建议，是硬性要求。pre-commit hook 会拦截不遵守的提交。**
 
-1. **读本文件** — 了解项目约定
-2. **读 `PROGRESS.md`** — 了解当前进度和下一任务（**最重要的文件**）
-3. **读 `CODEX_CONTEXT.md`** — 了解技术架构和阶段划分
-4. **读 `high-formwork-review/README.md`** — 了解详细技术文档
-5. **签到** — 运行 `make checkin AGENT=<你的名字> TASK="<任务>"` 或手动在 `PROGRESS.md` 底部 Handoff Log 追加：
+1. **续接检查** — 若 `.context/handoff.md` 存在（上一对话生成的交接包），先读它，按其中"待完成"续接工作；不存在则跳过
+2. **读本文件** — 了解项目约定
+3. **读 `PROGRESS.md`** — 了解当前进度和下一任务（**最重要的文件**）
+4. **读 `CODEX_CONTEXT.md`** — 了解技术架构和阶段划分
+5. **读 `high-formwork-review/README.md`** — 了解详细技术文档
+6. **签到** — 运行 `make checkin AGENT=<你的名字> TASK="<任务>"` 或手动在 `PROGRESS.md` 底部 Handoff Log 追加：
    ```
    - [YYYY-MM-DD HH:MM] <agent名称> 签到 — 开始处理：<任务描述>
    ```
@@ -76,6 +77,34 @@
 - 签到时注明你用的是哪个工具（dewuclaw / dewucode / codex / claude）
 - 如果发现架构问题或需要重构，先在 PROGRESS.md 记录讨论，不要直接大改
 - **所有 agent 的产出都走 git** — 不依赖任何 agent 的私有记忆
+
+## 🔄 上下文连续性协议（避免上下文过载）
+
+> 对话窗口上下文接近上限时，模型能力下降、token 费费增多。本协议让新对话无缝续接上一对话。
+
+### 触发时机
+
+- **Agent 自监测（首选）**：agent 在工作过程中调用 `get_goal` 查看剩余 token 预算，低于阈值（建议剩余预算 < 20%）时，主动触发生成交接包并提示用户开新对话。
+- **手动触发**：你随时可运行 `make handoff`（Windows: `powershell -File scripts\context_handoff.ps1`）生成交接包。
+
+### 交接包内容（`.context/handoff.md`，自动生成）
+
+`scripts/context_handoff.sh` / `scripts/context_handoff.ps1` 会自动提取：
+- 当前分支 + 最近 8 条提交
+- 未提交改动（`git status`）
+- `PROGRESS.md` 的"当前阻塞"小节
+- `PROGRESS.md` 的"待完成"小节（仅未完成项 `- [ ]`）
+- 可选的"本轮要点"（运行前写入 `.context/handoff_note.md`，合并后自动清空）
+- 一段可直接粘贴到新对话的"启动提示词"
+
+### 使用流程
+
+1. 上下文接近上限 → 运行 `make handoff`（或 agent 自动触发）
+2. 开新对话，粘贴 `.context/handoff.md` 末尾的启动提示词（或让新对话直接读该文件）
+3. 新对话按入口协议第 1 步读 `.context/handoff.md`，从"待完成"续接
+4. `.context/` 已在 `.gitignore`，是本地再生工件，不入 git
+
+> **注**："自动开启新对话窗口"由宿主工具（DewuCode / Codex CLI）完成，项目侧只能生成交接包 + 协议；开窗口这一步需用户/宿主触发。
 
 ## 🔒 自动化 Enforcement 机制
 

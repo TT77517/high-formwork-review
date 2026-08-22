@@ -46,3 +46,6 @@ screenshot_*.png
 
 # Claude/agent session notes
 *_TODO.md
+
+# Context handoff artifacts (regenerated, local)
+.context/
