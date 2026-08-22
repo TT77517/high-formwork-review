@@ -5,9 +5,9 @@
 ## 📊 当前状态总览
 
 - **项目版本**：v4.0（规则引擎 + 规则库 CRUD + AntD Pro 风格 UI）
-- **最近提交**：`aea8018` feat: 审查证据带图展示——表格真渲染灯箱+图像通道+缓存携图
+- **最近提交**：`9d634c8` feat: 语义审查Agent代码侧实施——Dify集成+降级机制+建台规格
 - **分支**：main（远程 origin/main）
-- **最后更新**：2026-08-21
+- **最后更新**：2026-08-22
 
 ## ✅ 已完成
 
@@ -213,3 +213,5 @@
 - [2026-08-21 19:41] claude 签退 — 完成了：MinerU重解析完成：token配置+922图落盘新任务12a62f8b+缓存携raw生效+抽屉图像200验证；表格证据真渲染+图像通道全部就绪；下一步建议：NEXT=语义审查Agent实施（docs/semantic_agent_design.md）；规则库standard_id落盘
 
 - [2026-08-22 21:59] claude 签到 — 开始处理：语义审查Agent实施：Dify集成（设计规格文档+代码实现+降级机制）
+
+- [2026-08-22 22:12] claude 签退 — 完成了：语义审查Agent代码侧完成（9d634c8）：semantic_dify.py全链路+降级+5测试+建台规格文档，162测试全绿，默认local模式行为不变；下一步建议：在Dify按spec建规范语义审查Workflow→填DIFY_SEMANTIC_API_KEY+SEMANTIC_REVIEW_MODE=dify→上传样例联调
