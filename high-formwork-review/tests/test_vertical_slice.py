@@ -409,3 +409,16 @@ def test_normalize_candidate_supports_kn_per_meter() -> None:
     assert "normalization_error" not in result
     assert result["value"] == 15.0
     assert result["unit"] == "kN/m"
+
+
+def test_project_qualification_key_parameters_carry_drives() -> None:
+    """关键参数速览：带识别结果与驱动的下游审查环节。"""
+    doc = _document("本工程采用盘扣式钢管架，支撑高度为10.2m。")
+    result = build_project_qualification(doc, build_project_facts(doc))
+    kps = {kp["id"]: kp for kp in result["key_parameters"]}
+    height = kps["support_height"]
+    assert height["status"] == "confirmed"
+    assert "10.2" in height["value_text"]
+    assert "；".join(height["drives"]).find("超规模") >= 0
+    assert kps["support_span"]["status"] == "missing"
+    assert all(kp["drives"] for kp in kps.values())

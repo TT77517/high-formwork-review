@@ -165,6 +165,15 @@ function renderQualification() {
   const p = q.identified_parameters||{}; const h = p.support_height||{}; const sp = p.support_span||{}; const t = p.total_load_design||{}; const l = p.concentrated_line_load_design||{};
   const rows = [['工程类型',q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label],['支撑高度',vwu(h)],['跨度',vwu(sp)],['总荷载',vwu(t)],['线荷载',vwu(l)]];
   $('#qualificationPanel').innerHTML = rows.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${esc(l)}</div><div class="stat-value">${esc(v||'未识别')}</div></div>`).join('');
+  // 关键参数识别：识别结果 + 来源页 + 驱动的下游审查环节
+  const kps = q.key_parameters||[];
+  $('#qualificationKeyParams').innerHTML = kps.length ? `<div class="std-head">关键参数识别</div>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>参数</th><th>识别结果</th><th>来源页</th><th>驱动的审查环节</th></tr></thead><tbody>
+    ${kps.map(kp => `<tr><td><b>${esc(kp.label)}</b></td><td>${kp.status==='confirmed'
+      ? `<span class="tag-green">${esc(kp.value_text||'已识别')}</span>`
+      : kp.status==='missing' ? '<span class="tag-default">未识别</span>'
+      : '<span class="tag-orange">需复核</span>'}</td><td>${kp.evidence_page?('p.'+kp.evidence_page):'—'}</td><td><small>${esc((kp.drives||[]).join('；'))}</small></td></tr>`).join('')}
+    </tbody></table></div>` : '';
   const stds = q.applicable_standards||[];
   const note = stds.length && stds[0].note ? `<p class="mode-hint">${esc(stds[0].note)}，确认后重跑适用规则</p>` : '';
   $('#qualificationStandards').innerHTML = stds.length

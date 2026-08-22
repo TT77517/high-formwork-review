@@ -67,6 +67,19 @@ def build_review_report(
         for c in conditions:
             lines.append(f"- {c.get('name', '')}：{c.get('condition', '')}")
         lines.append("")
+    key_params = q.get("key_parameters", [])
+    if key_params:
+        lines.append("**关键参数识别：**")
+        for kp in key_params:
+            status_cn = {"confirmed": "已识别", "uncertain": "需复核", "conflict": "需复核"}.get(
+                kp.get("status", ""), "未识别"
+            )
+            value = kp.get("value_text") or "—"
+            page = kp.get("evidence_page")
+            source = f"，来源第{page}页" if page else ""
+            drives = "；".join(kp.get("drives", []))
+            lines.append(f"- {kp.get('label', '')}：{value}（{status_cn}{source}）→ {drives}")
+        lines.append("")
 
     # ===== 二、文档解析概况 =====
     doc = document_meta or {}

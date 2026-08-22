@@ -41,6 +41,7 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
         "support_system": system_value or "unknown",
         "support_system_label": _support_system_label(system_value),
         "identified_parameters": identified,
+        "key_parameters": _key_parameters(facts),
         "triggered_conditions": _triggered_conditions(support_height),
         "applicable_rule_packs": rule_packs,
         "applicable_standards": derive_applicable_standards(
@@ -54,6 +55,68 @@ def build_project_qualification(document: Any, project_facts: dict[str, Any] | N
             else "工程识别信息可用于后续预审范围选择"
         ),
     }
+
+
+# 关键参数 → （中文名，该参数驱动的下游审查环节）
+_KEY_PARAMETER_DEFS = [
+    ("support_height", "支撑高度", ["危大范围判定（≥5m）", "超规模危大判定（≥8m）", "风险属性分级"]),
+    ("support_span", "搭设跨度", ["危大范围判定（跨度≥10m）", "超规模危大判定（跨度≥18m）"]),
+    ("total_load", "施工总荷载", ["危大范围判定（≥10kN/m²）", "超规模危大判定（≥15kN/m²）"]),
+    ("concentrated_line_load", "集中线荷载", ["危大范围判定（≥15kN/m）", "超规模危大判定（≥20kN/m）"]),
+    ("standard_step_height", "架体标准步距", ["计算书参数一致性校核"]),
+    ("head_jack_cantilever_length", "可调托撑悬臂长度", ["计算书参数一致性校核"]),
+    ("vertical_spacing", "立杆纵距", ["计算书参数一致性校核"]),
+    ("horizontal_spacing", "立杆横距", ["计算书参数一致性校核"]),
+    ("framework_height", "架体高度", ["构造参数校核"]),
+    ("permanent_load_items", "恒载项", ["荷载组合完整性"]),
+    ("variable_load_items", "可变荷载项", ["荷载组合完整性"]),
+]
+
+
+def _key_parameters(facts: dict[str, Any]) -> list[dict[str, Any]]:
+    """关键参数速览：识别结果 + 来源页 + 驱动的下游审查环节。"""
+    from .parameter_definitions import get_parameter_definitions
+
+    definitions = {str(d["parameter"]): d for d in get_parameter_definitions()}
+    result = []
+    for fact_id, label, drives in _KEY_PARAMETER_DEFS:
+        fact = facts.get(fact_id) or {}
+        status = str(fact.get("status", "missing"))
+        value = fact.get("value")
+        unit = fact.get("unit")
+        if isinstance(value, list):
+            names = _load_item_names(definitions.get(fact_id, {}), value)
+            value_text = "、".join(names)
+        elif value is not None:
+            value_text = f"{value} {unit}".strip() if unit else str(value)
+        else:
+            value_text = ""
+        page = None
+        for ev in fact.get("evidence") or []:
+            page = ev.get("physical_page") or ev.get("page")
+            if page:
+                break
+        result.append(
+            {
+                "id": fact_id,
+                "label": label,
+                "status": status,
+                "value_text": value_text,
+                "evidence_page": page,
+                "drives": list(drives),
+            }
+        )
+    return result
+
+
+def _load_item_names(definition: dict[str, Any], item_ids: list[Any]) -> list[str]:
+    items = {str(item.get("id")): item for item in definition.get("load_items", [])}
+    names = []
+    for item_id in item_ids:
+        entry = items.get(str(item_id))
+        aliases = (entry or {}).get("aliases") or []
+        names.append(str(aliases[0]) if aliases else str(item_id))
+    return names
 
 
 def _fact(facts: dict[str, Any], fact_id: str) -> dict[str, Any]:
