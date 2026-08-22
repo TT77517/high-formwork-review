@@ -24,8 +24,6 @@ def resolve_fact(parameter_definition: dict[str, Any], candidates: list[dict[str
         str((item.get("evidence") or {}).get("text") or "") for item in explicit
     )
     values = {_value_key(item.get("value"), item.get("unit")) for item in explicit}
-    if parameter == "support_height" and len(values) >= 2:
-        return _uncertain(parameter, explicit, "检测到多个区域/部位的不同支撑高度")
     if parameter_definition.get("resolution_mode") == "max_numeric":
         return _resolve_max_numeric_fact(parameter, canonical_unit, explicit)
     if len(values) > 1:

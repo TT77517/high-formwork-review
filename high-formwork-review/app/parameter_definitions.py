@@ -35,6 +35,11 @@ PARAMETER_DEFINITIONS: list[dict[str, Any]] = [
         "patterns": [],
         "source_priority": ["parameter_table", "body", "calculation"],
         "extraction_mode": "numeric",
+        # 多区域多值时取最大值：≥8m 超规模判定只关心最大搭设高度，
+        # 全部候选证据保留供人工复核
+        "resolution_mode": "max_numeric",
+        "plausible_min": 1.0,
+        "plausible_max": 50.0,
         "exclude_terms": ["丝杆外露", "螺杆外露", "插入"],
     },
     {
@@ -213,8 +218,8 @@ PARAMETER_DEFINITIONS: list[dict[str, Any]] = [
         "parameter": "support_span",
         "name": "搭设跨度",
         "canonical_unit": "m",
-        "aliases": ["搭设跨度", "支撑跨度", "模板跨度", "最大跨度", "跨径"],
-        "preferred_sections": ["工程概况", "施工工艺技术", "技术参数", "模板支撑体系"],
+        "aliases": ["搭设跨度", "支撑跨度", "模板跨度", "最大跨度", "跨径", "跨度", "梁跨", "板跨", "计算跨度", "最大梁跨"],
+        "preferred_sections": ["工程概况", "施工工艺技术", "技术参数", "模板支撑体系", "计算书"],
         "expected_block_types": ["paragraph", "table"],
         "patterns": [],
         "source_priority": ["parameter_table", "body"],
@@ -233,6 +238,8 @@ PARAMETER_DEFINITIONS: list[dict[str, Any]] = [
         "patterns": [],
         "source_priority": ["calculation", "parameter_table", "body"],
         "extraction_mode": "numeric",
+        # 不同区域/组合的总荷载天然多值，资格审查取最大值（超规模阈值判定）
+        "resolution_mode": "max_numeric",
         "plausible_min": 0.1,
         "plausible_max": 200.0,
         "include_terms": ["荷载", "kN"],
@@ -247,6 +254,8 @@ PARAMETER_DEFINITIONS: list[dict[str, Any]] = [
         "patterns": [],
         "source_priority": ["calculation", "parameter_table"],
         "extraction_mode": "numeric",
+        # 不同梁的线荷载天然多值，资格审查取最大值（超规模阈值判定）
+        "resolution_mode": "max_numeric",
         "plausible_min": 1.0,
         "plausible_max": 500.0,
         "include_terms": ["线荷载", "kN/m"],
@@ -291,6 +300,7 @@ PARAMETER_DEFINITIONS: list[dict[str, Any]] = [
         "patterns": [],
         "source_priority": ["parameter_table", "body"],
         "extraction_mode": "numeric",
+        "resolution_mode": "max_numeric",
         "plausible_min": 1.0,
         "plausible_max": 50.0,
         "exclude_terms": ["螺杆", "丝杆", "插入"],

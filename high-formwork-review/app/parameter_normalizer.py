@@ -7,7 +7,7 @@ from typing import Any
 
 
 _NUMBER_UNIT_PATTERN = re.compile(
-    r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>kn/m2|kn/m²|kn/㎡|kn/m3|kn/m³|kn/立方米|kpa|mm|cm|m|毫米|厘米|米)?",
+    r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>kn/m2|kn/m²|kn/㎡|kn/m3|kn/m³|kn/立方米|kn/m|kn/米|kpa|mm|cm|m|毫米|厘米|米)?",
     re.IGNORECASE,
 )
 
@@ -28,6 +28,8 @@ _LOAD_UNITS = {
     "kn/m3": "kN/m3",
     "kn/m³": "kN/m3",
     "kn/立方米": "kN/m3",
+    "kn/m": "kN/m",
+    "kn/米": "kN/m",
 }
 
 
@@ -51,7 +53,7 @@ def normalize_numeric(value: float, raw_unit: str, canonical_unit: str) -> dict[
         return None
     if not from_unit:
         from_unit = to_unit
-    if to_unit in {"kN/m2", "kN/m3"}:
+    if to_unit in {"kN/m2", "kN/m3", "kN/m"}:
         return {"value": round(float(value), 4), "unit": to_unit} if from_unit == to_unit else None
     if to_unit == "m" and from_unit == "m" and float(value) >= 100:
         from_unit = "mm"

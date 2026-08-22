@@ -10,10 +10,38 @@ from .completeness_review import _find_terms
 from .evidence_retriever import ParameterEvidence
 
 
-_VALUE_PATTERN = re.compile(r"(?P<value>\d+(?:\.\d+)?)(?!\s*[～~至到])\s*(?P<unit>kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|kPa|mm|cm|m|毫米|厘米|米)?", re.I)
+_VALUE_PATTERN = re.compile(r"(?P<value>\d+(?:\.\d+)?)(?!\s*[～~至到])\s*(?P<unit>kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|kN/m|kN/米|kPa|mm|cm|m|毫米|厘米|米)?", re.I)
 _RANGE_PATTERN = re.compile(r"\d+(?:\.\d+)?\s*(?:mm|cm|m|毫米|厘米|米)?\s*[～~至到]\s*\d+(?:\.\d+)?")
 _DISK_LOCK_TERMS = ("承插型盘扣式钢管支架", "承插型盘扣式支撑架", "盘扣式支撑架", "盘扣式模板支架", "盘扣架", "盘扣式钢管架", "盘扣式")
 _AREA_PATTERN = re.compile(r"(?P<scope>[A-Za-z0-9一二三四五六七八九十东西南北]+区|梁区|板区|[一二三四五六七八九十]+层|地下室|地上部分)")
+
+# 荷载类参数的单位护栏：窗口内优先取单位兼容的数值，避免把"间距800mm"
+# 当总荷载、把系数"1"当线荷载；长度类参数各长度单位可互转，不设限
+_LOAD_UNIT_COMPAT = {
+    "kN/m2": {"kn/m2", "kn/m²", "kn/㎡", "kpa"},
+    "kN/m": {"kn/m", "kn/米"},
+}
+
+
+def _pick_compatible_match(text: str, parameter_definition: dict[str, Any], *, strict: bool = False) -> Any:
+    """窗口内取第一个单位与参数兼容的数值；无兼容单位时退回首个数值。
+
+    ``strict=True``（正文抽取）时荷载类参数找不到兼容单位数值即返回 None，
+    避免把公式里的间距/系数当荷载；表格抽取保留兜底（表头单位由继承机制处理）。
+    """
+    canonical = str(parameter_definition.get("canonical_unit") or "")
+    allowed = _LOAD_UNIT_COMPAT.get(canonical)
+    first = None
+    for match in _VALUE_PATTERN.finditer(text):
+        if first is None:
+            first = match
+        if allowed is None:
+            return match
+        if (match.group("unit") or "").lower() in allowed:
+            return match
+    if strict and allowed is not None:
+        return None
+    return first
 
 
 def extract_parameter_candidates(
@@ -146,7 +174,7 @@ def _extract_from_table(
             if not _context_allowed(cell, parameter_definition):
                 continue
             for value_cell in row[index + 1:]:
-                value_match = _VALUE_PATTERN.search(value_cell)
+                value_match = _pick_compatible_match(value_cell, parameter_definition)
                 if value_match:
                     candidates.append(
                         _candidate(
@@ -194,7 +222,7 @@ def _extract_from_text(
                 window = actual_window
             if not _context_allowed(window, parameter_definition):
                 continue
-            value_match = _VALUE_PATTERN.search(window)
+            value_match = _pick_compatible_match(window, parameter_definition, strict=True)
             if value_match:
                 candidates.append(
                     _candidate(
@@ -276,7 +304,7 @@ def _matched_load_alias(text: str, load_item: dict[str, Any]) -> str | None:
 
 def _actual_value_window(text: str, start: int) -> str | None:
     tail = text[start: min(len(text), start + 120)]
-    match = re.search(r"(?:实际|本工程|设置|采用|取值|为)\D{0,12}(?P<value>\d+(?:\.\d+)?\s*(?:kN/m2|kN/m²|kN/㎡|kPa|mm|cm|m|毫米|厘米|米)?)", tail, re.I)
+    match = re.search(r"(?:实际|本工程|设置|采用|取值|为)\D{0,12}(?P<value>\d+(?:\.\d+)?\s*(?:kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|kN/m|kN/米|kPa|mm|cm|m|毫米|厘米|米)?)", tail, re.I)
     return match.group(0) if match else None
 
 
@@ -290,7 +318,7 @@ def _cell_matches_alias(cell: str, aliases: list[str]) -> bool:
 
 
 def _unit_from_label(text: str) -> str:
-    match = re.search(r"[（(](kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|mm|cm|m|毫米|厘米|米)[）)]", text, re.I)
+    match = re.search(r"[（(](kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|kN/m|kN/米|mm|cm|m|毫米|厘米|米)[）)]", text, re.I)
     return match.group(1) if match else ""
 
 
@@ -300,7 +328,7 @@ def _inherited_table_unit(rows: list[list[str]]) -> str:
             unit = _unit_from_label(cell)
             if unit:
                 return unit
-            match = re.search(r"单位\s*[：:]?\s*(kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|mm|cm|m|毫米|厘米|米)", cell, re.I)
+            match = re.search(r"单位\s*[：:]?\s*(kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|kN/m|kN/米|mm|cm|m|毫米|厘米|米)", cell, re.I)
             if match:
                 return match.group(1)
     return ""

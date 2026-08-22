@@ -374,3 +374,38 @@ def test_review_summary_accepts_consistency_and_drawing_reviews() -> None:
     assert result["summary"]["consistency_issue"] == 1
     assert result["summary"]["drawing_review"] == 1
     assert len(result["human_review_queue"]) == 2
+
+
+# ===== Part B：参数识别修复回归 =====
+
+def test_support_height_multi_region_resolves_to_max() -> None:
+    """多区域不同高度取最大值（审查只关心最大搭设高度），不再整体判 uncertain。"""
+    doc = _document("A区支撑高度5.87m。B区支撑高度8.05m。C区搭设高度13.88m。")
+    facts = build_project_facts(doc)["facts"]
+    assert facts["support_height"]["status"] == "confirmed"
+    assert facts["support_height"]["value"] == 13.88
+    # 全部候选证据保留供复核
+    assert len(facts["support_height"]["candidates"]) >= 3
+
+
+def test_total_load_rejects_spacing_numbers_in_text() -> None:
+    """正文中无荷载单位数值时不得把间距 800mm 当总荷载，诚实报 missing。"""
+    doc = _document("总荷载计算时支架立杆间距800mm，步距1500mm。")
+    facts = build_project_facts(doc)["facts"]
+    assert facts["total_load"]["status"] == "missing"
+    assert facts["total_load"]["value"] is None
+
+
+def test_concentrated_line_load_extracts_knm_and_takes_max() -> None:
+    """识别 kN/m 单位（此前正则不认），多梁多值取最大。"""
+    doc = _document("梁底面板传递线荷载3.237kN/m。集中线荷载设计值最大为20.0kN/m。")
+    facts = build_project_facts(doc)["facts"]
+    assert facts["concentrated_line_load"]["status"] == "confirmed"
+    assert facts["concentrated_line_load"]["value"] == 20.0
+
+
+def test_normalize_candidate_supports_kn_per_meter() -> None:
+    result = normalize_candidate({"raw_value": "15kN/m", "value": None}, "kN/m")
+    assert "normalization_error" not in result
+    assert result["value"] == 15.0
+    assert result["unit"] == "kN/m"
