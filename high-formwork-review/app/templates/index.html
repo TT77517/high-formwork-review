@@ -192,6 +192,13 @@
           </select>
           <span id="difyWarning" class="alert-inline hidden"></span>
         </div>
+        <div class="legend-bar">
+          <span class="legend-item"><i class="legend-dot legend-dot-success"></i>合规</span>
+          <span class="legend-item"><i class="legend-dot legend-dot-warning"></i>无法核验</span>
+          <span class="legend-item"><i class="legend-dot legend-dot-error"></i>缺失</span>
+          <span class="legend-sep">|</span>
+          <span class="legend-text">本地预审=关键词/结构匹配，Dify 审查=语义复核；灰字为该列补充说明，悬停可见完整原因</span>
+        </div>
         <div class="table-wrap"><table class="data-table" id="reviewTable">
           <thead><tr><th>规则</th><th>检查事项</th><th>本地预审</th><th>Dify审查</th><th>一致性</th><th>人工状态</th><th>操作</th></tr></thead>
           <tbody id="reviewRows"></tbody>

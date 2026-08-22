@@ -50,7 +50,7 @@ def build_review_report(
         "",
         "## 一、工程基础信息",
         "",
-        f"- **工程类型：** {q.get('project_type', '—')}",
+        f"- **工程类型：** {_project_type_label(q.get('project_type'))}",
         f"- **风险属性：** {_risk_label(q.get('risk_classification', ''))}",
         f"- **支撑体系：** {q.get('support_system_label', q.get('support_system', '—'))}",
         f"- **支撑高度：** {_param_str(params.get('support_height', {}))}",
@@ -252,6 +252,12 @@ def _risk_label(val: str) -> str:
         "dangerous": "危大工程",
         "unknown": "未确定",
     }.get(val, val or "—")
+
+
+def _project_type_label(val: str | None) -> str:
+    return {
+        "concrete_formwork_support": "混凝土模板支撑（高支模）",
+    }.get(val or "", val or "—")
 
 
 def _param_str(param: dict[str, Any]) -> str:

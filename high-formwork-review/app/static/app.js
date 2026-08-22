@@ -163,7 +163,8 @@ function renderOverview() {
 function renderQualification() {
   const q = preData?.project_qualification; if (!q) { $('#qualificationPanel').innerHTML = '<div class="stat-card"><div class="stat-value">未生成</div><div class="stat-title">工程基础信息</div></div>'; $('#qualificationStandards').innerHTML = ''; return; }
   const p = q.identified_parameters||{}; const h = p.support_height||{}; const sp = p.support_span||{}; const t = p.total_load_design||{}; const l = p.concentrated_line_load_design||{};
-  const rows = [['工程类型',q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label]];
+  const PTYPE_CN = { concrete_formwork_support: '混凝土模板支撑（高支模）' };
+  const rows = [['工程类型',PTYPE_CN[q.project_type]||q.project_type],['风险属性',RISK_CN[q.risk_classification]||q.risk_classification],['支撑体系',q.support_system_label]];
   // 参数卡只展示已识别出值的项
   [[h,'支撑高度'],[sp,'跨度'],[t,'总荷载'],[l,'线荷载']].forEach(([param,label]) => { if (param.value != null) rows.push([label, vwu(param)]); });
   $('#qualificationPanel').innerHTML = rows.map(([l,v]) => `<div class="stat-card"><div class="stat-title">${esc(l)}</div><div class="stat-value">${esc(v||'未识别')}</div></div>`).join('');
@@ -519,13 +520,13 @@ function renderReviewTable(f) {
     const compLbl = c?.comparison_status ? (COMP_CN[c.comparison_status]||'') : '未请求';
     const humanLbl = d && d.human_decision !== 'pending' ? (HUMAN_CN[d.human_decision]||'') : '待复核';
     // 本地 PASS 但部分要素匹配、已送 Dify 复核的，标注口径差异
-    const localNote = (r.status==='PASS' && r.needs_semantic_review) ? '<br><small>部分要素匹配，已送 Dify 复核</small>' : '';
+    const localNote = (r.status==='PASS' && r.needs_semantic_review) ? '<div class="cell-note">部分要素匹配，已送复核</div>' : '';
     // 未送 Dify 复核的，展示简短跳过原因（完整原因放悬停提示）
-    const difyNote = (c.dify_result_source==='not_requested') ? `<br><small title="${esc(r.semantic_review_reason||'')}">本地置信度高，未复核</small>` : '';
+    const difyNote = (c.dify_result_source==='not_requested') ? `<div class="cell-note" title="${esc(r.semantic_review_reason||'')}">本地置信度高，未复核</div>` : '';
     const difyTitle = dl ? `Dify 结论：${STATUS_CN[dl]||dl}（绿=合规 橙=无法核验 红=缺失）` : '该规则未送 Dify 复核，保留本地结果';
     return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.name)}</td>
-      <td><span class="status-chip status-${r.status}">${ll}</span>${localNote}</td>
-      <td><span class="status-chip status-${dl||'uncertain'}" title="${esc(difyTitle)}">${esc(difyLbl)}</span>${difyNote}</td>
+      <td><div class="cell-status"><span class="status-chip status-${r.status}">${ll}</span>${localNote}</div></td>
+      <td><div class="cell-status"><span class="status-chip status-${dl||'uncertain'}" title="${esc(difyTitle)}">${esc(difyLbl)}</span>${difyNote}</div></td>
       <td>${esc(compLbl)}</td><td>${esc(humanLbl)}</td>
       <td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
   }).join('');
