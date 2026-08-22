@@ -146,8 +146,12 @@ class DifyClient:
                 )
             data = raw_response.get("data")
             if isinstance(data, dict) and data.get("status") == "failed":
+                detail = str(data.get("error") or "").strip()
+                message = (
+                    f"Dify Workflow 执行失败：{detail}" if detail else "Dify Workflow 执行失败"
+                )
                 raise DifyError(
-                    "Dify Workflow 执行失败",
+                    message,
                     raw_response=raw_response,
                 )
             return raw_response
