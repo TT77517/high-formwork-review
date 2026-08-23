@@ -1,7 +1,7 @@
 /* ===== 高支模审查系统 — 前端逻辑 ===== */
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
-const STAGE_NAMES = { waiting:'等待上传',uploaded:'已上传',mineru_parsing:'MinerU解析',document_parsing:'文档解析',completeness_review:'完整性审查',rerun_review:'重跑中',completed:'已完成',completed_with_warning:'已完成(警告)',failed:'失败' };
+const STAGE_NAMES = { waiting:'等待上传',uploaded:'已上传',mineru_parsing:'MinerU解析',document_parsing:'文档解析',completeness_review:'完整性审查',project_facts:'关键参数识别',project_qualification:'工程基础信息',rule_engine:'确定性规则引擎',semantic_engine:'规范语义审查',calculation_engine:'计算校核',substantive_review:'实质性审查',consistency_review:'参数一致性',drawing_review:'图文一致性校验',dify_review:'Dify完整性复核',rerun_review:'重跑中',completed:'已完成',completed_with_warning:'已完成(警告)',failed:'失败' };
 const STATUS_CN = { PASS:'已识别',MISSING:'疑似缺失',UNCERTAIN:'无法核验' };
 const RE_STATUS_CN = { COMPLIANT:'合规',VIOLATED:'违规',UNCERTAIN:'无法判定',NOT_APPLICABLE:'不适用',PENDING_CONFIRMATION:'待确认' };
 const COMP_CN = { AGREEMENT:'一致',DISAGREEMENT:'不一致',NOT_REQUESTED:'未请求',DIFY_FAILED:'暂未完成',BOTH_UNCERTAIN:'均不确定' };

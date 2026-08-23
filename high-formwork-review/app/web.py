@@ -79,8 +79,19 @@ STAGE_PROGRESS = {
     "waiting": 0,
     "uploaded": 10,
     "mineru_parsing": 30,
-    "document_parsing": 60,
-    "completeness_review": 80,
+    "document_parsing": 45,
+    "completeness_review": 55,
+    # 审查管线各阶段（_run_review_stages 内 _timed 更新）：
+    # 审查占总耗时大头，细分避免进度条在 80% 长时间停滞
+    "project_facts": 58,
+    "project_qualification": 60,
+    "rule_engine": 63,
+    "semantic_engine": 72,
+    "calculation_engine": 78,
+    "substantive_review": 81,
+    "consistency_review": 83,
+    "drawing_review": 88,
+    "dify_review": 92,
     "rerun_review": 90,
     "completed": 100,
     "completed_with_warning": 100,
@@ -1168,6 +1179,26 @@ def _run_review_stages(
                 "finished_at": _utc_now(),
                 "duration_ms": int((perf_counter() - t0) * 1000),
             }
+            # 阶段完成即推进进度条（STAGE_PROGRESS 按阶段细分，避免 80% 长期停滞）。
+            # status 保持当前顶层阶段（进度推进不改变任务状态机）；
+            # 进度单调不减（rerun 场景基线 90 高于审查阶段档位）
+            if stage_key in STAGE_PROGRESS:
+                try:
+                    current = _read_json(job_dir / "status.json", {}) or {}
+                    current_progress = int(current.get("progress") or 0)
+                    current_stage = str(current.get("stage") or stage_key)
+                    next_progress = max(
+                        STAGE_PROGRESS[stage_key], current_progress
+                    )
+                    _update_status(
+                        job_dir,
+                        stage_key,
+                        f"{description}完成",
+                        progress=next_progress,
+                        status_value=current_stage,
+                    )
+                except Exception:
+                    pass  # 状态更新失败不影响审查流程
 
     if project_facts is None:
         project_facts = _timed(
@@ -1395,14 +1426,23 @@ def _update_status(
     stage: str,
     message: str,
     error_stage: str | None = None,
+    *,
+    progress: int | None = None,
+    status_value: str | None = None,
 ) -> None:
+    """更新任务状态。
+
+    progress: 显式覆盖进度（默认取 STAGE_PROGRESS[stage]）；
+    status_value: 显式覆盖 status 字段（默认与 stage 相同）——
+    审查管线中间阶段推进进度时保持 status 为当前顶层阶段（如 completeness_review）。
+    """
     status_path = job_dir / "status.json"
     status = _read_json(status_path, "任务状态不存在")
     status.update(
         {
-            "status": stage,
+            "status": status_value or stage,
             "stage": stage,
-            "progress": STAGE_PROGRESS[stage],
+            "progress": progress if progress is not None else STAGE_PROGRESS.get(stage, 0),
             "updated_at": _utc_now(),
             "message": message,
             "error_stage": error_stage,
@@ -1455,10 +1495,16 @@ def _run_optional_dify_review(job_dir: Path, rules: list[dict[str, Any]]) -> Non
     from .main import _run_dify_review
 
     def _progress(done: int, total: int) -> None:
+        # Dify 复核阶段（92%）：保持顶层 status 为 dify_review、进度按批次插值
+        base = STAGE_PROGRESS["dify_review"]
+        interpolated = base
+        if total > 0:
+            interpolated = min(99, base + int((99 - base) * done / total))
         _update_status(
             job_dir,
-            "completeness_review",
+            "dify_review",
             f"Dify 完整性语义复核进行中（{done}/{total}）",
+            progress=interpolated,
         )
 
     _run_dify_review(job_dir, rules, progress_callback=_progress)
