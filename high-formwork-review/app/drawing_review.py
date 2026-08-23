@@ -62,12 +62,17 @@ DRAWING_CROSS_CHECK_PARAMS = [
         "name": "立杆纵距",
         "keywords": ["纵距", "纵向间距", "立杆纵距"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|m|毫米|厘米|米)?",
+        # "纵距"是"纵距内附加梁底支撑主梁根数"等字段名的前缀 → 排除
+        "exclude_terms": ["附加", "根数", "是否相等"],
     },
     {
         "fact_id": "horizontal_spacing",
         "name": "立杆横距",
         "keywords": ["横距", "横向间距", "立杆横距"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|m|毫米|厘米|米)?",
+        # 同 vertical_spacing：挡"横距是否相等 是 纵向间距la(mm) 900"这类跨字段抓取
+        # （否则横距会抓到纵距的值，可能造成假 PASS）
+        "exclude_terms": ["附加", "根数", "是否相等"],
     },
     {
         "fact_id": "support_height",
@@ -163,10 +168,14 @@ def _cross_check_param(
     param_name = config["name"]
     keywords = config["keywords"]
     unit_pattern = config["unit_pattern"]
-    # 无单位参数（高宽比）需要更紧的 gap 防止误抓无关数字；有单位参数保持宽松
-    gap_pattern = config.get("gap_pattern", r"[^0-9\-—~～]*?")
+    # 无单位参数（高宽比）需要更紧的 gap 防止误抓无关数字；有单位参数默认
+    # gap 也不得跨句读标点（。，；：半角逗号分号）和换行——否则条文编号
+    # （";3"）、页码（跨行"方案\n7"）、图号（"示意图如下:\n(10"）都会被当成图纸标注值。
+    # 顿号、不挡：组合字段标注"纵距、横距(mm) 900×900"中顿号是字段名并列，值共用
+    gap_pattern = config.get("gap_pattern", r"[^0-9\-—~～。，；：,;\n]{0,30}?")
     plausible_min = config.get("plausible_min")
     plausible_max = config.get("plausible_max")
+    exclude_terms = config.get("exclude_terms", [])
 
     # 获取正文参数值
     fact = facts.get(fact_id, {})
@@ -193,15 +202,26 @@ def _cross_check_param(
         ocr_extra = unicodedata.normalize("NFKC", (ocr_texts or {}).get(page.physical_page, ""))
         if ocr_extra:
             norm = norm + "\n" + ocr_extra
+        # 遍历全部关键词（别名形式不同：同一参数可能"纵距"和"纵向间距"都出现，
+        # 短词只命中被排除的字段名时，长词别名仍能匹配真值）。
+        # 同一处数值可能被多个别名命中（"悬臂长"⊂"悬臂长度"，span 宽窄不同）→
+        # 按数值捕获组终点去重，否则众数计数被别名倍数扭曲、证据槽被重复挤占
+        seen_value_ends: set[int] = set()
         for kw in keywords:
             if kw not in norm:
                 continue
             # 在关键词附近找数值
             pattern = re.escape(kw) + gap_pattern + unit_pattern
             for m in re.finditer(pattern, norm, re.IGNORECASE):
+                if m.start(1) in seen_value_ends:
+                    continue
+                seen_value_ends.add(m.start(1))
                 quote = m.group(0).strip()
                 if _is_spec_clause_quote(quote, kw):
                     continue  # 规范条文引用（"不得大于/严禁超过…"）不是图纸标注
+                # 排除词护栏：关键词只是其他字段名前缀（"纵距内附加…根数 0"）
+                if any(term in quote for term in exclude_terms):
+                    continue
                 val_str = m.group(1)
                 try:
                     val = float(val_str)
@@ -223,7 +243,18 @@ def _cross_check_param(
                 if ocr_extra and m.start(1) > len(norm) - len(ocr_extra) - 1:
                     entry["source"] = "ocr"
                 drawing_values.append(entry)
-            break  # 只用第一个匹配的关键词
+
+    # 按值去重：_page_text 拼接 page.text 与 block text（内容重叠），
+    # 同一标注天然匹配两次；众数按"出现的标注处数"计，不按文本重复次数
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[Any, Any, Any]] = set()
+    for item in drawing_values:
+        key = (item["page"], item["value"], item["quote"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    drawing_values = deduped
 
     review_id = f"DR-{DRAWING_CROSS_CHECK_PARAMS.index(config) + 1:02d}"
 
@@ -582,6 +613,8 @@ _SPEC_CLAUSE_MARKERS = (
     "不应低于", "最大不得超过", "限值",
     # 图纸说明常用简写："丝杆外露长度≤400mm""高宽比≤3.0""扫地杆高度不大于550"
     "≤", "≥", "不大于", "不超过", "小于", "大于",
+    # 条文叙述里的数量引用："当架体高度超过4m…""步距大于1.5m时"
+    "超过", "应为", "宜为", "符合规范", "符合要求", "按规范",
 )
 
 

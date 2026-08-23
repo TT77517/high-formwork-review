@@ -672,3 +672,149 @@ def test_drawing_ocr_direct_path_resolution(tmp_path) -> None:
     assert _resolve_image_path_direct(tmp_path, rel) == img
     # 不存在 → None
     assert _resolve_image_path_direct(tmp_path, "part-001/raw/images/none.jpg") is None
+
+
+def test_drawing_cross_check_clause_number_not_captured() -> None:
+    """条款编号（";3"）、跨行页码、图号不得被当成图纸标注值。"""
+    doc = _document_with_pages(
+        [
+            (1, "text", "构造要求"),
+            (
+                2,
+                "drawing",
+                "1)步距应符合设计和规范要求,水平杆应连续设置;3\n"
+                "模板专项施工方案\n7\n"
+                "横向间距应相等或成倍数。示意图如下:\n(10",
+            ),
+        ]
+    )
+    facts = {
+        "facts": {"standard_step_height": {"value": 1.5, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    step = next(item for item in result if "步距" in item.get("title", ""))
+    # 全部是条文编号/页码/图号 → 无有效图纸标注 → REVIEW
+    assert step["status"] == "REVIEW"
+
+
+def test_drawing_cross_check_spec_narrative_filtered() -> None:
+    """条文叙述（"步距超过1.5m时应加密""符合规范要求"）不当成图纸标注。
+
+    注意用无标点叙述：半角逗号本身就被 gap 挡住，测不到 marker 过滤。
+    """
+    doc = _document_with_pages(
+        [
+            (1, "text", "构造要求"),
+            (2, "drawing", "步距超过1.5m时应加密设置水平剪刀撑\n伸出顶层水平杆的长度符合规范要求"),
+        ]
+    )
+    facts = {
+        "facts": {"standard_step_height": {"value": 1.5, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    step = next(item for item in result if "步距" in item.get("title", ""))
+    assert step["status"] == "REVIEW"  # "超过4"是条文引用，被过滤
+
+
+def test_drawing_cross_check_prefix_field_excluded() -> None:
+    """关键词是其他字段名前缀（"纵距内附加梁底支撑主梁根数 0"）→ 排除。"""
+    doc = _document_with_pages(
+        [(1, "text", "参数表"), (2, "drawing", "纵距内附加梁底支撑主梁根数 0 纵向间距la(mm) 900")]
+    )
+    facts = {
+        "facts": {"vertical_spacing": {"value": 0.9, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    spacing = next(item for item in result if "纵距" in item.get("title", ""))
+    # "根数 0"被排除词过滤；900 是真标注 → PASS（不是 ISSUE 0.9 vs 0）
+    assert spacing["status"] == "PASS"
+    values = [e["value"] for e in spacing.get("drawing_evidence", [])]
+    assert 0.0 not in values
+    assert 900.0 in values
+
+
+def test_drawing_cross_check_real_annotation_survives_tight_gap() -> None:
+    """收紧后的 gap 不误杀真实标注：字段名与数值间的正常连接（括号/空格）仍命中。"""
+    doc = _document_with_pages(
+        [(1, "text", "参数表"), (2, "drawing", "步距h(mm) 1500\n悬臂长(mm) 125\n横距(mm) 900")]
+    )
+    facts = {
+        "facts": {
+            "standard_step_height": {"value": 1.5, "status": "confirmed", "evidence": []},
+            "head_jack_cantilever_length": {"value": 125.0, "status": "confirmed", "evidence": []},
+            "horizontal_spacing": {"value": 0.9, "status": "confirmed", "evidence": []},
+        }
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    by_title = {item.get("title", ""): item for item in result}
+    assert next(v for k, v in by_title.items() if "步距" in k)["status"] == "PASS"
+    assert next(v for k, v in by_title.items() if "悬臂" in k)["status"] == "PASS"
+    assert next(v for k, v in by_title.items() if "横距" in k)["status"] == "PASS"
+
+
+def test_drawing_cross_check_combined_dunhao_annotation() -> None:
+    """组合字段标注"纵距、横距(mm) 900×900"顿号不阻断匹配。"""
+    doc = _document_with_pages(
+        [(1, "text", "参数表"), (2, "drawing", "搭设参数 板立杆纵、横距(mm) 900×900 纵距、横距(mm) 900×900")]
+    )
+    facts = {
+        "facts": {
+            "vertical_spacing": {"value": 0.9, "status": "confirmed", "evidence": []},
+            "horizontal_spacing": {"value": 0.9, "status": "confirmed", "evidence": []},
+        }
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    by_title = {item.get("title", ""): item for item in result}
+    v = next(v for k, v in by_title.items() if "纵距" in k)
+    h = next(v for k, v in by_title.items() if "横距" in k)
+    assert v["status"] == "PASS", "纵距、横距组合标注不应因顿号丢失"
+    assert h["status"] == "PASS"
+
+
+def test_drawing_cross_check_alias_overlap_deduped() -> None:
+    """别名重叠（悬臂长⊂悬臂长度）同一处数值只计一次，证据不重复。"""
+    doc = _document_with_pages(
+        [(1, "text", "参数表"), (2, "drawing", "悬臂长度(mm) 200")]
+    )
+    facts = {
+        "facts": {"head_jack_cantilever_length": {"value": 200.0, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    cantilever = next(item for item in result if "悬臂" in item.get("title", ""))
+    evs = cantilever.get("drawing_evidence") or []
+    # 同一处 200 只出现一次（别名去重）
+    assert [e["value"] for e in evs].count(200.0) == 1
+    assert cantilever["status"] == "PASS"
+
+
+def test_drawing_cross_check_horizontal_cross_field_excluded() -> None:
+    """横距不通过"是否相等"行抓到纵距的值（跨字段误抓会造成假 PASS）。"""
+    doc = _document_with_pages(
+        [
+            (1, "text", "参数表"),
+            (2, "drawing", "立杆纵距是否相等 是 立杆横距是否相等 是 纵向间距la(mm) 900 横向间距lb(mm) 1200"),
+        ]
+    )
+    facts = {
+        "facts": {"horizontal_spacing": {"value": 0.9, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    h = next(item for item in result if "横距" in item.get("title", ""))
+    values = [e["value"] for e in h.get("drawing_evidence", [])]
+    # 900 是纵距的值：不得作为横距证据（否则 0.9=900mm 会假 PASS）
+    assert 900.0 not in values
+    assert 1200.0 in values  # lb 1200 是横距真值
