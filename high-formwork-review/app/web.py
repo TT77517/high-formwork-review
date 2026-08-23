@@ -1020,7 +1020,9 @@ def _run_review_stages(
     calculation_result = run_calculation_engine_safe(document, project_facts)
     substantive_review = build_substantive_review(project_qualification, project_facts)
     consistency_review = build_consistency_review(project_facts, document)
-    drawing_review = build_drawing_review(document, project_facts)
+    drawing_review = build_drawing_review(
+        document, project_facts, job_dir=job_dir
+    )
     _atomic_write_json(job_dir / "project_facts.json", project_facts)
     _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
     _atomic_write_json(job_dir / "rule_engine_results.json", rule_engine_result)

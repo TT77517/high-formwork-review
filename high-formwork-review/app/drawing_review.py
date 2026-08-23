@@ -4,20 +4,44 @@
 从图纸页面文本 block 中尝试提取数值，
 比对正文参数与图纸参数是否一致。
 
-当前为文本级图文交叉验证，不做图片 OCR。
+文本层为主；对文本稀疏的图片页可选启用 RapidOCR 二次识别
+（DRAWING_OCR_ENABLED=true，轻量 onnx 本地推理，无外部服务依赖）。
+OCR 来源的值仅作补充证据（source: ocr），置信度低于文本层。
 输出 PASS / ISSUE / REVIEW
+
+参数配置的规范依据（三方映射表 rule/三方映射表_Part1/Part3）：
+- 步距           JGJ231-2010 6.2.3（≤1.5m，顶层≤1.0m）
+- 托撑悬臂长度   JGJ231-2010 6.1.6（严禁超过650mm）
+- 丝杆外露长度   JGJ231-2010 6.1.6（严禁超过400mm）
+- 立杆纵/横距    JGJ231-2010 6.1.4（不宜大于1.5m）
+- 搭设高度       住建部37号令（≥8m 超规模须专家论证）
+- 高宽比         JGJ231-2010 6.1.4 / GB51210 8.3.2（不应大于3.0）
+- 扫地杆高度     JGJ231-2010（最底层水平杆中心线离底板≤550mm）
 """
 
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
+from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
 
 from .models import MinerUDocument, MinerUPage
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_project_env() -> None:
+    """加载项目根 .env，与启动目录无关。"""
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+
+
 # 图文比对参数配置
+# 只比对方案 facts 中已识别的参数（fact 值为 None 时跳过，不编造"方案值"）
 DRAWING_CROSS_CHECK_PARAMS = [
     {
         "fact_id": "standard_step_height",
@@ -51,19 +75,57 @@ DRAWING_CROSS_CHECK_PARAMS = [
         "keywords": ["搭设高度", "支模高度", "支架高度"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|m|毫米|厘米|米)?",
     },
+    {
+        "fact_id": "head_jack_screw_exposed_length",
+        "name": "可调托撑丝杆外露长度",
+        # JGJ231 6.1.6：丝杆外露长度严禁超过400mm；"丝杆外露"须完整表述避免误命中
+        "keywords": ["丝杆外露", "螺杆外露", "丝杆外露长度"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+    },
+    {
+        "fact_id": "height_to_width_ratio",
+        "name": "高宽比",
+        # JGJ231 6.1.4 / GB51210 8.3.2：不应大于3.0（无量纲）
+        "keywords": ["高宽比"],
+        "unit_pattern": r"(\d+\.?\d*)",
+        # 无单位参数：gap 必须收紧且不跨行，否则"高宽比验算"标题后
+        # 任意数字（页码/规范号/日期）都会被误抓
+        "gap_pattern": r"[^0-9\-—~～\n]{0,6}",
+        # 合理值域护栏（规范限值 3.0，验算值域放宽到 20）
+        "plausible_min": 0.1,
+        "plausible_max": 20.0,
+        "dimensionless": True,
+    },
+    {
+        "fact_id": "sweeper_centerline_height_above_base_plate",
+        "name": "扫地杆高度",
+        # JGJ231：最底层水平杆中心线离可调底座底板高度不应大于550mm
+        "keywords": ["扫地杆", "最底层水平杆"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+    },
 ]
 
 
 def build_drawing_review(
     parsed_document: MinerUDocument,
     project_facts: dict[str, Any],
+    *,
+    job_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     facts = project_facts.get("facts", {})
     results: list[dict[str, Any]] = []
 
-    # 1. 图文参数交叉验证
+    # 1. 图文参数交叉验证（含可选 OCR 通道）
+    ocr_engine = _get_ocr_engine()
+    ocr_texts = (
+        _ocr_sparse_pages(parsed_document, ocr_engine, job_dir=job_dir)
+        if ocr_engine
+        else {}
+    )
     for param_config in DRAWING_CROSS_CHECK_PARAMS:
-        result = _cross_check_param(parsed_document, facts, param_config)
+        result = _cross_check_param(
+            parsed_document, facts, param_config, ocr_texts=ocr_texts
+        )
         if result:
             results.append(result)
 
@@ -89,12 +151,22 @@ def _cross_check_param(
     document: MinerUDocument,
     facts: dict[str, Any],
     config: dict[str, Any],
+    *,
+    ocr_texts: dict[int, str] | None = None,
 ) -> dict[str, Any] | None:
-    """比对正文参数值与图纸页面文本中的数值。"""
+    """比对正文参数值与图纸页面文本中的数值。
+
+    ocr_texts: 稀疏图片页的 OCR 识别结果（页码→文本），作为文本层的补充来源。
+    OCR 命中的值标 source: ocr，仅作辅助证据。
+    """
     fact_id = config["fact_id"]
     param_name = config["name"]
     keywords = config["keywords"]
     unit_pattern = config["unit_pattern"]
+    # 无单位参数（高宽比）需要更紧的 gap 防止误抓无关数字；有单位参数保持宽松
+    gap_pattern = config.get("gap_pattern", r"[^0-9\-—~～]*?")
+    plausible_min = config.get("plausible_min")
+    plausible_max = config.get("plausible_max")
 
     # 获取正文参数值
     fact = facts.get(fact_id, {})
@@ -102,7 +174,7 @@ def _cross_check_param(
         return None
     body_value = fact.get("value")
     if body_value is None:
-        return None
+        return None  # 方案未识别该参数 → 不比对（不编造方案值）
 
     # 从图纸页面提取数值
     drawing_values: list[dict[str, Any]] = []
@@ -117,11 +189,15 @@ def _cross_check_param(
         )
         if not is_drawing_page:
             continue
+        # OCR 补充文本拼接（文本层稀疏的图片页）
+        ocr_extra = unicodedata.normalize("NFKC", (ocr_texts or {}).get(page.physical_page, ""))
+        if ocr_extra:
+            norm = norm + "\n" + ocr_extra
         for kw in keywords:
             if kw not in norm:
                 continue
             # 在关键词附近找数值
-            pattern = re.escape(kw) + r"[^0-9\-—~～]*?" + unit_pattern
+            pattern = re.escape(kw) + gap_pattern + unit_pattern
             for m in re.finditer(pattern, norm, re.IGNORECASE):
                 quote = m.group(0).strip()
                 if _is_spec_clause_quote(quote, kw):
@@ -129,14 +205,24 @@ def _cross_check_param(
                 val_str = m.group(1)
                 try:
                     val = float(val_str)
-                    drawing_values.append({
-                        "value": val,
-                        "page": page.physical_page,
-                        "quote": quote,
-                        "keyword": kw,
-                    })
                 except ValueError:
                     continue
+                # 合理值域护栏（无量纲参数防误抓页码/规范号等）
+                if plausible_min is not None and val < plausible_min:
+                    continue
+                if plausible_max is not None and val > plausible_max:
+                    continue
+                entry = {
+                    "value": val,
+                    "page": page.physical_page,
+                    "quote": quote,
+                    "keyword": kw,
+                }
+                # 值来自 OCR 拼接段时标注来源（按捕获组位置判定，关键词
+                # 可在文本层而数值落在 OCR 段），便于人工区分置信度
+                if ocr_extra and m.start(1) > len(norm) - len(ocr_extra) - 1:
+                    entry["source"] = "ocr"
+                drawing_values.append(entry)
             break  # 只用第一个匹配的关键词
 
     review_id = f"DR-{DRAWING_CROSS_CHECK_PARAMS.index(config) + 1:02d}"
@@ -152,13 +238,20 @@ def _cross_check_param(
     # 取图纸中的代表值：出现次数最多的值（规格表多次标注同一值时更稳，避免取到第一条无关数值）
     drawing_value = _representative_value(drawing_values)
 
-    # 比对 — 先统一单位（mm和m之间换算）
+    # 无量纲参数（高宽比）：不做 mm 单位归一，按原值比对（容差取小值）
+    dimensionless = config.get("dimensionless", False)
+
     def _normalize_to_mm(val: float, text: str) -> float:
         """根据上下文推测单位并统一为mm。"""
+        if dimensionless:
+            return val  # 无量纲：不换算
         # 如果值很小（<50），可能是m
         if val < 50:
             return val * 1000  # m -> mm
         return val  # 已经是mm
+
+    def _fmt(val: float) -> str:
+        return f"{val}" if dimensionless else f"{val}mm"
 
     body_mm = _normalize_to_mm(float(body_value), str(body_value))
     # 多跨/多部位工程同一参数会有多个合法标注值（如梁下 1200、板下 900），
@@ -167,23 +260,29 @@ def _cross_check_param(
         _normalize_to_mm(item["value"], item.get("quote", ""))
         for item in drawing_values
     ]
-    tolerance = 0.05 * abs(body_mm)  # 5% 容差
+    if dimensionless:
+        tolerance = 0.01  # 高宽比等比值：1% 绝对容差（规范限值 3.0，5% 相对容差过宽）
+    else:
+        tolerance = 0.05 * abs(body_mm)  # 5% 容差
     matched = [v for v in drawing_mms if abs(v - body_mm) <= tolerance]
     if matched:
         status = "PASS"
         matched_value = drawing_values[drawing_mms.index(matched[0])]["value"]
         reason = (
             f"正文参数={body_value}，图纸标注含一致值（{matched_value}，"
+            f"全部标注值：{sorted(set(drawing_mms))}），图文一致"
+            if dimensionless
+            else f"正文参数={body_value}，图纸标注含一致值（{matched_value}，"
             f"全部标注值：{sorted(set(drawing_mms))}mm），图文一致"
         )
     else:
         drawing_value = _representative_value(drawing_values)
-        drawing_mm = _normalize_to_mm(
-            float(drawing_value), drawing_values[0].get("quote", "")
-        )
         status = "ISSUE"
         reason = (
-            f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后不一致"
+            f"正文参数={body_value}，图纸标注={drawing_value}，"
+            f"不一致（{body_value} vs 全部标注值 {sorted(set(drawing_mms))}）"
+            if dimensionless
+            else f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后不一致"
             f"（{body_mm}mm vs 全部标注值 {sorted(set(drawing_mms))}mm）"
         )
         matched_value = drawing_value
@@ -218,7 +317,11 @@ def _build_cross_result(
         "drawing_evidence": drawing_evidence,
         "automation_level": "text_level_cross_check",
         "requires_human_review": status != "PASS",
-        "boundary": "当前仅从图纸页面文本block中提取数值，不做图片OCR。图纸中无文字标注的尺寸需人工复核。",
+        "boundary": (
+            "图纸页文本层 + 图片OCR（如启用）提取数值；图片内无文字标注的尺寸仍需人工复核。"
+            if _ocr_enabled()
+            else "当前仅从图纸页面文本block中提取数值，不做图片OCR。图纸中无文字标注的尺寸需人工复核。"
+        ),
     }
 
 
@@ -296,11 +399,141 @@ def _page_text(page: MinerUPage) -> str:
     return f"{page.text or ''}\n{block_text}"
 
 
+# ---------------------------------------------------------------------------
+# 可选 RapidOCR 通道（轻量 onnx 本地推理）
+# 开关：DRAWING_OCR_ENABLED=true；未安装 rapidocr 或初始化失败时静默降级为纯文本层
+# 只对"文本稀疏且含图片 block"的图纸页触发，控制成本与噪声
+# ---------------------------------------------------------------------------
+
+_OCR_ENGINE: Any = None
+_OCR_ENGINE_LOADED = False
+_SPARSE_TEXT_THRESHOLD = 200  # 页面非图片文本低于此字符数视为"文本稀疏"
+
+
+def _ocr_enabled() -> bool:
+    """DRAWING_OCR_ENABLED 开关状态（仅查配置，不初始化引擎）。"""
+    _load_project_env()
+    return os.getenv("DRAWING_OCR_ENABLED", "false").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _get_ocr_engine() -> Any:
+    """惰性初始化 RapidOCR 引擎；未启用/未安装/初始化失败返回 None。"""
+    global _OCR_ENGINE, _OCR_ENGINE_LOADED
+    if _OCR_ENGINE_LOADED:
+        return _OCR_ENGINE
+    _OCR_ENGINE_LOADED = True
+    if not _ocr_enabled():
+        return None
+    try:
+        from rapidocr_onnxruntime import RapidOCR  # type: ignore
+
+        _OCR_ENGINE = RapidOCR()
+    except Exception:
+        _OCR_ENGINE = None  # 未安装或初始化失败 → 纯文本层，不阻断审查
+    return _OCR_ENGINE
+
+
+def _is_sparse_drawing_page(page: MinerUPage) -> bool:
+    """图纸页且文本层稀疏（内容主要在图片里）→ OCR 候选页。"""
+    text_len = sum(
+        len(block.text or "")
+        for block in page.blocks
+        if block.block_type not in {"image", "figure", "chart"}
+    )
+    has_image = any(
+        block.block_type in {"image", "figure", "chart"} for block in page.blocks
+    )
+    return has_image and text_len < _SPARSE_TEXT_THRESHOLD
+
+
+def _ocr_sparse_pages(
+    document: MinerUDocument, engine: Any, *, job_dir: Path | None = None
+) -> dict[int, str]:
+    """对文本稀疏的图纸页跑 OCR，返回 页码→识别文本。
+
+    job_dir 提供时优先直接拼路径（O(1)，无文件系统搜索）；
+    未提供时按文件名在 DATA_ROOT/web/jobs 下搜索（O(全部任务)，慢，兜底）。
+    任何页识别失败都跳过（静默降级），不影响主流程。
+    """
+    if engine is None:
+        return {}
+    results: dict[int, str] = {}
+    for page in document.pages:
+        if page.parse_status == "unreadable" or not _is_sparse_drawing_page(page):
+            continue
+        page_texts: list[str] = []
+        for block in page.blocks:
+            rel = getattr(block, "image_path", None)
+            if not rel or block.block_type not in {"image", "figure", "chart"}:
+                continue
+            img_path = (
+                _resolve_image_path_direct(job_dir, rel)
+                if job_dir is not None
+                else _resolve_image_path(rel)
+            )
+            if img_path is None:
+                continue
+            try:
+                ocr_result, _ = engine(str(img_path))
+            except Exception:
+                continue
+            if not ocr_result:
+                continue
+            for item in ocr_result:
+                # rapidocr 返回 [box, text, score]
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    page_texts.append(str(item[1]))
+        if page_texts:
+            results[page.physical_page] = "\n".join(page_texts)
+    return results
+
+
+def _resolve_image_path_direct(job_dir: Path, rel: str) -> Path | None:
+    """job 目录内直接拼路径：mineru_api/raw/<rel>，不存在再试 mineru_api/<rel>。"""
+    for base in (
+        job_dir / "mineru_api" / "raw",
+        job_dir / "mineru_api",
+    ):
+        candidate = base / rel
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _resolve_image_path(rel: str) -> Path | None:
+    """把 MinerU 相对图片路径解析为可读文件。
+
+    相对路径形如 part-001/raw/images/<hash>.jpg，锚点在 DATA_ROOT/web/jobs/
+    <job>/mineru_api/raw/ 下。文件名是内容 hash，全任务唯一 → 按文件名
+    rglob 定位；找不到（旧任务无 raw 资源）返回 None，该页静默跳过。
+    """
+    _load_project_env()
+    p = Path(rel)
+    if p.is_absolute():
+        return p if p.is_file() else None
+    data_root = os.getenv("DATA_ROOT", "").strip()
+    if not data_root:
+        return None
+    jobs_root = Path(data_root).expanduser() / "web" / "jobs"
+    if not jobs_root.is_dir():
+        return None
+    filename = p.name
+    try:
+        matches = sorted(jobs_root.rglob(filename))
+    except (OSError, ValueError):
+        return None
+    return matches[0] if matches else None
+
+
 # 规范条文式表述：引用的数值是规范限值而非本工程图纸标注
 _SPEC_CLAUSE_MARKERS = (
     "不得大于", "不应大于", "严禁超过", "不得超过", "不宜大于",
     "不应小于", "不得小于", "不应超过", "不宜超过", "不应高于",
     "不应低于", "最大不得超过", "限值",
+    # 图纸说明常用简写："丝杆外露长度≤400mm""高宽比≤3.0""扫地杆高度不大于550"
+    "≤", "≥", "不大于", "不超过", "小于", "大于",
 )
 
 

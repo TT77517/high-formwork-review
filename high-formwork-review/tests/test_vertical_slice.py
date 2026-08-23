@@ -447,3 +447,228 @@ def test_system_specific_rules_gated_by_support_system() -> None:
     assert status_by_id["4.34"] == "NOT_APPLICABLE"
     assert status_by_id["5.1"] == "NOT_APPLICABLE"
     assert status_by_id["5.4"] != "NOT_APPLICABLE"
+
+
+def test_drawing_cross_check_skips_unidentified_params() -> None:
+    """方案未识别的参数（fact 值 None）不出图文比对条目——不编造方案值。"""
+    doc = _document_with_pages(
+        [(1, "text", "工程概况"), (2, "drawing", "高宽比验算图，高宽比2.5")]
+    )
+    facts = {"facts": {"height_to_width_ratio": {"value": None, "status": "missing"}}}
+
+    result = build_drawing_review(doc, facts)
+
+    ids = {item["review_item_id"] for item in result}
+    # 高宽比 fact 未识别 → 不产生比对条目
+    assert not any("高宽比" in item.get("title", "") for item in result if item["review_item_id"].startswith("DR-0"))
+    assert "DR-90" in ids
+
+
+def test_drawing_cross_check_extended_params_pass() -> None:
+    """扩展参数（丝杆外露/高宽比/扫地杆）在方案值与图纸标注一致时 PASS。"""
+    doc = _document_with_pages(
+        [
+            (1, "text", "参数表"),
+            (2, "drawing", "构造详图：丝杆外露长度300mm，扫地杆距底板350mm"),
+            (3, "drawing", "稳定性验算简图 高宽比 2.5"),
+        ]
+    )
+    facts = {
+        "facts": {
+            "head_jack_screw_exposed_length": {
+                "value": 300.0,
+                "status": "confirmed",
+                "evidence": [],
+            },
+            "height_to_width_ratio": {"value": 2.5, "status": "confirmed", "evidence": []},
+            "sweeper_centerline_height_above_base_plate": {
+                "value": 350.0,
+                "status": "confirmed",
+                "evidence": [],
+            },
+        }
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    by_title = {item.get("title", ""): item for item in result}
+    screw = next(v for k, v in by_title.items() if "丝杆外露" in k)
+    assert screw["status"] == "PASS"
+    ratio = next(v for k, v in by_title.items() if "高宽比" in k)
+    assert ratio["status"] == "PASS"
+    sweeper = next(v for k, v in by_title.items() if "扫地杆" in k)
+    assert sweeper["status"] == "PASS"
+
+
+def test_drawing_cross_check_spec_clause_filtered_for_extended_params() -> None:
+    """规范条文引用（"丝杆外露长度严禁超过400mm"）不当成图纸标注。"""
+    doc = _document_with_pages(
+        [
+            (1, "text", "构造要求"),
+            (2, "drawing", "构造要求：丝杆外露长度严禁超过400mm"),
+        ]
+    )
+    facts = {
+        "facts": {
+            "head_jack_screw_exposed_length": {
+                "value": 300.0,
+                "status": "confirmed",
+                "evidence": [],
+            },
+        }
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    screw = next(
+        item for item in result if "丝杆外露" in item.get("title", "")
+    )
+    # 条文值 400 被过滤 → 无图纸标注值 → REVIEW 而非 ISSUE(300 vs 400)
+    assert screw["status"] == "REVIEW"
+
+
+def test_drawing_ocr_disabled_by_default(monkeypatch) -> None:
+    """OCR 默认关闭：未启用时引擎为 None，纯文本层行为不变。"""
+    from app.drawing_review import _get_ocr_engine
+
+    monkeypatch.setenv("DRAWING_OCR_ENABLED", "false")
+    # 重置惰性缓存
+    import app.drawing_review as dr
+
+    monkeypatch.setattr(dr, "_OCR_ENGINE_LOADED", False)
+    monkeypatch.setattr(dr, "_OCR_ENGINE", None)
+    assert _get_ocr_engine() is None
+
+
+def test_drawing_ocr_sparse_page_detection() -> None:
+    """文本稀疏且含图片 block 的页才触发 OCR。"""
+    from app.drawing_review import _is_sparse_drawing_page
+
+    def _page(page_type: str, blocks: list[tuple[str, str]]) -> MinerUPage:
+        return MinerUPage(
+            physical_page=1,
+            source_page_index=0,
+            width=None,
+            height=None,
+            printed_page="1",
+            page_type=page_type,
+            parse_status="complete",
+            text="",
+            blocks=[
+                MinerUBlock(
+                    block_id=f"b{i}",
+                    physical_page=1,
+                    block_index=i,
+                    block_type=bt,
+                    text=tx,
+                    title_level=None,
+                    bbox=None,
+                    image_path=None,
+                    table_html=None,
+                    source_file="demo",
+                    source_pointer="/0/1",
+                )
+                for i, (bt, tx) in enumerate(blocks)
+            ],
+        )
+
+    # 图片为主、文本稀疏 → OCR 候选
+    assert _is_sparse_drawing_page(_page("mixed", [("image", ""), ("image", ""), ("text", "节点图")]))
+    # 文本充足 → 不触发
+    assert not _is_sparse_drawing_page(
+        _page("text", [("paragraph", "构造要求：" + "长" * 300)])
+    )
+    # 无图片 → 不触发
+    assert not _is_sparse_drawing_page(_page("text", [("paragraph", "短文本")]))
+
+
+def test_drawing_cross_check_le_symbol_filtered_as_spec_clause() -> None:
+    """图纸说明简写"丝杆外露长度≤400mm"是规范限值，不当成图纸标注比对。"""
+    doc = _document_with_pages(
+        [(1, "text", "构造要求"), (2, "drawing", "构造要求：丝杆外露长度≤400mm，扫地杆高度不大于550mm")]
+    )
+    facts = {
+        "facts": {
+            "head_jack_screw_exposed_length": {"value": 300.0, "status": "confirmed", "evidence": []},
+            "sweeper_centerline_height_above_base_plate": {"value": 350.0, "status": "confirmed", "evidence": []},
+        }
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    by_title = {item.get("title", ""): item for item in result}
+    screw = next(v for k, v in by_title.items() if "丝杆外露" in k)
+    assert screw["status"] == "REVIEW"  # ≤400 是条文限值被过滤，非 ISSUE(300 vs 400)
+    sweeper = next(v for k, v in by_title.items() if "扫地杆" in k)
+    assert sweeper["status"] == "REVIEW"  # "不大于550"同样过滤
+
+
+def test_drawing_ratio_gap_tight_no_crossline_capture() -> None:
+    """高宽比 gap 收紧：跨行后的页码/规范号/无关数值不被误抓。"""
+    doc = _document_with_pages(
+        [
+            (1, "text", "计算书"),
+            (2, "drawing", "高宽比验算\n第3页\n共10页\n依据GB51210-2016"),
+        ]
+    )
+    facts = {
+        "facts": {"height_to_width_ratio": {"value": 2.5, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    ratio = next(item for item in result if "高宽比" in item.get("title", ""))
+    # 页码10/规范号51210 都没被当成"高宽比图纸值" → 无有效标注 → REVIEW 而非 ISSUE(2.5 vs 10)
+    assert ratio["status"] == "REVIEW"
+
+
+def test_drawing_ratio_dimensionless_reason_no_mm_unit() -> None:
+    """无量纲参数（高宽比）结论不带 mm 单位、不做 ×1000 归一。"""
+    doc = _document_with_pages(
+        [(1, "text", "参数表"), (2, "drawing", "稳定性验算简图 高宽比 2.5")]
+    )
+    facts = {
+        "facts": {"height_to_width_ratio": {"value": 2.5, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    ratio = next(item for item in result if "高宽比" in item.get("title", ""))
+    assert ratio["status"] == "PASS"
+    assert "mm" not in str(ratio["conclusion"])
+    assert "2500" not in str(ratio["conclusion"])
+
+
+def test_drawing_ocr_source_tagging_by_capture_position() -> None:
+    """OCR 来源标注按捕获组位置判定：关键词在文本层、数值在 OCR 段 → source: ocr。"""
+    from app.drawing_review import _cross_check_param, DRAWING_CROSS_CHECK_PARAMS
+
+    doc = _document_with_pages(
+        [(1, "drawing", "节点详图 步距")]  # 文本层只有关键词，无数值
+    )
+    # 注意：_cross_check_param 接收的是内层 facts dict（build_drawing_review 已解包）
+    facts = {"standard_step_height": {"value": 1.6, "status": "confirmed", "evidence": []}}
+    config = DRAWING_CROSS_CHECK_PARAMS[0]
+    # 模拟 OCR 段：数值 1600 只出现在 OCR 文本里
+    ocr_texts = {1: "步距 1600"}
+
+    result = _cross_check_param(doc, facts, config, ocr_texts=ocr_texts)
+
+    assert result is not None
+    assert result["status"] == "PASS"
+    ocr_evidence = [e for e in (result.get("drawing_evidence") or []) if e.get("source") == "ocr"]
+    assert ocr_evidence, "跨文本层/OCR段的匹配必须标 source: ocr"
+
+
+def test_drawing_ocr_direct_path_resolution(tmp_path) -> None:
+    """job_dir 直连路径解析：mineru_api/raw/<rel> 优先，无文件系统搜索。"""
+    from app.drawing_review import _resolve_image_path_direct
+
+    rel = "part-001/raw/images/abc.jpg"
+    # mineru_api/raw 锚点存在 → 命中
+    img = tmp_path / "mineru_api" / "raw" / "part-001" / "raw" / "images" / "abc.jpg"
+    img.parent.mkdir(parents=True)
+    img.write_bytes(b"x")
+    assert _resolve_image_path_direct(tmp_path, rel) == img
+    # 不存在 → None
+    assert _resolve_image_path_direct(tmp_path, "part-001/raw/images/none.jpg") is None
