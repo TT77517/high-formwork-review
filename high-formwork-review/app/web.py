@@ -112,7 +112,12 @@ class DecisionsPayload(BaseModel):
 
 @app.get("/")
 def index(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    # app.js 按内容 mtime 加版本参数，强制浏览器取新版（避免旧缓存导致交互失灵）
+    app_js = PROJECT_ROOT / "app" / "static" / "app.js"
+    version = str(int(app_js.stat().st_mtime)) if app_js.is_file() else "0"
+    return templates.TemplateResponse(
+        request=request, name="index.html", context={"app_js_version": version}
+    )
 
 
 @app.post("/api/jobs", status_code=202)
@@ -1058,6 +1063,25 @@ class RerunInput(BaseModel):
 
 RERUN_SYSTEM_VALUES = {"disk_lock", "coupler", "other"}
 
+# 人工复核可覆盖的数值参数（fact_id → 中文名；均取自 parameter_definitions）
+# 人工发现识别值错误时可直接改参重跑，而不是只能留状态备注
+RERUN_NUMERIC_PARAMS: dict[str, str] = {
+    "support_height": "支撑架搭设高度",
+    "standard_step_height": "架体标准步距",
+    "head_jack_cantilever_length": "可调托撑悬臂长度",
+    "head_jack_screw_exposed_length": "可调托撑丝杆外露长度",
+    "sweeper_centerline_height_above_base_plate": "扫地杆中心线高度",
+    "vertical_spacing": "立杆纵距",
+    "horizontal_spacing": "立杆横距",
+    "framework_height": "架体高度",
+    "height_to_width_ratio": "高宽比",
+    "support_span": "搭设跨度",
+    "concentrated_line_load": "集中线荷载",
+    "total_load": "施工总荷载",
+    "panel_thickness": "面板厚度",
+    "steel_plate_thickness": "钢板厚度",
+}
+
 
 @app.post("/api/jobs/{job_id}/rerun", status_code=202)
 def rerun_job(
@@ -1065,11 +1089,26 @@ def rerun_job(
     payload: RerunInput,
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    """人工确认支撑体系后重跑适用规则（不重跑 MinerU 与完整性审查）。"""
-    if set(payload.overrides) - {"support_system"}:
-        raise HTTPException(status_code=422, detail="仅支持 support_system 覆盖")
-    if any(v not in RERUN_SYSTEM_VALUES for v in payload.overrides.values()):
-        raise HTTPException(status_code=422, detail="支撑体系取值无效")
+    """人工确认支撑体系/修正参数后重跑适用规则（不重跑 MinerU 与完整性审查）。"""
+    allowed_keys = {"support_system"} | set(RERUN_NUMERIC_PARAMS)
+    if set(payload.overrides) - allowed_keys:
+        raise HTTPException(
+            status_code=422,
+            detail=f"仅支持覆盖：{', '.join(sorted(allowed_keys))}",
+        )
+    # 支撑体系是枚举；数值参数必须是可解析数字（原值类型保持 str 存储约定）
+    for key, value in payload.overrides.items():
+        if key == "support_system":
+            if value not in RERUN_SYSTEM_VALUES:
+                raise HTTPException(status_code=422, detail="支撑体系取值无效")
+            continue
+        try:
+            float(value)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=422,
+                detail=f"参数 {RERUN_NUMERIC_PARAMS.get(key, key)} 需为数值，收到：{value}",
+            )
     job_dir = _job_dir(job_id)
     status = _read_json(job_dir / "status.json", "任务状态不存在")
     if status.get("status") not in COMPLETED_STATUSES:
@@ -1091,10 +1130,17 @@ def _rerun_review_stages(job_id: str, overrides: dict[str, str]) -> None:
         )
         project_facts = build_project_facts(document)
         for key, value in overrides.items():
+            # 数值参数转 float（引擎侧比对需要数值），支撑体系保持字符串
+            stored_value: Any = value
+            if key != "support_system":
+                try:
+                    stored_value = float(value)
+                except (TypeError, ValueError):
+                    continue  # 入口已校验，双保险
             project_facts["facts"][key] = {
-                "value": value,
+                "value": stored_value,
                 "unit": None,
-                "raw_value": None,
+                "raw_value": str(value),
                 "status": "confirmed",
                 "confidence": None,
                 "candidates": [],

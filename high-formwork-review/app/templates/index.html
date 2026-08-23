@@ -291,6 +291,17 @@
           <label><input type="checkbox" id="showAllDecisions"> 显示已确认项</label>
           <span id="manualProgress" class="ml-16"></span>
         </div>
+        <details class="fold-section" id="paramOverrideSection" style="margin-bottom:12px">
+          <summary>参数修正（识别错误时直接改参数重跑，不必只留备注）</summary>
+          <div class="fold-body" id="paramOverrideBody">
+            <p style="color:var(--text-tertiary);font-size:12px">修改后点击"按修正参数重跑"——支撑体系之外的审查规则将按修正值重新判定。当前识别值来自工程基础信息。</p>
+            <div id="paramOverrideGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
+            <div style="margin-top:8px">
+              <button id="paramRerunBtn" type="button" class="btn-primary">按修正参数重跑</button>
+              <span id="paramRerunMsg" class="ml-16"></span>
+            </div>
+          </div>
+        </details>
         <div id="manualList" class="manual-list"></div>
         <div class="action-row">
           <button id="saveDecisions" type="button" class="btn-primary">保存复核结果</button>
@@ -371,6 +382,6 @@
     </div>
   </div>
 </div>
-<script src="{{ url_for('static', path='/app.js') }}" defer></script>
+<script src="{{ url_for('static', path='/app.js') }}?v={{ app_js_version }}" defer></script>
 </body>
 </html>

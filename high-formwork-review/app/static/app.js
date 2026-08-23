@@ -367,9 +367,11 @@ function evLine(e, label) {
   return `<div class="ev-line">${evThumb(e, pg)}<blockquote>${esc(e.quote||e.text||'')}</blockquote>${pg?`<button type="button" class="btn-small jq-page" data-page="${pg}">${label||'原文'} P${pg}</button>`:''}</div>`;
 }
 function evThumb(e, pg) {
-  if (e.table_html) return `<button type="button" class="ev-thumb ev-thumb-table" data-page="${pg||''}" data-thtml="${esc(e.table_html)}" title="点击查看表格原样">▦ 表格</button>`;
-  if (!e.image_path) return '';
-  return `<img class="ev-thumb" loading="lazy" alt="证据图像" src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(e.image_path)}" data-img="${esc(e.image_path)}" data-page="${pg||''}" title="点击查看大图">`;
+  // 图片和表格都渲染（同一 block 可能两者都有：表格截图 + HTML 版）
+  let out = '';
+  if (e.image_path) out += `<img class="ev-thumb" loading="lazy" alt="证据图像" src="/api/jobs/${curJob}/asset?path=${encodeURIComponent(e.image_path)}" data-img="${esc(e.image_path)}" data-page="${pg||''}" title="点击查看大图">`;
+  if (e.table_html) out += `<button type="button" class="ev-thumb ev-thumb-table" data-page="${pg||''}" data-thtml="${esc(e.table_html)}" title="点击查看表格原样">▦ 表格</button>`;
+  return out;
 }
 
 // ===== 图片/表格证据灯箱 =====
@@ -840,7 +842,48 @@ function renderManual() {
   $('#manualList').innerHTML = visGroups.map(g => `
     <div class="manual-group"><h4>${QUEUE_SOURCE_CN[g.source]||g.source}（${g.items.length}）</h4>
     ${g.items.map(({item,key,decision}) => _manualItemHtml(item,key,decision)).join('')}</div>`).join('');
+  renderParamOverride();
   bindManualEvents();
+}
+
+// ===== 参数修正（人工发现识别值错误 → 改参重跑）=====
+// 与后端 RERUN_NUMERIC_PARAMS 对应的参数中文名（用 key_parameters 的 id 匹配）
+const PARAM_OVERRIDE_CN = {
+  support_height:'支撑架搭设高度', standard_step_height:'架体标准步距',
+  head_jack_cantilever_length:'可调托撑悬臂长度', head_jack_screw_exposed_length:'可调托撑丝杆外露长度',
+  sweeper_centerline_height_above_base_plate:'扫地杆中心线高度',
+  vertical_spacing:'立杆纵距', horizontal_spacing:'立杆横距',
+  framework_height:'架体高度', height_to_width_ratio:'高宽比',
+  support_span:'搭设跨度', concentrated_line_load:'集中线荷载', total_load:'施工总荷载',
+  panel_thickness:'面板厚度', steel_plate_thickness:'钢板厚度',
+};
+function renderParamOverride() {
+  const grid = $('#paramOverrideGrid'); if (!grid) return;
+  const kps = (preData?.project_qualification?.key_parameters||[])
+    .filter(kp => kp.id && PARAM_OVERRIDE_CN[kp.id]);
+  if (!kps.length) { grid.innerHTML = '<p style="color:var(--text-tertiary)">无可修正的数值参数（本任务未识别到）。</p>'; return; }
+  grid.innerHTML = kps.map(kp => `
+    <div class="field"><label title="当前识别值">${esc(PARAM_OVERRIDE_CN[kp.id])}（${esc(kp.value_text||'未识别')}）</label>
+    <input type="text" class="param-override-input" data-param="${esc(kp.id)}" placeholder="修正值（留空不修改）" style="width:100%"></div>`).join('');
+}
+function _bindParamRerun() {
+  const btn = $('#paramRerunBtn'); if (!btn) return;
+  btn.onclick = async () => {
+    const overrides = {};
+    $$('#paramOverrideGrid .param-override-input').forEach(inp => {
+      const v = inp.value.trim();
+      if (v) overrides[inp.dataset.param] = v;
+    });
+    const msg = $('#paramRerunMsg');
+    if (!Object.keys(overrides).length) { msg.textContent = '未填写任何修正值'; return; }
+    if (Object.values(overrides).some(v => isNaN(parseFloat(v)))) { msg.textContent = '修正值必须为数字'; return; }
+    btn.disabled = true; msg.textContent = '重跑中…';
+    try {
+      const r = await fetch(`/api/jobs/${curJob}/rerun`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ overrides }) });
+      const d = await r.json(); if (!r.ok) throw new Error(d.detail||'重跑失败');
+      startPolling();
+    } catch(e) { msg.textContent = e.message; btn.disabled = false; }
+  };
 }
 function _manualItemHtml(item, key, decision) {
   const isDone = decision.human_decision !== 'pending';
@@ -870,6 +913,7 @@ function _manualItemHtml(item, key, decision) {
   </div>`;
 }
 function bindManualEvents() {
+  _bindParamRerun();
   $$('#manualList .jq-link').forEach(b => b.addEventListener('click', () => {
     const tab = b.dataset.tab; switchTab(tab);
     if (tab==='document' && b.dataset.filter) { $('#pageFilter').value = b.dataset.filter; renderChapterTable(b.dataset.filter); }

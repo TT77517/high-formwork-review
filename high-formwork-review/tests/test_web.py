@@ -829,3 +829,59 @@ def test_rerun_applies_human_override(
         (web.JOBS_ROOT / job_id / "status.json").read_text(encoding="utf-8")
     )
     assert status["status"] == "completed"
+
+
+def test_rerun_accepts_numeric_param_overrides(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """人工复核参数修正：数值参数（步距/纵距等）可作为 override 重跑。"""
+    job_id = _completed_job(web.JOBS_ROOT)
+    captured: dict = {}
+
+    def fake_run(job_dir, document, project_facts=None):
+        captured["facts"] = project_facts
+
+    monkeypatch.setattr(web, "_run_review_stages", fake_run)
+    resp = client.post(
+        f"/api/jobs/{job_id}/rerun",
+        json={"overrides": {"standard_step_height": "1.8", "vertical_spacing": "0.6"}},
+    )
+    assert resp.status_code == 202
+    facts = captured["facts"]["facts"]
+    # 数值参数以 float 落盘（引擎比对需要数值类型）
+    assert facts["standard_step_height"]["value"] == 1.8
+    assert facts["vertical_spacing"]["value"] == 0.6
+    assert facts["standard_step_height"]["source_role"] == "human_override"
+    assert facts["standard_step_height"]["status"] == "confirmed"
+
+
+def test_rerun_rejects_non_numeric_param_override(client: TestClient) -> None:
+    """数值参数 override 必须是数字。"""
+    job_id = _completed_job(web.JOBS_ROOT)
+    resp = client.post(
+        f"/api/jobs/{job_id}/rerun",
+        json={"overrides": {"standard_step_height": "一米八"}},
+    )
+    assert resp.status_code == 422
+    assert "数值" in resp.json()["detail"]
+
+
+def test_rerun_accepts_mixed_system_and_numeric(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """支撑体系 + 数值参数可同时覆盖。"""
+    job_id = _completed_job(web.JOBS_ROOT)
+    captured: dict = {}
+
+    def fake_run(job_dir, document, project_facts=None):
+        captured["facts"] = project_facts
+
+    monkeypatch.setattr(web, "_run_review_stages", fake_run)
+    resp = client.post(
+        f"/api/jobs/{job_id}/rerun",
+        json={"overrides": {"support_system": "coupler", "support_height": "12.5"}},
+    )
+    assert resp.status_code == 202
+    facts = captured["facts"]["facts"]
+    assert facts["support_system"]["value"] == "coupler"  # 枚举保持字符串
+    assert facts["support_height"]["value"] == 12.5  # 数值转 float
