@@ -51,7 +51,7 @@ from .substantive_review import build_substantive_review
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env", override=False)
 DATA_ROOT = Path(os.getenv("DATA_ROOT", PROJECT_ROOT / "data")).expanduser()
 if not DATA_ROOT.is_absolute():
     DATA_ROOT = PROJECT_ROOT / DATA_ROOT
@@ -732,10 +732,10 @@ def get_timeline(job_id: str) -> dict[str, Any]:
         "description": "完整性审查 Agent：执行 10 条规则",
     })
 
-    # Dify 审查
-    dify_result = None
+    # Dify 审查（完整性复核）：口径以 dify_call_audit.json 为准（selected≠实际调 API，缓存命中不产生 API 调用）
+    dify_selection = None
     try:
-        dify_result = _read_json(job_dir / "dify_review_result.json", "")
+        dify_selection = _read_json(job_dir / "dify_selection.json", "")
     except HTTPException:
         pass
     dify_error = None
@@ -743,13 +743,43 @@ def get_timeline(job_id: str) -> dict[str, Any]:
         dify_error = _read_json(job_dir / "dify_error.json", "")
     except HTTPException:
         pass
+    dify_audit = None
+    try:
+        dify_audit = _read_json(job_dir / "dify_call_audit.json", "")
+    except HTTPException:
+        pass
 
-    if dify_result:
-        events.append({
-            "time": status.get("updated_at", ""),
-            "stage": "dify_review",
-            "description": f"Dify 审查完成（{dify_result.get('total_rules', '?')} 条规则）",
-        })
+    if dify_selection and dify_selection.get("selected_count", 0) > 0:
+        selected = dify_selection.get("selected_count", 0)
+        total = dify_selection.get("total_rules", 10)
+        api_count = 0
+        cache_count = 0
+        failed_count = 0
+        if dify_audit:
+            api_count = dify_audit.get("api_requested_rule_count", 0)
+            cache_count = dify_audit.get("cache_hit_count", 0)
+            failed_count = len(dify_audit.get("failed_rule_ids") or [])
+        if failed_count:
+            description = (
+                f"Dify 完整性复核部分失败（{failed_count} 条失败，"
+                f"API 实调 {api_count} 条，缓存命中 {cache_count} 条）"
+            )
+            events.append({
+                "time": status.get("updated_at", ""),
+                "stage": "dify_failed",
+                "error": True,
+                "description": description,
+            })
+        else:
+            description = (
+                f"Dify 完整性复核完成（选中 {selected}/{total} 条，"
+                f"API 实调 {api_count} 条，缓存命中 {cache_count} 条）"
+            )
+            events.append({
+                "time": status.get("updated_at", ""),
+                "stage": "dify_review",
+                "description": description,
+            })
     elif dify_error:
         events.append({
             "time": status.get("updated_at", ""),
@@ -809,7 +839,7 @@ def get_output_files(job_id: str) -> dict[str, Any]:
         "completeness_evidence_check.md": "证据核对报告（Markdown）",
         "decisions.json": "人工复核记录",
         "review_comparison.json": "本地与 Dify 审查对比",
-        "dify_review_result.json": "Dify AI 审查结果",
+        "dify_selection.json": "Dify 完整性复核选择结果",
         "dify_request.json": "Dify 请求审计日志",
         "dify_call_audit.json": "Dify 调用与缓存审计",
         "dify_raw_response.json": "Dify 原始响应",
@@ -1159,7 +1189,7 @@ def _failure_message(stage: str) -> str:
 
 
 def _web_dify_mode() -> str:
-    load_dotenv()
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
     return resolve_dify_completeness_mode(
         explicit_mode=os.getenv("DIFY_COMPLETENESS_MODE"),
         web_enable_dify=os.getenv("WEB_ENABLE_DIFY", "false"),

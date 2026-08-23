@@ -6,10 +6,16 @@ import asyncio
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any
 
 import httpx
 from dotenv import load_dotenv
+
+
+def _load_project_env() -> None:
+    """加载项目根 .env，与启动目录无关（override=False 不覆盖已显式导出的变量）。"""
+    load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=False)
 
 
 RETRYABLE_GATEWAY_STATUSES = {502, 503, 504}
@@ -60,7 +66,7 @@ class DifyClient:
 
     @classmethod
     def from_env(cls) -> "DifyClient":
-        load_dotenv()
+        _load_project_env()
         timeout_text = os.getenv("DIFY_TIMEOUT_SECONDS", "180").strip()
         try:
             timeout_seconds = float(timeout_text)

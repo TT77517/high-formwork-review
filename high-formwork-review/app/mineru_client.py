@@ -14,6 +14,11 @@ from typing import Any
 import requests
 
 
+def _load_project_env() -> None:
+    """加载项目根 .env，与启动目录无关（override=False 不覆盖已显式导出的变量）。"""
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+
+
 _TRUE_VALUES = {"true", "1", "yes", "on"}
 
 
@@ -41,7 +46,7 @@ class MinerUClient:
             raise FileNotFoundError(f"PDF 文件不存在：{source_path}")
         if source_path.stat().st_size == 0:
             raise ValueError(f"PDF 文件为空：{source_path}")
-        load_dotenv()
+        _load_project_env()
         token = os.getenv("MINERU_API_TOKEN", "").strip()
         if not token:
             raise RuntimeError("缺少环境变量：MINERU_API_TOKEN")

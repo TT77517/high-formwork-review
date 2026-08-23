@@ -110,6 +110,65 @@ def test_dify_results_are_mapped_and_gate_applied():
     assert dify_items[0]["evidence"][0]["quote"] == "原文引用"
 
 
+def test_llm_evidence_quote_located_to_block():
+    """LLM 引用文本应定位回本地 block（页码/block_id），不匹配时保持 source:llm 不报错。"""
+    from app.services.semantic_dify import (
+        _locate_llm_quote,
+        _map_llm_item,
+    )
+
+    blocks = [
+        {
+            "block_id": "p0003-b0003",
+            "block_type": "table",
+            "physical_page": 3,
+            "text": "倾倒混凝土时对垂直面模板荷载标准值Q3k(kN/m2) 2",
+        },
+        {
+            "block_id": None,
+            "block_type": "section",
+            "physical_page": 45,
+            "text": "脚手架安全等级 I级 结构重要性系数 1",
+        },
+    ]
+    # 逐字引用 → 精确定位
+    hit = _locate_llm_quote(
+        "倾倒混凝土时对垂直面模板荷载标准值Q3k(kN/m2) 2", blocks
+    )
+    assert hit and hit["block_id"] == "p0003-b0003"
+    assert hit["physical_page"] == 3
+    # 片段引用 → 定位到所在 block
+    hit2 = _locate_llm_quote("结构重要性系数 1", blocks)
+    assert hit2 and hit2["physical_page"] == 45
+    # 无关引用 → None
+    assert _locate_llm_quote("完全无关的引用文本", blocks) is None
+    assert _locate_llm_quote("", blocks) is None
+
+    # 集成：_map_llm_item 携带 evidence_blocks 时回填页码
+    rules_by_id = {
+        "2.17": {
+            "rule_id": "2.17",
+            "rule_name": "结构重要性系数γ₀",
+            "module": "02_design_requirements",
+            "code_ref": {"standard": "JGJ162", "original_text": "γ0≥1.1"},
+            "check_logic": {},
+        }
+    }
+    item = {
+        "rule_id": "2.17",
+        "status": "VIOLATED",
+        "reason": "γ0 取 1，低于 1.1",
+        "evidence_quote": "结构重要性系数 1",
+        "confidence": "high",
+    }
+    mapped = _map_llm_item(item, rules_by_id, {"2.17": blocks})
+    assert mapped["evidence"][0]["page"] == 45
+    assert mapped["evidence"][0]["source"] == "llm"
+    # 不传 blocks：行为与旧版一致（无 page 字段）
+    mapped_old = _map_llm_item(item, rules_by_id)
+    assert "page" not in mapped_old["evidence"][0]
+
+
 def test_invalid_status_in_batch_triggers_local_fallback():
     doc = _document("本方案由施工单位组织编制。")
 

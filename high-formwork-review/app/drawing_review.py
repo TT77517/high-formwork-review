@@ -28,7 +28,9 @@ DRAWING_CROSS_CHECK_PARAMS = [
     {
         "fact_id": "head_jack_cantilever_length",
         "name": "可调托撑悬臂长度",
-        "keywords": ["悬臂", "托撑", "顶托", "伸出顶层"],
+        # "托撑"单用会误命中"托撑+承插型插槽式"等支架名称行；
+        # "悬臂"单用会误命中"悬臂端计算长度折减系数k"等计算参数 → 都用完整表述
+        "keywords": ["悬臂长度", "顶托悬臂", "悬臂长", "伸出顶层"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
     },
     {
@@ -121,13 +123,16 @@ def _cross_check_param(
             # 在关键词附近找数值
             pattern = re.escape(kw) + r"[^0-9\-—~～]*?" + unit_pattern
             for m in re.finditer(pattern, norm, re.IGNORECASE):
+                quote = m.group(0).strip()
+                if _is_spec_clause_quote(quote, kw):
+                    continue  # 规范条文引用（"不得大于/严禁超过…"）不是图纸标注
                 val_str = m.group(1)
                 try:
                     val = float(val_str)
                     drawing_values.append({
                         "value": val,
                         "page": page.physical_page,
-                        "quote": m.group(0).strip(),
+                        "quote": quote,
                         "keyword": kw,
                     })
                 except ValueError:
@@ -144,8 +149,8 @@ def _cross_check_param(
             text_evidence=[_evidence_dict(item) for item in fact.get("evidence", [])[:3]],
         )
 
-    # 取图纸中的代表值（众数或第一个）
-    drawing_value = drawing_values[0]["value"]
+    # 取图纸中的代表值：出现次数最多的值（规格表多次标注同一值时更稳，避免取到第一条无关数值）
+    drawing_value = _representative_value(drawing_values)
 
     # 比对 — 先统一单位（mm和m之间换算）
     def _normalize_to_mm(val: float, text: str) -> float:
@@ -156,17 +161,35 @@ def _cross_check_param(
         return val  # 已经是mm
 
     body_mm = _normalize_to_mm(float(body_value), str(body_value))
-    drawing_mm = _normalize_to_mm(float(drawing_value), drawing_values[0].get("quote", ""))
+    # 多跨/多部位工程同一参数会有多个合法标注值（如梁下 1200、板下 900），
+    # 图纸值集合中任一值与正文一致即 PASS；全部不一致才 ISSUE
+    drawing_mms = [
+        _normalize_to_mm(item["value"], item.get("quote", ""))
+        for item in drawing_values
+    ]
     tolerance = 0.05 * abs(body_mm)  # 5% 容差
-    if abs(drawing_mm - body_mm) <= tolerance:
+    matched = [v for v in drawing_mms if abs(v - body_mm) <= tolerance]
+    if matched:
         status = "PASS"
-        reason = f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后一致（{body_mm}mm ≈ {drawing_mm}mm）"
+        matched_value = drawing_values[drawing_mms.index(matched[0])]["value"]
+        reason = (
+            f"正文参数={body_value}，图纸标注含一致值（{matched_value}，"
+            f"全部标注值：{sorted(set(drawing_mms))}mm），图文一致"
+        )
     else:
+        drawing_value = _representative_value(drawing_values)
+        drawing_mm = _normalize_to_mm(
+            float(drawing_value), drawing_values[0].get("quote", "")
+        )
         status = "ISSUE"
-        reason = f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后不一致（{body_mm}mm vs {drawing_mm}mm）"
+        reason = (
+            f"正文参数={body_value}，图纸标注={drawing_value}，单位统一后不一致"
+            f"（{body_mm}mm vs 全部标注值 {sorted(set(drawing_mms))}mm）"
+        )
+        matched_value = drawing_value
 
     return _build_cross_result(
-        review_id, param_name, body_value, drawing_value, drawing_values[:3],
+        review_id, param_name, body_value, matched_value, drawing_values[:3],
         status, reason,
         text_evidence=[_evidence_dict(item) for item in fact.get("evidence", [])[:3]],
     )
@@ -271,6 +294,36 @@ def _find_drawing_pages(
 def _page_text(page: MinerUPage) -> str:
     block_text = "\n".join(block.text or "" for block in page.blocks)
     return f"{page.text or ''}\n{block_text}"
+
+
+# 规范条文式表述：引用的数值是规范限值而非本工程图纸标注
+_SPEC_CLAUSE_MARKERS = (
+    "不得大于", "不应大于", "严禁超过", "不得超过", "不宜大于",
+    "不应小于", "不得小于", "不应超过", "不宜超过", "不应高于",
+    "不应低于", "最大不得超过", "限值",
+)
+
+
+def _is_spec_clause_quote(quote: str, keyword: str) -> bool:
+    """判断引用文本是否为规范条文（限值表述）而非工程图纸标注。
+
+    图纸/规格表标注通常形如"步距(mm) 1500""横距 900"；
+    条文引用形如"步距不得大于1.5m""悬臂长度严禁超过650mm"。
+    """
+    # 关键词与数值之间的连接文本含限值表述 → 条文
+    tail = quote[len(keyword):] if quote.startswith(keyword) else quote
+    return any(marker in tail for marker in _SPEC_CLAUSE_MARKERS)
+
+
+def _representative_value(drawing_values: list[dict[str, Any]]) -> float:
+    """取出现次数最多的值；并列时取首次出现的（规格表最先标注的值）。"""
+    counts: dict[float, int] = {}
+    order: dict[float, int] = {}
+    for index, item in enumerate(drawing_values):
+        val = item["value"]
+        counts[val] = counts.get(val, 0) + 1
+        order.setdefault(val, index)
+    return max(counts, key=lambda v: (counts[v], -order[v]))
 
 
 def _merge_fact_evidence(

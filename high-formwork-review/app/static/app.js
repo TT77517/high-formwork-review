@@ -562,6 +562,26 @@ function openReviewDrawer(rid) {
   const comp = cb[rid]||{};
   const isDisagree = comp.comparison_status === 'DISAGREEMENT';
   
+  // 子项匹配明细
+  const subitems = rule.matched_subitems || [];
+  let subitemsSection = '';
+  if (subitems.length > 0) {
+    const satisfiedCount = subitems.filter(s => s.satisfied).length;
+    const totalCount = subitems.length;
+    const matchRate = Math.round(satisfiedCount / totalCount * 100);
+    let subitemsHtml = `<div class="detail-section"><h4>子项匹配明细（${satisfiedCount}/${totalCount}，${matchRate}%）</h4><table class="data-table table-compact"><thead><tr><th>子项</th><th>状态</th><th>匹配关键词</th><th>来源页</th></tr></thead><tbody>`;
+    subitems.forEach(s => {
+      const statusChip = s.satisfied 
+        ? '<span class="status-chip status-PASS">已匹配</span>' 
+        : '<span class="status-chip status-MISSING">未匹配</span>';
+      const terms = (s.matched_terms || []).slice(0, 5).join('、');
+      const pages = (s.physical_pages || []).join('、');
+      subitemsHtml += `<tr><td>${esc(s.name)}</td><td>${statusChip}</td><td><small>${esc(terms)}</small></td><td><small>${esc(pages)}</small></td></tr>`;
+    });
+    subitemsHtml += '</tbody></table></div>';
+    subitemsSection = subitemsHtml;
+  }
+  
   // 本地证据
   const localEv = (rule.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page}</b></span><span>${esc(e.block_type||'')}</span></div>${evThumb(e, e.physical_page)}<blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('') || '<p style="color:var(--text-tertiary)">无证据</p>';
   
@@ -581,7 +601,7 @@ function openReviewDrawer(rid) {
   }
   
   $('#reviewDrawerTitle').textContent = `${rule.rule_id} — ${rule.name}`;
-  $('#reviewDrawerBody').innerHTML = `${consistencyNote}<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>本地预审结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div><div class="detail-section"><h4>本地预审证据</h4>${localEv}</div>${difySection}`;
+  $('#reviewDrawerBody').innerHTML = `${consistencyNote}<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>本地预审结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div>${subitemsSection}<div class="detail-section"><h4>本地预审证据</h4>${localEv}</div>${difySection}`;
   $('#reviewDetailPanel').classList.remove('hidden');
 }
 

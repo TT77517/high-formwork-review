@@ -24,6 +24,8 @@ from ..semantic_engine import (
     SEMANTIC_EVIDENCE_LIMIT,
     _build_sem_result,
     _evaluate_semantic_local,
+    _find_relevant_sections,
+    _normalize_text,
     build_semantic_evidence,
     load_semantic_rules,
 )
@@ -64,6 +66,7 @@ def build_semantic_batches(
                 "evidence_text": build_semantic_evidence(document, rule)[
                     :SEMANTIC_EVIDENCE_LIMIT
                 ],
+                "evidence_blocks": _collect_rule_evidence_blocks(document, rule),
             }
         )
     batch_count = math.ceil(len(units) / batch_size) if units else 0
@@ -75,6 +78,9 @@ def build_semantic_batches(
                 "batch_index": len(batches) + 1,
                 "batch_count": batch_count,
                 "rule_ids": [unit["rule_id"] for unit in group],
+                "evidence_blocks": {
+                    unit["rule_id"]: unit["evidence_blocks"] for unit in group
+                },
                 "inputs": {
                     "rules_json": json.dumps(
                         [
@@ -150,7 +156,10 @@ def run_semantic_review_dify(
                     batch, dify_client, cache_enabled=cache_enabled
                 )
                 results.extend(
-                    _map_llm_item(item, rules_by_id) for item in llm_items
+                    _map_llm_item(
+                        item, rules_by_id, batch.get("evidence_blocks")
+                    )
+                    for item in llm_items
                 )
             except DifyError as exc:
                 warnings.append(
@@ -325,13 +334,94 @@ def _batch_cache_path(batch: dict[str, Any]) -> Path:
     )
 
 
+def _collect_rule_evidence_blocks(
+    document: MinerUDocument, rule: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """收集该规则证据召回命中的 block 定位（block_id/页码/文本），供 LLM 引用回填。"""
+    keywords = rule.get("check_logic", {}).get("extraction_keywords", [])
+    try:
+        sections = _find_relevant_sections(document, keywords or None)
+    except Exception:
+        return []
+    blocks: list[dict[str, Any]] = []
+    for sec in sections:
+        if not sec.get("matched"):
+            continue
+        for block in sec.get("blocks", [])[:5]:
+            blocks.append(
+                {
+                    "block_id": block.get("block_id"),
+                    "block_type": block.get("block_type"),
+                    "physical_page": block.get("physical_page"),
+                    "text": (block.get("text") or "")[:300],
+                }
+            )
+        if not sec.get("blocks"):
+            blocks.append(
+                {
+                    "block_id": None,
+                    "block_type": "section",
+                    "physical_page": sec.get("page"),
+                    "text": (sec.get("text") or "")[:300],
+                }
+            )
+    return blocks[:10]
+
+
+def _locate_llm_quote(
+    quote: str, blocks: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """把 LLM 返回的证据引用定位到具体 block（页码/block_id）。
+
+    LLM 引用可能不逐字（省略/改写），按最长公共片段匹配：
+    取引用中的 6~12 字滑窗，在 block 文本中找命中，取命中窗口最长者。
+    """
+    if not quote:
+        return None
+    norm_quote = _normalize_text(quote)
+    if not norm_quote:
+        return None
+    best = None
+    best_len = 0
+    for block in blocks:
+        text = block.get("text") or ""
+        norm_text = _normalize_text(text)
+        if not norm_text:
+            continue
+        # 整段引用直接命中
+        if norm_quote in norm_text:
+            return dict(block)
+        # 滑窗找最长命中片段
+        for size in range(min(len(norm_quote), 24), 5, -1):
+            for start in range(0, len(norm_quote) - size + 1):
+                if norm_quote[start : start + size] in norm_text:
+                    if size > best_len:
+                        best = dict(block)
+                        best_len = size
+                    break
+            if best is not None and best_len == size:
+                break
+    return best if best_len >= 6 else None
+
+
 def _map_llm_item(
-    item: dict[str, Any], rules_by_id: dict[str, dict[str, Any]]
+    item: dict[str, Any],
+    rules_by_id: dict[str, dict[str, Any]],
+    evidence_blocks: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     rule = rules_by_id.get(str(item.get("rule_id", "")), {})
     status = str(item.get("status", "")).upper()
     quote = str(item.get("evidence_quote") or "").strip()
-    evidence = [{"quote": quote[:500], "source": "llm"}] if quote else []
+    evidence: list[dict[str, Any]] = []
+    if quote:
+        entry: dict[str, Any] = {"quote": quote[:500], "source": "llm"}
+        blocks = (evidence_blocks or {}).get(str(item.get("rule_id", "")), [])
+        located = _locate_llm_quote(quote, blocks)
+        if located:
+            entry["page"] = located.get("physical_page")
+            entry["block_id"] = located.get("block_id")
+            entry["block_type"] = located.get("block_type")
+        evidence.append(entry)
     code_ref = rule.get("code_ref") or {}
     from ..rule_engine import MODULE_NAMES
 

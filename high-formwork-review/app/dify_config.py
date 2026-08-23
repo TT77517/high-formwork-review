@@ -4,9 +4,19 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ENV_PATH = PROJECT_ROOT / ".env"
+
+
+def _load_project_env() -> None:
+    """加载项目根 .env，与启动目录无关（override=False 不覆盖已显式导出的变量）。"""
+    load_dotenv(ENV_PATH, override=False)
 
 
 DifyCompletenessMode = Literal["off", "on_demand", "full"]
@@ -33,7 +43,7 @@ class DifyReviewConfig:
 def resolve_dify_review_config(*, load_environment: bool = True) -> DifyReviewConfig:
     """Resolve cache and audit configuration without requiring Dify credentials."""
     if load_environment:
-        load_dotenv()
+        _load_project_env()
     return DifyReviewConfig(
         cache_enabled=_env_truthy(
             "DIFY_CACHE_ENABLED", DEFAULT_DIFY_CACHE_ENABLED
@@ -65,7 +75,7 @@ def resolve_dify_completeness_mode(
     Otherwise ``DIFY_COMPLETENESS_MODE`` defaults to ``on_demand``.
     """
     if load_environment:
-        load_dotenv()
+        _load_project_env()
 
     web_value = (
         os.getenv("WEB_ENABLE_DIFY")
@@ -97,7 +107,7 @@ def resolve_semantic_review_mode(
     调用失败时逐批降级回本地模式，任务不中断。
     """
     if load_environment:
-        load_dotenv()
+        _load_project_env()
     mode = explicit_mode
     if mode is None and load_environment:
         mode = os.getenv("SEMANTIC_REVIEW_MODE")
@@ -110,7 +120,7 @@ def resolve_semantic_review_mode(
 def resolve_semantic_api_key(*, load_environment: bool = True) -> str:
     """语义审查 Workflow 的 API Key；未单独配置时回退完整性审查的 Key。"""
     if load_environment:
-        load_dotenv()
+        _load_project_env()
     key = os.getenv("DIFY_SEMANTIC_API_KEY", "").strip()
     if key:
         return key
