@@ -701,43 +701,113 @@ def get_dify_error(job_id: str) -> dict[str, Any]:
 
 @app.get("/api/jobs/{job_id}/timeline")
 def get_timeline(job_id: str) -> dict[str, Any]:
-    """构建任务处理时间线。"""
+    """构建任务处理时间线。
+
+    各审查阶段时间取 stage_timings.json（真实开始时间+耗时）；
+    老任务无该文件时回退 status.updated_at。
+    """
     job_dir = _completed_job_dir(job_id)
     status = _read_json(job_dir / "status.json", "任务状态不存在")
     events: list[dict[str, Any]] = []
 
-    # 上传事件
+    def _fmt_duration(ms: int) -> str:
+        if ms < 1000:
+            return f"{ms}ms"
+        if ms < 60_000:
+            return f"{ms / 1000:.1f}s"
+        return f"{ms // 60_000}m{ms % 60_000 // 1000}s"
+
+    # 阶段真实计时（新任务落盘；老任务缺失时回退）
+    stage_timings: dict[str, dict[str, Any]] = {}
+    timings_path = job_dir / "stage_timings.json"
+    if timings_path.is_file():
+        try:
+            stage_timings = _read_json(timings_path, "") or {}
+        except HTTPException:
+            stage_timings = {}
+    run_context = stage_timings.pop("run_context", None) or {}
+    is_rerun = run_context.get("kind") == "rerun"
+
+    def _stage_time(stage_key: str) -> str:
+        info = stage_timings.get(stage_key) or {}
+        return info.get("started_at") or status.get("updated_at", "")
+
+    # 1. 上传
     events.append({
         "time": status.get("uploaded_at", ""),
         "stage": "uploaded",
         "description": f"上传文件：{status.get('file_name', '未知')}",
     })
 
-    # 解析开始
-    events.append({
-        "time": status.get("updated_at", ""),
-        "stage": "mineru_parsing",
-        "description": "MinerU 多模态解析",
-    })
+    if is_rerun:
+        # 重跑场景：原上传保留，解析/完整性为历史事件不重复展示，
+        # 加重跑基准事件（取首个审查阶段的开始时间）+ 各审查阶段新计时
+        rerun_started = run_context.get("started_at", "")
+        if not rerun_started:
+            stage_starts = [
+                info.get("started_at", "")
+                for info in stage_timings.values()
+                if isinstance(info, dict) and info.get("started_at")
+            ]
+            rerun_started = min(stage_starts) if stage_starts else status.get("updated_at", "")
+        events.append({
+            "time": rerun_started,
+            "stage": "rerun",
+            "description": f"人工复核重跑开始（{run_context.get('reason', '参数修正')}）",
+        })
+    else:
+        # 2. MinerU 解析（uploaded→document 之间的间隔即解析耗时；缓存命中时接近 0）
+        parse_hit = status.get("parse_cache_hit")
+        events.append({
+            "time": _stage_time("mineru_parsing") or status.get("uploaded_at", ""),
+            "stage": "mineru_parsing",
+            "description": (
+                "MinerU 多模态解析（复用缓存）"
+                if parse_hit
+                else "MinerU 多模态解析（在线解析）"
+            ),
+        })
 
-    # 文档解析
-    events.append({
-        "time": status.get("updated_at", ""),
-        "stage": "document_parsing",
-        "description": status.get(
-            "document_parse_message",
-            "文档解析 Agent：章节构建与风险标记",
-        ),
-    })
+        # 3. 文档解析
+        events.append({
+            "time": _stage_time("document_parsing"),
+            "stage": "document_parsing",
+            "description": status.get(
+                "document_parse_message",
+                "文档解析 Agent：章节构建与风险标记",
+            ),
+        })
 
-    # 完整性审查
-    events.append({
-        "time": status.get("updated_at", ""),
-        "stage": "completeness_review",
-        "description": "完整性审查 Agent：执行 10 条规则",
-    })
+        # 4. 完整性审查
+        events.append({
+            "time": _stage_time("completeness_review"),
+            "stage": "completeness_review",
+            "description": "完整性审查 Agent：执行 10 条规则",
+        })
 
-    # Dify 审查（完整性复核）：口径以 dify_call_audit.json 为准（selected≠实际调 API，缓存命中不产生 API 调用）
+    # 5. 审查阶段组（stage_timings 真实计时；含规范语义审查等此前缺失的阶段）
+    stage_order = [
+        ("project_facts", "关键参数识别"),
+        ("project_qualification", None),
+        ("rule_engine", None),
+        ("semantic_engine", None),
+        ("calculation_engine", None),
+        ("substantive_review", None),
+        ("consistency_review", None),
+        ("drawing_review", None),
+    ]
+    for stage_key, _default_desc in stage_order:
+        info = stage_timings.get(stage_key)
+        if not info:
+            continue  # 老任务无计时 → 跳过该阶段事件（保持时间线简洁）
+        events.append({
+            "time": info.get("started_at", ""),
+            "stage": stage_key,
+            "description": f"{info.get('description') or stage_key}（{_fmt_duration(info.get('duration_ms', 0))}）",
+        })
+
+    # 6. Dify 完整性复核：口径以 dify_call_audit.json 为准（selected≠实际调 API，缓存命中不产生 API 调用）
+    # 重跑场景不展示（Dify 复核结果属首次审查，重跑不重新触发）
     dify_selection = None
     try:
         dify_selection = _read_json(job_dir / "dify_selection.json", "")
@@ -754,7 +824,9 @@ def get_timeline(job_id: str) -> dict[str, Any]:
     except HTTPException:
         pass
 
-    if dify_selection and dify_selection.get("selected_count", 0) > 0:
+    if is_rerun:
+        pass  # 重跑：Dify 完整性复核为首次审查产物，不重复展示
+    elif dify_selection and dify_selection.get("selected_count", 0) > 0:
         selected = dify_selection.get("selected_count", 0)
         total = dify_selection.get("total_rules", 10)
         api_count = 0
@@ -764,24 +836,27 @@ def get_timeline(job_id: str) -> dict[str, Any]:
             api_count = dify_audit.get("api_requested_rule_count", 0)
             cache_count = dify_audit.get("cache_hit_count", 0)
             failed_count = len(dify_audit.get("failed_rule_ids") or [])
+        audit_started = (dify_audit or {}).get("started_at") or status.get("updated_at", "")
+        audit_ms = (dify_audit or {}).get("duration_ms")
+        duration_text = f"（{_fmt_duration(audit_ms)}）" if audit_ms is not None else ""
         if failed_count:
             description = (
-                f"Dify 完整性复核部分失败（{failed_count} 条失败，"
-                f"API 实调 {api_count} 条，缓存命中 {cache_count} 条）"
+                f"Dify 完整性复核部分失败{duration_text}：{failed_count} 条失败，"
+                f"API 实调 {api_count} 条，缓存命中 {cache_count} 条"
             )
             events.append({
-                "time": status.get("updated_at", ""),
+                "time": audit_started,
                 "stage": "dify_failed",
                 "error": True,
                 "description": description,
             })
         else:
             description = (
-                f"Dify 完整性复核完成（选中 {selected}/{total} 条，"
-                f"API 实调 {api_count} 条，缓存命中 {cache_count} 条）"
+                f"Dify 完整性复核完成{duration_text}：选中 {selected}/{total} 条，"
+                f"API 实调 {api_count} 条，缓存命中 {cache_count} 条"
             )
             events.append({
-                "time": status.get("updated_at", ""),
+                "time": audit_started,
                 "stage": "dify_review",
                 "description": description,
             })
@@ -799,7 +874,7 @@ def get_timeline(job_id: str) -> dict[str, Any]:
             "description": "Dify 未启用，跳过 AI 审查",
         })
 
-    # 人工复核
+    # 7. 人工复核
     decisions_path = job_dir / "decisions.json"
     if decisions_path.exists():
         decisions = _read_json(decisions_path, "")
@@ -811,12 +886,15 @@ def get_timeline(job_id: str) -> dict[str, Any]:
                 "description": f"人工复核：{reviewed}/{len(decisions)} 条已处理",
             })
 
-    # 完成
+    # 8. 完成
     events.append({
         "time": status.get("updated_at", ""),
         "stage": status.get("status", "completed"),
         "description": status.get("message", "任务完成"),
     })
+
+    # 按时间排序（stage_timings 阶段可能插在完整性审查与 Dify 之间）
+    events.sort(key=lambda e: e.get("time", ""))
 
     return {"job_id": job_id, "events": events}
 
@@ -850,6 +928,7 @@ def get_output_files(job_id: str) -> dict[str, Any]:
         "dify_raw_response.json": "Dify 原始响应",
         "dify_error.json": "Dify 错误记录",
         "status.json": "任务状态",
+        "stage_timings.json": "各阶段耗时记录",
     }
 
     for file_name, desc in file_descriptions.items():
@@ -888,20 +967,56 @@ def _process_job(job_id: str) -> None:
     job_dir = _job_dir(job_id)
     source_path = job_dir / "source.pdf"
     stage = "mineru_parsing"
+    # 前段阶段计时（与 _run_review_stages 的 stage_timings.json 合并）
+    early_timings: dict[str, dict[str, Any]] = {}
+
+    def _timed_early(stage_key: str, description: str, started_at: str, fn):
+        from time import perf_counter
+
+        t0 = perf_counter()
+        try:
+            return fn()
+        finally:
+            early_timings[stage_key] = {
+                "description": description,
+                "started_at": started_at,
+                "finished_at": _utc_now(),
+                "duration_ms": int((perf_counter() - t0) * 1000),
+            }
+
     try:
         _update_status(job_dir, stage, "MinerU 正在进行底层多模态解析")
-        document, cache_info = parse_pdf_with_cache(
-            pdf_path=source_path,
-            raw_output_dir=job_dir / "mineru_api",
-            document_output_path=job_dir / "mineru_document.json",
-            cache_root=MINERU_CACHE_ROOT,
-            client_factory=MinerUClient,
-            parser=parse_mineru,
-            before_document_parse=lambda: _update_status(
-                job_dir,
-                "document_parsing",
-                "文档解析 Agent 正在构建章节与标记风险",
-            ),
+        parse_started = _utc_now()
+
+        def _do_parse():
+            return parse_pdf_with_cache(
+                pdf_path=source_path,
+                raw_output_dir=job_dir / "mineru_api",
+                document_output_path=job_dir / "mineru_document.json",
+                cache_root=MINERU_CACHE_ROOT,
+                client_factory=MinerUClient,
+                parser=parse_mineru,
+                before_document_parse=lambda: _update_status(
+                    job_dir,
+                    "document_parsing",
+                    "文档解析 Agent 正在构建章节与标记风险",
+                ),
+            )
+
+        document, cache_info = _timed_early(
+            "mineru_parsing",
+            "MinerU 多模态解析",
+            parse_started,
+            _do_parse,
+        )
+        early_timings.setdefault(
+            "document_parsing",
+            {
+                "description": "文档解析（章节构建与风险标记，随 MinerU 一并完成）",
+                "started_at": parse_started,
+                "finished_at": early_timings["mineru_parsing"]["finished_at"],
+                "duration_ms": early_timings["mineru_parsing"]["duration_ms"],
+            },
         )
         _record_parse_cache_status(job_dir, cache_info)
 
@@ -910,7 +1025,26 @@ def _process_job(job_id: str) -> None:
         stage = "completeness_review"
         _update_status(job_dir, stage, "完整性审查 Agent 正在执行 10 条规则")
         rules = load_rules(RULES_PATH)
-        summary, details = review_completeness_with_details(document, rules)
+
+        def _do_completeness():
+            return review_completeness_with_details(document, rules)
+
+        summary, details = _timed_early(
+            "completeness_review",
+            "完整性审查（10 条规则）",
+            _utc_now(),
+            _do_completeness,
+        )
+        # 前段计时落盘（_run_review_stages 会合并后段并整体重写）
+        merged = dict(early_timings)
+        existing_timings = job_dir / "stage_timings.json"
+        if existing_timings.is_file():
+            try:
+                merged.update(_read_json(existing_timings, "") or {})
+            except HTTPException:
+                pass
+        merged.update(early_timings)
+        _atomic_write_json(job_dir / "stage_timings.json", merged)
         page_by_number = {
             page.physical_page: page for page in document.pages
         }
@@ -1016,18 +1150,77 @@ def _run_review_stages(
     """fact-dependent 审查段：facts→qualification→三引擎→实质性/一致性/图文→落盘→review_results。
 
     上传管线与人工确认重跑共用；不含 mineru 解析与完整性审查。
+    各阶段开始/结束时间记录到 stage_timings.json（时间线展示用）。
     """
+    from time import perf_counter
+
+    timings: dict[str, dict[str, Any]] = {}
+
+    def _timed(stage_key: str, description: str, fn):
+        started = _utc_now()
+        t0 = perf_counter()
+        try:
+            return fn()
+        finally:
+            timings[stage_key] = {
+                "description": description,
+                "started_at": started,
+                "finished_at": _utc_now(),
+                "duration_ms": int((perf_counter() - t0) * 1000),
+            }
+
     if project_facts is None:
-        project_facts = build_project_facts(document)
-    project_qualification = build_project_qualification(document, project_facts)
-    rule_engine_result = run_rule_engine_safe(document, project_facts)
-    semantic_result = _run_semantic_stage(document, project_facts)
-    calculation_result = run_calculation_engine_safe(document, project_facts)
-    substantive_review = build_substantive_review(project_qualification, project_facts)
-    consistency_review = build_consistency_review(project_facts, document)
-    drawing_review = build_drawing_review(
-        document, project_facts, job_dir=job_dir
+        project_facts = _timed(
+            "project_facts",
+            "关键参数识别",
+            lambda: build_project_facts(document),
+        )
+    project_qualification = _timed(
+        "project_qualification",
+        "工程基础信息识别",
+        lambda: build_project_qualification(document, project_facts),
     )
+    rule_engine_result = _timed(
+        "rule_engine",
+        "确定性规则引擎（规范条文比对）",
+        lambda: run_rule_engine_safe(document, project_facts),
+    )
+    semantic_result = _timed(
+        "semantic_engine",
+        "规范语义审查",
+        lambda: _run_semantic_stage(document, project_facts),
+    )
+    calculation_result = _timed(
+        "calculation_engine",
+        "计算校核（公式验算检查）",
+        lambda: run_calculation_engine_safe(document, project_facts),
+    )
+    substantive_review = _timed(
+        "substantive_review",
+        "实质性审查",
+        lambda: build_substantive_review(project_qualification, project_facts),
+    )
+    consistency_review = _timed(
+        "consistency_review",
+        "参数一致性检查（正文 vs 计算书）",
+        lambda: build_consistency_review(project_facts, document),
+    )
+    drawing_review = _timed(
+        "drawing_review",
+        "图文一致性校验（含图片OCR）",
+        lambda: build_drawing_review(document, project_facts, job_dir=job_dir),
+    )
+    # 合并前段计时（MinerU/完整性），整体重写 stage_timings.json
+    timings_path = job_dir / "stage_timings.json"
+    merged = dict(timings)
+    if timings_path.is_file():
+        try:
+            existing = _read_json(timings_path, "") or {}
+            for key, value in existing.items():
+                merged.setdefault(key, value)
+        except HTTPException:
+            pass
+    _atomic_write_json(timings_path, merged)
     _atomic_write_json(job_dir / "project_facts.json", project_facts)
     _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
     _atomic_write_json(job_dir / "rule_engine_results.json", rule_engine_result)
@@ -1150,7 +1343,20 @@ def _rerun_review_stages(job_id: str, overrides: dict[str, str]) -> None:
                 "requires_human_review": False,
             }
         _atomic_write_json(job_dir / "project_facts.json", project_facts)
+        # 重跑场景：前段计时（MinerU/完整性）是历史数据，标记上下文供时间线区分展示
         _run_review_stages(job_dir, document, project_facts)
+        timings_path = job_dir / "stage_timings.json"
+        if timings_path.is_file():
+            try:
+                timings_data = _read_json(timings_path, "") or {}
+                timings_data["run_context"] = {
+                    "kind": "rerun",
+                    "reason": "人工确认参数后重跑",
+                    "started_at": _utc_now(),
+                }
+                _atomic_write_json(timings_path, timings_data)
+            except HTTPException:
+                pass
         # 引擎结论已失效：仅保留完整性复核记录
         decisions_path = job_dir / "decisions.json"
         if decisions_path.exists():
