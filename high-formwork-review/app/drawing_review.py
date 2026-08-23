@@ -288,10 +288,58 @@ def _cross_check_param(
         matched_value = drawing_value
 
     return _build_cross_result(
-        review_id, param_name, body_value, matched_value, drawing_values[:3],
+        review_id, param_name, body_value, matched_value,
+        _enrich_drawing_evidence(document, drawing_values[:3]),
         status, reason,
         text_evidence=[_evidence_dict(item) for item in fact.get("evidence", [])[:3]],
     )
+
+
+def _enrich_drawing_evidence(
+    document: MinerUDocument,
+    evidence: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """给图纸证据补 image_path/table_html/block 定位（前端证据缩略图依赖）。
+
+    优先补该页数值所在性质的素材：有 image block 的页补图片（图纸页），
+    否则补表格 HTML（参数表/规格表页，前端真渲染表格）。
+    """
+    pages_by_no = {page.physical_page: page for page in document.pages}
+    for item in evidence:
+        page = pages_by_no.get(item.get("page"))
+        if page is None:
+            continue
+        image_block = next(
+            (
+                block
+                for block in page.blocks
+                if block.block_type in {"image", "figure", "chart"}
+                and getattr(block, "image_path", None)
+            ),
+            None,
+        )
+        if image_block is not None:
+            item["image_path"] = image_block.image_path
+            item["block_id"] = image_block.block_id
+            item["block_type"] = image_block.block_type
+            continue
+        # 无图片：找含关键词的表格 block，补 table_html 供前端渲染
+        keyword = item.get("keyword", "")
+        table_block = next(
+            (
+                block
+                for block in page.blocks
+                if block.block_type in {"table", "table_continuation"}
+                and getattr(block, "table_html", None)
+                and (keyword in (block.text or "") or not keyword)
+            ),
+            None,
+        )
+        if table_block is not None:
+            item["table_html"] = table_block.table_html
+            item["block_id"] = table_block.block_id
+            item["block_type"] = table_block.block_type
+    return evidence
 
 
 def _build_cross_result(

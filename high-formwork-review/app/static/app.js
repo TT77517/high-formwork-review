@@ -803,7 +803,7 @@ function openDrawingDrawer(id) {
   const evD = (item.drawing_evidence||[]).map(e => {
     const pg = e.physical_page||e.page;
     const lbl = e.quote ? `标注「${esc(e.quote)}」` : (e.keyword_hits||[]).map(esc).join('、');
-    return `<div class="evidence-block"><div class="meta"><span><b>页 ${pg||'—'}</b></span></div>${pg?`<div class="ev-thumb-wrap"><button class="btn-small jq-page" data-page="${pg}">查看图纸 P${pg}</button></div>`:''}<blockquote>${esc(lbl)}${e.value!=null?` = <b>${e.value}</b>`:''}</blockquote></div>`;
+    return `<div class="evidence-block"><div class="meta"><span><b>页 ${pg||'—'}</b></span>${e.source==='ocr'?'<span class="status-chip" style="font-size:11px">OCR</span>':''}</div>${evThumb(e, pg)}${pg?`<div class="ev-thumb-wrap"><button class="btn-small jq-page" data-page="${pg}">查看图纸 P${pg}</button></div>`:''}<blockquote>${esc(lbl)}${e.value!=null?` = <b>${e.value}</b>`:''}</blockquote></div>`;
   }).join('') || '<p style="color:var(--text-tertiary)">无图纸证据</p>';
   const cmp = (item.body_value!=null || item.drawing_value!=null) ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><div><b>正文值</b><br>${esc(item.body_value??'—')}</div><div><b>图纸标注值</b><br>${esc(item.drawing_value??'—')}</div></div>` : '';
   $('#drawingDrawerTitle').textContent = `${item.review_item_id} — ${item.title}`;
