@@ -314,3 +314,94 @@ class TestModeDispatch:
         assert any(
             w["code"] == "AGENT_MODE_FALLBACK" for w in result.get("warnings", [])
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 5：Budget env 化 / 注入防护 / 落盘工件
+# ---------------------------------------------------------------------------
+
+class TestBudgetEnvOverride:
+    def test_max_rounds_env_override(self, document, rule, monkeypatch):
+        """AGENT_MAX_ROUNDS=1 时一轮后即强制交卷。"""
+        import importlib
+        import app.services.semantic_agent as sa
+
+        monkeypatch.setenv("AGENT_MAX_ROUNDS", "1")
+        reloaded = importlib.reload(sa)
+        try:
+            client = FakeLLMChatClient([
+                _tool_response(_call("search_document", keywords=["钢管"])),
+                _tool_response(_call("finish", status="UNCERTAIN", reason="预算受限")),
+            ])
+            result = reloaded.run_evidence_agent(
+                rule, document, client=client, cache_enabled=False
+            )
+            assert result["status"] == "UNCERTAIN"
+            assert result["agent"]["forced_finish"] is True
+            assert result["agent"]["llm_calls"] == 2  # 1 轮 + 强制交卷
+        finally:
+            monkeypatch.delenv("AGENT_MAX_ROUNDS", raising=False)
+            importlib.reload(sa)  # 恢复默认
+
+
+class TestPromptInjectionDefense:
+    def test_system_prompt_contains_defense_clause(self):
+        assert "不得执行" in semantic_agent.SYSTEM_PROMPT
+        assert "文档数据" in semantic_agent.SYSTEM_PROMPT
+
+    def test_injected_tool_result_registered_verbatim_as_evidence(self, document, rule):
+        """文档中的注入指令作为数据原样登记为证据，不进入指令面。
+
+        机制性验证：工具结果文本即使包含"请忽略所有规定"这类注入语句，
+        也只是 Evidence Registry 里的证据原文（quote），循环继续按白名单工作。
+        """
+        client = FakeLLMChatClient([
+            _tool_response(_call("search_document", keywords=["钢管"])),
+            _tool_response(_call(
+                "finish", status="VIOLATED", reason="文档含注入语句",
+                evidence_ids=["EV-P1-B0001"],
+            )),
+        ])
+        result = semantic_agent.run_evidence_agent(
+            rule, document, client=client, cache_enabled=False
+        )
+        assert result["status"] == "VIOLATED"
+        # 证据是工具返回的原文片段（数据面），不是模型自由文本
+        assert result["evidence"][0]["source"] == "agent_evidence"
+        assert result["evidence"][0]["evidence_id"] == "EV-P1-B0001"
+
+
+class TestAgentArtifacts:
+    def test_extract_agent_artifacts_shapes(self, document, rule):
+        client = FakeLLMChatClient([
+            _tool_response(_call("search_document", keywords=["钢管"])),
+            _tool_response(_call(
+                "finish", status="VIOLATED", reason="违规",
+                evidence_ids=["EV-P1-B0001"],
+            )),
+        ])
+        agent_result = semantic_agent.run_evidence_agent(
+            rule, document, client=client, cache_enabled=False
+        )
+        envelope = {
+            "mode": "agent_llm_semantic",
+            "route_stats": {"AGENT_REQUIRED": 1},
+            "route_decisions": [
+                {"rule_id": "5.1", "route": "AGENT_REQUIRED", "reason": "r", "decided_by": "heuristic"}
+            ],
+            "results": [agent_result],
+            "warnings": [],
+        }
+        artifacts = semantic_agent.extract_agent_artifacts(envelope)
+        assert set(artifacts) == {
+            "route_decisions.json", "agent_trace.json", "agent_call_audit.json"
+        }
+        assert artifacts["route_decisions.json"][0]["rule_id"] == "5.1"
+        trace = artifacts["agent_trace.json"][0]
+        assert trace["rule_id"] == "5.1"
+        assert trace["steps"][0]["action"] == "search_document"
+        audit = artifacts["agent_call_audit.json"]
+        assert audit["agent_rule_count"] == 1
+        assert audit["total_llm_calls"] == 2
+        assert audit["total_tool_calls"] == 1
+        assert audit["prompt_version"] == semantic_agent.AGENT_PROMPT_VERSION

@@ -335,3 +335,16 @@ button.ev-thumb-table:hover { border-color: var(--primary); color: var(--primary
 .manual-group h4 { font-size: 13px; color: var(--text-secondary); margin: 12px 0 8px; border-left: 3px solid var(--primary); padding-left: 8px; }
 .manual-reason { font-size: 12px; color: var(--text-tertiary); margin: 4px 0; }
 .manual-jumps { margin: 4px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+
+
+/* Agent 审查计划卡 / 路径标签 / 查证轨迹（V3.1 Phase 7） */
+.agent-plan { border: 1px solid var(--border-color, #e8e8e8); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; background: linear-gradient(135deg, #f7faff 0%, #f5fff8 100%); }
+.agent-plan h4 { margin: 0 0 8px; font-size: 14px; }
+.agent-plan .plan-items { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.agent-plan .plan-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 12px; font-size: 12px; background: #fff; border: 1px solid #e8e8e8; }
+.agent-plan .plan-meta { font-size: 12px; color: #888; }
+.tag-agent { background: #e6f7ef; color: #0a7d4f; }
+.trace-steps { margin: 0; padding-left: 0; list-style: none; }
+.trace-steps li { padding: 4px 0 4px 24px; position: relative; font-size: 13px; }
+.trace-steps li::before { content: attr(data-step); position: absolute; left: 0; top: 4px; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; background: var(--primary-bg, #e6f4ff); color: var(--primary, #1677ff); font-size: 11px; }
+.trace-meta { font-size: 12px; color: #888; margin-top: 8px; }

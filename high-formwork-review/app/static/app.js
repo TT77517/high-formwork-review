@@ -23,7 +23,7 @@ const MODE_TABS = {
   drawing: ['home','overview','qualification','document','drawing','manual','rule-library','records'],
   calculation: ['home','overview','qualification','document','calculation','manual','rule-library','records']
 };
-let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null, calcData=null, standardsData=null;
+let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null, calcData=null, standardsData=null, reviewPlanData=null;
 const STD_LABEL = {};
 const RISK_CN = { over_scale_dangerous:'超过一定规模危大', dangerous:'危大', unknown:'未识别' };
 
@@ -121,6 +121,7 @@ async function loadAll() {
     try { const er = await fetch(`/api/jobs/${curJob}/dify-error`); if (er.ok) difyErr = await er.json(); } catch(_){}
     try { const re = await fetch(`/api/jobs/${curJob}/rule-engine`); if (re.ok) ruleEngineData = await re.json(); } catch(_){}
     try { const sm = await fetch(`/api/jobs/${curJob}/semantic`); if (sm.ok) semanticData = await sm.json(); } catch(_){}
+    try { const rp = await fetch(`/api/jobs/${curJob}/review-plan`); if (rp.ok) reviewPlanData = await rp.json(); } catch(_){}
     try { const cl = await fetch(`/api/jobs/${curJob}/calculation`); if (cl.ok) calcData = await cl.json(); } catch(_){}
     try {
       const sr = await fetch('/api/standards');
@@ -609,6 +610,28 @@ function openReviewDrawer(rid) {
 
 // ===== Semantic Review (规范语义审查) =====
 let semState = { page: 1, size: 10 };
+const ROUTE_CN = { LOCAL_READY: '规则引擎', LLM_READY: 'LLM 判定', AGENT_REQUIRED: 'Agent 查证', HUMAN_REQUIRED: '人工确认' };
+const ROUTE_TAG = { LOCAL_READY: 'tag-default', LLM_READY: 'tag-blue', AGENT_REQUIRED: 'tag-agent', HUMAN_REQUIRED: 'tag-orange' };
+function routeTagHtml(r) {
+  if (!r.route) return '';
+  return ` <span class="${ROUTE_TAG[r.route] || 'tag-default'}" title="Router 分流">${ROUTE_CN[r.route] || r.route}</span>`;
+}
+function renderAgentPlanCard() {
+  const el = $('#agentPlanCard');
+  if (!el) return;
+  const plan = reviewPlanData;
+  if (!plan || !plan.focus_areas) { el.classList.add('hidden'); return; }
+  const prCls = p => p === 'HIGH' ? 'tag-orange' : 'tag-blue';
+  const focus = (plan.focus_areas||[]).map(f => `<span class="plan-item"><span class="${prCls(f.priority)}">${esc(f.priority)}</span> ${esc(f.area)}<span style="color:#999" title="${esc(f.reason||'')}">（${esc(f.reason||'').slice(0,18)}）</span></span>`).join('');
+  const agents = (plan.agent_targets||[]).map(t => `<span class="plan-item">${esc(t.target)}</span>`).join('');
+  const humans = (plan.human_confirmations||[]).map(h => `<span class="plan-item" style="border-color:#ffd8bf">${esc(h.fact)}</span>`).join('');
+  const gen = plan.generated_by === 'llm' ? '<span class="tag-agent">LLM 生成</span>' : '<span class="tag-default">本地统计</span>';
+  el.innerHTML = `<h4>Agent 审查计划 ${gen}</h4>`
+    + (focus ? `<div class="plan-meta">审查重点</div><div class="plan-items">${focus}</div>` : '')
+    + (agents ? `<div class="plan-meta">Agent 自主查证目标：${(plan.agent_targets||[]).length} 项</div><div class="plan-items">${agents}</div>` : '')
+    + (humans ? `<div class="plan-meta">需人工确认：${(plan.human_confirmations||[]).length} 项</div><div class="plan-items">${humans}</div>` : '');
+  el.classList.remove('hidden');
+}
 function renderSemantic() {
   // Combine deterministic (ruleEngineData) and semantic (semanticData) results
   const detResults = ruleEngineData?.results || [];
@@ -654,6 +677,7 @@ function renderSemantic() {
       }
     });
   }
+  renderAgentPlanCard();
   renderSemanticTable();
   const refilter = () => { semState.page = 1; renderSemanticTable(); };
   $('#semanticModuleFilter').onchange = refilter;
@@ -684,7 +708,7 @@ function renderSemanticTable() {
     const thStr = th.value!==undefined ? `${th.operator||''} ${th.value}${th.unit||''}` : '—';
     const valStr = r.actual_value!==null && r.actual_value!==undefined ? `${r.actual_value}${th.unit||''}` : '—';
     const combined = valStr !== '—' || thStr !== '—' ? `${valStr} / ${thStr}` : '—';
-    const typeTag = r.check_type==='semantic' ? '<span class="tag-blue">语义</span>' : '<span class="tag-default">确定性</span>';
+    const typeTag = (r.check_type==='semantic' ? '<span class="tag-blue">语义</span>' : '<span class="tag-default">确定性</span>') + routeTagHtml(r);
     return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${typeTag}</td><td>${esc(MODULE_CN[r.module]||r.module)}</td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td>${esc(combined)}</td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}" data-type="${esc(r.check_type||'')}">详情</button></td></tr>`;
   }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-tertiary)">无符合条件的规则</td></tr>';
   $('#semanticPager').innerHTML = pagerHtml(semState, results.length);
@@ -697,7 +721,9 @@ function openSemanticDrawer(rid, rtype, allResults) {
   const evHtml = ev.length ? ev.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.page||'—'}</b></span></div>${evThumb(e, e.page)}<blockquote>${esc(e.quote||'')}</blockquote></div>`).join('') : '<p style="color:var(--text-tertiary)">无证据</p>';
   const sjHtml = rule.semantic_judgment ? `<div class="detail-section"><h4>语义判断指引</h4><p>${esc(rule.semantic_judgment)}</p></div>` : '';
   $('#semanticDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
-  $('#semanticDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'—'}</div><div><b>阈值要求</b><br>${th.value!==undefined?esc(`${th.operator||''} ${th.value}${th.unit||''}`):'—'}</div></div></div>${sjHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
+  const ag = rule.agent;
+  const traceHtml = ag ? `<div class="detail-section"><h4>Agent 查证轨迹 ${ag.cache_hit ? '<span class="tag-default">缓存命中</span>' : ''}</h4><ol class="trace-steps">${(ag.steps||[]).map(st => `<li data-step="${st.step}"><b>${esc(st.action)}</b>(${esc(JSON.stringify(st.args||{}))})${(st.evidence_ids||[]).length ? ` -> ${(st.evidence_ids||[]).map(e=>`<span class="tag-green">${esc(e)}</span>`).join(' ')}` : ''}</li>`).join('')}</ol><div class="trace-meta">模型 ${esc(ag.model||'-')} · LLM ${ag.llm_calls||0} 次 · 工具 ${ag.tool_calls||0} 次 · ${((ag.latency_ms||0)/1000).toFixed(1)}s${ag.forced_finish ? ' · 预算用尽强制交卷' : ''}${ag.duplicate_calls ? ` · 重复调用拦截 ${ag.duplicate_calls} 次` : ''}</div></div>` : '';
+  $('#semanticDrawerBody').innerHTML = `${traceHtml}<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span></p><p>${esc(rule.reason||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'—'}</div><div><b>阈值要求</b><br>${th.value!==undefined?esc(`${th.operator||''} ${th.value}${th.unit||''}`):'—'}</div></div></div>${sjHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
   $('#semanticDetailPanel').classList.remove('hidden');
 }
 

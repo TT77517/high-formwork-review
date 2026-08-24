@@ -39,7 +39,8 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0/1/2/3 已完成）：**Phase 4 Router 已完成** 2026-08-24：agent_router.py（两层路由：route_hint 静态表+本地启发式零LLM四分流）+ run_semantic_review_agent 升级混合分流主入口（LOCAL本地判定/Dify批式失败降级本地/AGENT循环带首轮证据种子解5.1检索波动/HUMAN挂UNCERTAIN进人工队列）+ route_stats/route_decisions 进 envelope；14测试全绿248；真实文档干跑：87规则→9门禁/67 LLM_READY(86%)/9 AGENT(12%)/2 HUMAN(3%)，全量耗时从~70min降到~10min；1.16真实LLM验证种子生效；下一步 Phase 5 Guardrails收尾（Budget已就绪+注入防护提示词已就绪+trace落盘接线web落盘路由）
+- [x] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；**Phase 0-7 全部完成** 2026-08-24）：V3 受控混合式架构全量落地--Planner（LLM计划+本地降级）/Router（route_hint+启发式四分流）/确定性内核/Dify批式/Guardrailed ReAct Agent（EV ID证据制+Budget+三级降级）/人工闭环；263测试全绿；Phase 3 Benchmark：Recovery 5/9(56%)+Citation 100%；Phase 7 E2E：全流程456.9s（Planner LLM生成5重点/9 Agent规则发现2新VIOLATED 6.18防护用品+6.29应急物资/审计35次LLM）；前端三区域（计划卡/路径标签/Trace抽屉）+review-plan API
+  - ⚠️ **遗留外部问题**：E2E 中 Dify 批式通道 5 批全部失败（[Tongyi] Incorrect model credentials--Dify 控制台里配的通义模型凭证失效，疑与百炼账号充值/换key有关），已按设计逐批降级本地关键词（任务不中断）但批式质量受损；需用户在 Dify 控制台更新模型凭证后重跑验证
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -307,3 +308,7 @@
 - [2026-08-24 17:55] claude 签到 — 开始处理：Phase 4 Router：route_hint+本地启发式四分流+route_decisions+agent首轮证据种子（解5.1检索波动）
 
 - [2026-08-24 18:02] claude 签退 — 完成了：Phase 4 Router 完成：①agent_router.py两层路由（route_hint静态指定+启发式：HUMAN=关键参数冲突别名关联/LLM=召回≥2块/AGENT=召回不足）零LLM；②run_semantic_review_agent升级混合分流（四通道各司其职+各自降级，envelope带route_stats/route_decisions）；③首轮证据种子（extraction_keywords出发前自动召回进首条消息，解Phase3的5.1检索波动）；④14测试全绿248；⑤真实文档干跑：78条入路由→86%批式/12%Agent/3%人工，全量~70min→~10min；⑥1.16真实LLM验证：种子首轮生效、诚实UNCERTAIN带真实证据；下一步建议：Phase 5 Guardrails收尾（1天）：trace落盘job目录（agent_trace/route_decisions写_run_review_stages）+dify_call_audit增agent维度统计+预算类配置env化+注入防护回归测试补全
+
+- [2026-08-24 18:04] claude 签到 — 开始处理：Phase 5-7 连续执行：Guardrails收尾（trace落盘/审计/注入防护）→ Planner（Plan-only）→ 前端三区域+E2E
+
+- [2026-08-24 18:23] claude 签退 — 完成了：Phase 5-7 全部完成：⑤Guardrails收尾（agent_trace/route_decisions/agent_call_audit三工件经web落盘job目录+Budget env化AGENT_MAX_*+注入防护测试）+review_planner.py（LLM计划生成+本地统计降级+Mandatory Checks白名单+JSON解析容错，10测试）；⑥前端三区域（agentPlanCard计划卡/规则路径标签ROUTE_CN/抽屉Agent查证轨迹区块）+GET /api/jobs/{id}/review-plan；⑦全量E2E 456.9s真实LLM：Planner LLM生成5项审查重点（高架风险/托撑/剪刀撑/荷载/论证）、9条Agent规则新发现2 VIOLATED（6.18个人防护conf0.78/6.29应急物资conf0.9）、审计35LLM/33工具/54证据；Dify批式通道凭证失效被三级降级兜住（外部问题已记录）；263测试全绿；下一步建议：用户操作：Dify控制台更新通义模型凭证（[Tongyi] Incorrect model credentials）后重跑E2E验证批式通道；然后浏览器验证前端三区域效果；可选：.env改SEMANTIC_REVIEW_MODE=agent让新任务默认走agent模式

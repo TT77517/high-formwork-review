@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -32,10 +33,11 @@ from .llm_chat_client import LLMChatClient, LLMChatError
 AGENT_PROMPT_VERSION = "agent-v2"  # v2：用户消息携带首轮证据种子
 AGENT_TOOL_VERSION = "tools-v1"
 AGENT_CACHE_NAMESPACE = "agent"
-MAX_ROUNDS = 3
-MAX_TOOL_CALLS = 5
-MAX_SEARCH_CALLS = 2
-MAX_PAGES_READ = 3
+# Budget 可经 env 覆盖（V3.1 §4.2；不改代码即可调预算做实验）
+MAX_ROUNDS = int(os.getenv("AGENT_MAX_ROUNDS", "3") or 3)
+MAX_TOOL_CALLS = int(os.getenv("AGENT_MAX_TOOL_CALLS", "5") or 5)
+MAX_SEARCH_CALLS = int(os.getenv("AGENT_MAX_SEARCH_CALLS", "2") or 2)
+MAX_PAGES_READ = int(os.getenv("AGENT_MAX_PAGES_READ", "3") or 3)
 TOOL_RESULT_CHAR_LIMIT = 6000
 
 SYSTEM_PROMPT = """你是高支模专项施工方案的规范审查专家。针对给定规则，自主查证方案文档并判定合规性。
@@ -651,3 +653,74 @@ def _run_llm_ready_batch(
             })
             results.extend(_local_fallback(batch_rules))
     return results
+
+
+# ---------------------------------------------------------------------------
+# 落盘工件（V3.1 §17/§18：Agent Memory 与 Trace 落 job 目录）
+# ---------------------------------------------------------------------------
+
+def extract_agent_artifacts(semantic_result: dict[str, Any]) -> dict[str, Any]:
+    """从混合分流结果中抽取 Agent 工件，供 web 落盘 job 目录。
+
+    返回 {文件名: 内容}：
+    - route_decisions.json：Router 决策（前端路径标签）
+    - agent_trace.json：逐规则查证轨迹（前端 Trace 抽屉）
+    - agent_call_audit.json：调用审计（LLM 次数/工具次数/耗时/缓存/降级）
+    """
+    results = semantic_result.get("results") or []
+    agent_results = [r for r in results if isinstance(r.get("agent"), dict)]
+    traces = []
+    audit_rules = []
+    total_llm_calls = total_tool_calls = total_evidence = 0
+    total_latency_ms = 0
+    cache_hits = forced_finishes = 0
+    for result in agent_results:
+        a = result["agent"]
+        total_llm_calls += a.get("llm_calls", 0)
+        total_tool_calls += a.get("tool_calls", 0)
+        total_evidence += a.get("evidence_count", 0)
+        total_latency_ms += a.get("latency_ms", 0)
+        cache_hits += 1 if a.get("cache_hit") else 0
+        forced_finishes += 1 if a.get("forced_finish") else 0
+        traces.append({
+            "rule_id": result.get("rule_id"),
+            "rule_name": result.get("rule_name"),
+            "route": result.get("route", "AGENT_REQUIRED"),
+            "status": result.get("status"),
+            "steps": a.get("steps", []),
+            "llm_calls": a.get("llm_calls", 0),
+            "tool_calls": a.get("tool_calls", 0),
+            "forced_finish": a.get("forced_finish", False),
+            "latency_ms": a.get("latency_ms", 0),
+            "model": a.get("model", ""),
+            "cache_hit": a.get("cache_hit", False),
+        })
+        audit_rules.append({
+            "rule_id": result.get("rule_id"),
+            "status": result.get("status"),
+            "llm_calls": a.get("llm_calls", 0),
+            "tool_calls": a.get("tool_calls", 0),
+            "latency_ms": a.get("latency_ms", 0),
+            "cache_hit": a.get("cache_hit", False),
+            "forced_finish": a.get("forced_finish", False),
+        })
+    audit = {
+        "mode": semantic_result.get("mode"),
+        "route_stats": semantic_result.get("route_stats", {}),
+        "agent_rule_count": len(agent_results),
+        "total_llm_calls": total_llm_calls,
+        "total_tool_calls": total_tool_calls,
+        "total_evidence_registered": total_evidence,
+        "total_latency_ms": total_latency_ms,
+        "cache_hit_count": cache_hits,
+        "forced_finish_count": forced_finishes,
+        "warnings": semantic_result.get("warnings", []),
+        "prompt_version": AGENT_PROMPT_VERSION,
+        "tool_version": AGENT_TOOL_VERSION,
+        "rules": audit_rules,
+    }
+    return {
+        "route_decisions.json": semantic_result.get("route_decisions", []),
+        "agent_trace.json": traces,
+        "agent_call_audit.json": audit,
+    }

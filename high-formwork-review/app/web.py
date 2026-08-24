@@ -315,6 +315,16 @@ def get_semantic(job_id: str) -> dict[str, Any]:
     )
 
 
+@app.get("/api/jobs/{job_id}/review-plan")
+def get_review_plan(job_id: str) -> dict[str, Any]:
+    """返回 Agent 审查计划（agent 模式任务才有；不存在时 404）。"""
+    job_dir = _completed_job_dir(job_id)
+    path = job_dir / "review_plan.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="本任务无 Agent 审查计划（非 agent 模式）")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 @app.get("/api/jobs/{job_id}/calculation")
 def get_calculation(job_id: str) -> dict[str, Any]:
     """返回计算规则审查结果。"""
@@ -1153,6 +1163,34 @@ def _run_semantic_stage(document: MinerUDocument, project_facts: dict) -> dict:
     return run_semantic_stage(document, project_facts)
 
 
+def _semantic_mode() -> str:
+    """当前语义审查模式（读不到配置按默认 local）。"""
+    try:
+        from .dify_config import resolve_semantic_review_mode
+
+        return resolve_semantic_review_mode()
+    except Exception:  # noqa: BLE001 - 配置异常按默认处理
+        return "local"
+
+
+def _build_agent_review_plan(
+    document: MinerUDocument,
+    project_facts: dict,
+    project_qualification: dict,
+) -> dict | None:
+    """Planner：Plan-only 审查计划（LLM 失败降级本地统计）。"""
+    try:
+        from .services.review_planner import build_review_plan
+
+        return build_review_plan(
+            project_qualification,
+            (project_facts or {}).get("facts", {}),
+            rule_stats={"physical_page_count": document.physical_page_count},
+        )
+    except Exception:  # noqa: BLE001 - 计划失败不影响审查管线
+        return None
+
+
 def _run_review_stages(
     job_dir: Path,
     document: MinerUDocument,
@@ -1211,6 +1249,15 @@ def _run_review_stages(
         "工程基础信息识别",
         lambda: build_project_qualification(document, project_facts),
     )
+    # Agent 模式：Planner 生成审查计划（LLM 失败降级本地统计，任务不中断）
+    if _semantic_mode() == "agent":
+        review_plan = _timed(
+            "review_plan",
+            "Agent 审查计划生成",
+            lambda: _build_agent_review_plan(document, project_facts, project_qualification),
+        )
+        if review_plan is not None:
+            _atomic_write_json(job_dir / "review_plan.json", review_plan)
     rule_engine_result = _timed(
         "rule_engine",
         "确定性规则引擎（规范条文比对）",
@@ -1256,6 +1303,12 @@ def _run_review_stages(
     _atomic_write_json(job_dir / "project_qualification.json", project_qualification)
     _atomic_write_json(job_dir / "rule_engine_results.json", rule_engine_result)
     _atomic_write_json(job_dir / "semantic_results.json", semantic_result)
+    if isinstance(semantic_result, dict) and semantic_result.get("mode") == "agent_llm_semantic":
+        # Agent 模式工件落盘：路由决策/查证轨迹/调用审计（V3.1 §17/§18）
+        from .services.semantic_agent import extract_agent_artifacts
+
+        for artifact_name, payload in extract_agent_artifacts(semantic_result).items():
+            _atomic_write_json(job_dir / artifact_name, payload)
     _atomic_write_json(job_dir / "calculation_results.json", calculation_result)
     _atomic_write_json(job_dir / "substantive_review.json", substantive_review)
     _atomic_write_json(job_dir / "consistency_review.json", consistency_review)

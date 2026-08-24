@@ -885,3 +885,31 @@ def test_rerun_accepts_mixed_system_and_numeric(
     facts = captured["facts"]["facts"]
     assert facts["support_system"]["value"] == "coupler"  # 枚举保持字符串
     assert facts["support_height"]["value"] == 12.5  # 数值转 float
+
+
+def test_review_plan_endpoint_404_without_plan(client: TestClient) -> None:
+    """非 agent 模式任务无 review_plan.json -> 404（前端静默忽略）。"""
+    upload = client.post(
+        "/api/jobs",
+        data={"review_mode": "smart"},
+        files={"file": ("方案.pdf", b"%PDF-1.7\n%%EOF", "application/pdf")},
+    )
+    job_id = upload.json()["job_id"]
+    # 直接完成任务状态以通过 _completed_job_dir 校验
+    job_dir = web.JOBS_ROOT / job_id
+    status = json.loads((job_dir / "status.json").read_text(encoding="utf-8"))
+    status["status"] = "completed"
+    (job_dir / "status.json").write_text(
+        json.dumps(status, ensure_ascii=False), encoding="utf-8"
+    )
+    response = client.get(f"/api/jobs/{job_id}/review-plan")
+    assert response.status_code == 404
+
+    # 写入计划后可读取
+    (job_dir / "review_plan.json").write_text(
+        json.dumps({"plan_id": "PLAN-1", "focus_areas": []}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    response = client.get(f"/api/jobs/{job_id}/review-plan")
+    assert response.status_code == 200
+    assert response.json()["plan_id"] == "PLAN-1"
