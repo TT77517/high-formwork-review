@@ -29,7 +29,7 @@ from .agent_guardrails import EvidenceRegistry, validate_finish
 from .agent_tools import TOOL_HANDLERS
 from .llm_chat_client import LLMChatClient, LLMChatError
 
-AGENT_PROMPT_VERSION = "agent-v1"
+AGENT_PROMPT_VERSION = "agent-v2"  # v2：用户消息携带首轮证据种子
 AGENT_TOOL_VERSION = "tools-v1"
 AGENT_CACHE_NAMESPACE = "agent"
 MAX_ROUNDS = 3
@@ -170,8 +170,14 @@ def run_evidence_agent(
     client: LLMChatClient,
     cache_enabled: bool = True,
     registry: EvidenceRegistry | None = None,
+    seed_keywords: list[str] | None = None,
 ) -> dict[str, Any]:
-    """对单条规则执行 ReAct 查证循环，返回语义结果（含 agent 轨迹）。"""
+    """对单条规则执行 ReAct 查证循环，返回语义结果（含 agent 轨迹）。
+
+    seed_keywords：首轮证据种子（通常来自规则 extraction_keywords），
+    出发前先自动召回一轮并放进首条用户消息，避免模型首轮检索方向跑偏
+    （Phase 3 发现：5.1 阳性对照因检索词波动失败）。
+    """
     started = time.perf_counter()
     rule_id = str(rule.get("rule_id", ""))
     key = agent_cache_key(rule, document, client.model_identifier)
@@ -186,10 +192,20 @@ def run_evidence_agent(
             pass
 
     registry = registry or EvidenceRegistry(document_id=document.document_id)
+    user_content = json.dumps(_rule_context(rule), ensure_ascii=False)
+    if seed_keywords:
+        seed_text, seed_evidence_ids = TOOL_HANDLERS["search_document"](
+            document, registry, keywords=seed_keywords[:4]
+        )
+        if seed_evidence_ids:
+            user_content += (
+                "\n\n初始证据（规则关键词自动召回，可直接引用其中的 Evidence ID）：\n"
+                + seed_text
+            )
     state = _LoopState()
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": json.dumps(_rule_context(rule), ensure_ascii=False)},
+        {"role": "user", "content": user_content},
     ]
     finish: dict[str, Any] | None = None
     forced = False
@@ -436,7 +452,7 @@ def _build_agent_result(
 
 
 # ---------------------------------------------------------------------------
-# 全规则运行入口（与 run_semantic_review_dify 同构）
+# 混合分流主入口（V3.1 §22：Router 四分流 + 各通道执行）
 # ---------------------------------------------------------------------------
 
 def run_semantic_review_agent(
@@ -445,8 +461,18 @@ def run_semantic_review_agent(
     *,
     client: LLMChatClient | None = None,
     cache_enabled: bool = True,
+    dify_client: Any = None,
 ) -> dict[str, Any]:
-    """执行语义审查：适用性门禁本地判定，其余规则逐条进 Agent 循环。"""
+    """混合语义审查：Router 四分流 -> 本地 / Dify 批式 / Agent 循环 / 人工。
+
+    流程：适用性门禁（本地，PENDING/NA 不进任何 LLM）-> 逐规则路由 ->
+    LOCAL_READY 本地关键词判定（零 LLM）/ LLM_READY Dify 批式（失败降级本地）/
+    AGENT_REQUIRED Agent 循环（带首轮证据种子）/ HUMAN_REQUIRED 挂 UNCERTAIN
+    待人工确认。envelope 附 route_stats 与 route_decisions（前端路径标签用）。
+    """
+    from .agent_router import route_rule
+    from ..semantic_engine import _evaluate_semantic_local
+
     rules = load_semantic_rules()
     facts = (project_facts or {}).get("facts", {})
     system_value = facts.get("support_system", {}).get("value", "unknown")
@@ -478,13 +504,62 @@ def run_semantic_review_agent(
             pending_rules.append(rule)
 
     warnings: list[dict[str, Any]] = []
+    route_decisions: dict[str, dict[str, Any]] = {}
+    buckets: dict[str, list[dict[str, Any]]] = {
+        "LOCAL_READY": [], "LLM_READY": [], "AGENT_REQUIRED": [], "HUMAN_REQUIRED": [],
+    }
     for rule in pending_rules:
-        try:
-            results.append(
-                run_evidence_agent(
-                    rule, document, client=agent_client, cache_enabled=cache_enabled
-                )
+        decision = route_rule(rule, document, facts)
+        route_decisions[str(rule.get("rule_id", ""))] = decision
+        buckets[decision["route"]].append(rule)
+
+    # LOCAL_READY：本地关键词判定（零 LLM）
+    for rule in buckets["LOCAL_READY"]:
+        result = _evaluate_semantic_local(rule, document, system_value)
+        result["review_engine"] = "local_router"
+        result["route"] = "LOCAL_READY"
+        results.append(result)
+
+    # HUMAN_REQUIRED：关键参数冲突，挂 UNCERTAIN 待人工确认（进人工复核队列）
+    for rule in buckets["HUMAN_REQUIRED"]:
+        decision = route_decisions[str(rule.get("rule_id", ""))]
+        results.append({
+            "rule_id": str(rule.get("rule_id", "")),
+            "rule_name": rule.get("rule_name", ""),
+            "module": rule.get("module", ""),
+            "module_name": MODULE_NAMES.get(rule.get("module", ""), ""),
+            "check_type": "semantic",
+            "severity": rule.get("severity", ""),
+            "risk_level": rule.get("risk_level", ""),
+            "status": "UNCERTAIN",
+            "reason": decision["reason"],
+            "evidence": [],
+            "manual_review": True,
+            "review_engine": "router",
+            "route": "HUMAN_REQUIRED",
+        })
+
+    # LLM_READY：Dify 批式一次判定（失败降级本地关键词）
+    if buckets["LLM_READY"]:
+        results.extend(
+            _run_llm_ready_batch(
+                buckets["LLM_READY"], document, system_value,
+                cache_enabled=cache_enabled, dify_client=dify_client,
+                warnings=warnings,
             )
+        )
+
+    # AGENT_REQUIRED：Evidence Agent 循环（带首轮证据种子）
+    for rule in buckets["AGENT_REQUIRED"]:
+        try:
+            result = run_evidence_agent(
+                rule, document,
+                client=agent_client,
+                cache_enabled=cache_enabled,
+                seed_keywords=rule.get("check_logic", {}).get("extraction_keywords"),
+            )
+            result.setdefault("route", "AGENT_REQUIRED")
+            results.append(result)
         except LLMChatError as exc:
             warnings.append({
                 "code": "AGENT_RULE_FAILED",
@@ -494,6 +569,10 @@ def run_semantic_review_agent(
 
     order = {str(rule.get("rule_id", "")): i for i, rule in enumerate(rules)}
     results.sort(key=lambda r: order.get(str(r.get("rule_id", "")), len(rules)))
+    route_stats = {route: len(bucket) for route, bucket in buckets.items()}
+    route_stats["PENDING_GATED"] = sum(
+        1 for r in results if r["status"] == "PENDING_CONFIRMATION"
+    )
     return {
         "version": "4.0.0",
         "engine_type": "semantic",
@@ -506,6 +585,69 @@ def run_semantic_review_agent(
         "pending_confirmation": sum(
             1 for r in results if r["status"] == "PENDING_CONFIRMATION"
         ),
+        "route_stats": route_stats,
+        "route_decisions": list(route_decisions.values()),
         "results": results,
         "warnings": warnings,
     }
+
+
+def _run_llm_ready_batch(
+    llm_rules: list[dict[str, Any]],
+    document: MinerUDocument,
+    system_value: str,
+    *,
+    cache_enabled: bool,
+    dify_client: Any,
+    warnings: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """LLM_READY 规则走 Dify 批式；整通道不可用或单批失败降级本地关键词。"""
+    from ..semantic_engine import _evaluate_semantic_local
+
+    def _local_fallback(batch_rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out = []
+        for rule in batch_rules:
+            result = _evaluate_semantic_local(rule, document, system_value)
+            result["review_engine"] = "local_fallback"
+            result["route"] = "LLM_READY"
+            results_item = result
+            out.append(results_item)
+        return out
+
+    try:
+        from .semantic_dify import (
+            _build_client,
+            _map_llm_item,
+            _run_batch,
+            build_semantic_batches,
+        )
+        from .dify_client import DifyError
+
+        client = dify_client or _build_client()
+    except Exception as exc:  # noqa: BLE001 - 通道不可用整体降级
+        warnings.append({
+            "code": "SEMANTIC_LLM_CHANNEL_UNAVAILABLE",
+            "message": f"Dify 批式通道不可用，{len(llm_rules)} 条 LLM_READY 规则降级本地关键词：{exc}",
+        })
+        return _local_fallback(llm_rules)
+
+    results: list[dict[str, Any]] = []
+    batches = build_semantic_batches(llm_rules, document)
+    rules_by_id = {str(r.get("rule_id", "")): r for r in llm_rules}
+    for batch in batches:
+        batch_rules = [rules_by_id[rid] for rid in batch["rule_ids"]]
+        try:
+            llm_items = _run_batch(batch, client, cache_enabled=cache_enabled)
+            for item in llm_items:
+                mapped = _map_llm_item(item, rules_by_id, batch.get("evidence_blocks"))
+                mapped["route"] = "LLM_READY"
+                results.append(mapped)
+        except DifyError as exc:
+            warnings.append({
+                "code": "SEMANTIC_LLM_BATCH_FALLBACK",
+                "batch_index": batch["batch_index"],
+                "rule_ids": batch["rule_ids"],
+                "message": f"Dify 批式判定失败，该批降级本地关键词模式：{exc}",
+            })
+            results.extend(_local_fallback(batch_rules))
+    return results

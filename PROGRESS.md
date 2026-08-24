@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0/1/2 已完成）：**Phase 3 Benchmark 已完成** 2026-08-24（`docs/phase3_benchmark.md`+明细JSON+可复跑脚本）：10条疑难规则 **Recovery Rate 5/9(56%)**（批式UNCERTAIN->4COMPLIANT+1VIOLATED，含1.10封面审核栏空白+P47签字XXX占位符的真实违规发现）、**Citation Validity 100%**（EV ID结构性校验）、平均4.3次工具调用/48s每规则（串行）、诚实放弃4条（1.12等文档真缺证据）、5.1阳性对照因检索方向波动未过（Phase 4 Router route_hint预留解法）；发现：全量走agent需~70min，印证Router分流必要性；下一步 Phase 4 Router（route_hint+本地启发式+route_decisions落盘）
+- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0/1/2/3 已完成）：**Phase 4 Router 已完成** 2026-08-24：agent_router.py（两层路由：route_hint 静态表+本地启发式零LLM四分流）+ run_semantic_review_agent 升级混合分流主入口（LOCAL本地判定/Dify批式失败降级本地/AGENT循环带首轮证据种子解5.1检索波动/HUMAN挂UNCERTAIN进人工队列）+ route_stats/route_decisions 进 envelope；14测试全绿248；真实文档干跑：87规则→9门禁/67 LLM_READY(86%)/9 AGENT(12%)/2 HUMAN(3%)，全量耗时从~70min降到~10min；1.16真实LLM验证种子生效；下一步 Phase 5 Guardrails收尾（Budget已就绪+注入防护提示词已就绪+trace落盘接线web落盘路由）
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -303,3 +303,7 @@
 - [2026-08-24 17:43] claude 签到 — 开始处理：Phase 3 真实规则批量测试：批式疑难规则跑Agent，统计Recovery Rate/Citation Validity/tool calls，产出benchmark
 
 - [2026-08-24 17:51] claude 签退 — 完成了：Phase 3 Benchmark 完成：10条批式疑难规则真实LLM跑Agent（脚本可复跑）：Recovery 5/9=56%（1.10 VIOLATED含封面审核栏空白+签字XXX占位符真实证据链、1.18/2.1/2.7/2.11 COMPLIANT均带EV ID）；Citation Validity 100%（结构性保证）；平均4.3工具调用/48s规则；4条诚实放弃（文档真缺证据不硬编）；0降级0轮转；产出benchmark文档+明细JSON；关键发现：①5.1检索方向波动（Phase4 route_hint解法）②全量agent耗时~70min印证Router分流必要性③强制交卷9/10为常态且质量稳定；下一步建议：Phase 4 Router（0.5天）：规则库route_hint字段+本地启发式四分流（LOCAL/LLM/AGENT/HUMAN）+route_decisions.json落盘+首轮检索注入extraction_keywords作查询种子（解5.1波动）
+
+- [2026-08-24 17:55] claude 签到 — 开始处理：Phase 4 Router：route_hint+本地启发式四分流+route_decisions+agent首轮证据种子（解5.1检索波动）
+
+- [2026-08-24 18:02] claude 签退 — 完成了：Phase 4 Router 完成：①agent_router.py两层路由（route_hint静态指定+启发式：HUMAN=关键参数冲突别名关联/LLM=召回≥2块/AGENT=召回不足）零LLM；②run_semantic_review_agent升级混合分流（四通道各司其职+各自降级，envelope带route_stats/route_decisions）；③首轮证据种子（extraction_keywords出发前自动召回进首条消息，解Phase3的5.1检索波动）；④14测试全绿248；⑤真实文档干跑：78条入路由→86%批式/12%Agent/3%人工，全量~70min→~10min；⑥1.16真实LLM验证：种子首轮生效、诚实UNCERTAIN带真实证据；下一步建议：Phase 5 Guardrails收尾（1天）：trace落盘job目录（agent_trace/route_decisions写_run_review_stages）+dify_call_audit增agent维度统计+预算类配置env化+注入防护回归测试补全
