@@ -1,0 +1,521 @@
+{
+  "summary": {
+    "job": "2d6b084fbe1046858e89208cb8dd32fd",
+    "model_chain": "qwen3.8-max,qwen3.7-plus-2026-05-26,qwen3.8-2.4t-a95b,qwen3.8-27b,qwen3.7-max-2026-06-08,qwen-plus",
+    "total_rules": 10,
+    "baseline_uncertain": 9,
+    "recovered": 5,
+    "recovery_rate": "5/9（56%）",
+    "citation_validity": "10/10（100%）",
+    "avg_tool_calls": 4.3,
+    "avg_latency_s": 47.9,
+    "forced_finish_count": 9,
+    "total_wall_seconds": 335.4
+  },
+  "rows": [
+    {
+      "rule_id": "1.10",
+      "rule_name": "技术负责人审核",
+      "baseline": "UNCERTAIN",
+      "agent": "VIOLATED",
+      "reason": "经查证，方案文档中未见施工单位技术负责人审核签字的有效记录：1）方案封面设有\"审核人：\"、\"审批人：\"栏位，但均为空白，未填写任何姓名（EV-P1-B0003、EV-P1-B0004）；2）第47页验收/签字表中\"总包单位技术负责人(或授权委派的专业技术人员)\"及\"分包单位技术负责人(或授权委派的专业技术人员)\"对应姓名均为占位符\"XXX\"，并非实际签字人员（EV-P47-B0002-15）；3）文档中出现的李锁庆仅为\"项目技术负责人\"且同时为\"专项施工方案编制人员\"（EV-P43-B0013、EV-P47-B0002-15），属于项目层级人员，不能替代施工单位（公司层级）技术负责人的审核签字。综上，该专项施工方案未能体现经施工单位技术负责人审核签字，不符合住建部37号令第十一条要求。",
+      "confidence": 0.85,
+      "tool_calls": 5,
+      "llm_calls": 4,
+      "latency_ms": 63368,
+      "evidence_count": 4,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "技术负责人",
+              "审核签字",
+              "审批"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "编制",
+              "审核",
+              "审批流程"
+            ]
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 1
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P3-B0005",
+            "before": 2,
+            "after": 2
+          }
+        },
+        {
+          "action": "get_table",
+          "args": {
+            "block_id": "EV-P47-B0002"
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "1.12",
+      "rule_name": "专家论证程序",
+      "baseline": "UNCERTAIN",
+      "agent": "UNCERTAIN",
+      "reason": "AGENT_FORCED_FINISH_INVALID：方案文档中可确认本工程属于超过一定规模的危大工程（高大模板工程）：EV-P3-B0007明确指出\"支模架搭设高度13.88m；荷载大，根据《危险性较大的分部分项工程安全管理规定》要求，本模板工程属高大模板工程\"；EV-P3-B0011列出了集中线荷载20KN/m及以上的超限梁板及支模高度超过8m的具体区域。在验收表（EV-P46-B0004）中也提及\"模板支架搭设高度8m及以上;跨度18m及以上,",
+      "confidence": null,
+      "tool_calls": 4,
+      "llm_calls": 4,
+      "latency_ms": 58662,
+      "evidence_count": 0,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "专家论证",
+              "超过一定规模",
+              "危大工程"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "专家组",
+              "论证报告",
+              "论证通过"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P46-B0004",
+            "before": 2,
+            "after": 2
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 3
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "1.17",
+      "rule_name": "方案内容完整性-GB55023强制",
+      "baseline": "UNCERTAIN",
+      "agent": "UNCERTAIN",
+      "reason": "根据已获取的证据，该文档页眉标注为\"模板专项施工方案\"（EV-P2-B0001-6），其目录结构包含：第一章工程概况、第二章编制依据、第三章施工计划、第四章施工工艺技术、第五章施工安全保证措施、第六章人员配备、第七章验收要求、第八章应急处置措施、第九章计算书及相关施工图纸。该结构基本覆盖了规则要求的10项中的多数内容（工程概况、编制依据、材料计划、施工图纸、计算书、施工计划、技术要求、检查/验收要求、安全措施、应急预案）。然而，该文档为\"模板专项施工方案\"而非\"脚手架专项施工方案\"，未找到明确的\"脚手架类型选择\"专项章节，且现有证据不足以确认该方案是否作为脚手架专项方案编制或是否包含完整的脚手架专项内容。因此无法确定是否完全满足GB 55023-2022第2.0.3条对脚手架专项施工方案10项内容的要求。",
+      "confidence": 0.45,
+      "tool_calls": 5,
+      "llm_calls": 4,
+      "latency_ms": 60466,
+      "evidence_count": 4,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "工程概况",
+              "编制依据"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "应急预案",
+              "安全控制措施"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P2-B0001",
+            "before": 1,
+            "after": 3
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 12
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 36
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "1.18",
+      "rule_name": "安全技术交底-GB55023强制",
+      "baseline": "UNCERTAIN",
+      "agent": "COMPLIANT",
+      "reason": "方案中明确了脚手架（支撑）搭设和拆除作业前的安全技术交底要求：1）搭设环节，EV-P40-B0012规定\"搭设应由专业持证人员安装；安全责任人应向作业人员进行安全技术交底，并做好记录及签证\"，即搭设作业前须向作业人员交底并留存签字记录；2）拆除环节，EV-P33-B0008规定\"拆模板前先进行针对性的安全技术交底，并做好记录，交底双方履行签字手续\"；3）EV-P6-B0003亦要求\"模板施工前对施工人员进行技术交底，严禁盲目施工\"。方案已覆盖搭设与拆除作业前对管理人员及作业人员进行安全技术交底并留痕的要求，符合GB 55023-2022第2.0.4条的规定。",
+      "confidence": 0.85,
+      "tool_calls": 3,
+      "llm_calls": 3,
+      "latency_ms": 28303,
+      "evidence_count": 3,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "安全技术交底",
+              "脚手架搭设",
+              "拆除作业前"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "专项施工方案",
+              "交底",
+              "作业人员"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P40-B0012",
+            "before": 3,
+            "after": 3
+          }
+        }
+      ],
+      "forced": false,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "2.1",
+      "rule_name": "模板自重标准值",
+      "baseline": "UNCERTAIN",
+      "agent": "COMPLIANT",
+      "reason": "方案文档中多处荷载参数表明确列出了模板及其支架自重标准值G₁k的取值：面板0.1 kN/m²、面板及小梁0.3 kN/m²、楼板模板0.5 kN/m²（见P77、P93、P108、P125、P177、P193等多页）。其中楼板模板自重标准值取0.5 kN/m²，处于规范要求的0.3~0.5 kN/m²范围内（含上限），符合规定。同时，方案中梁模板计算（如P13、P14、P17等页）也采用了相同的荷载参数体系，模板自重标准值按实际采用材料（覆面木胶合板面板、方木小梁、钢管主梁等）的重量取值，整体符合GB 50666-2011第4.1.1条及JGJ 162-2016第4.2.1条的要求。",
+      "confidence": 0.82,
+      "tool_calls": 5,
+      "llm_calls": 4,
+      "latency_ms": 54636,
+      "evidence_count": 7,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "模板自重",
+              "自重标准值",
+              "楼板模板"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "梁模板",
+              "支架自重",
+              "kN/m²"
+            ]
+          }
+        },
+        {
+          "action": "get_table",
+          "args": {
+            "block_id": "EV-P77-B0000"
+          }
+        },
+        {
+          "action": "get_table",
+          "args": {
+            "block_id": "EV-P125-B0002"
+          }
+        },
+        {
+          "action": "get_table",
+          "args": {
+            "block_id": "EV-P13-B0002"
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "2.5",
+      "rule_name": "振捣混凝土产生的荷载标准值-水平面",
+      "baseline": "UNCERTAIN",
+      "agent": "UNCERTAIN",
+      "reason": "经检索方案中多处荷载参数表（P77、P93、P108、P125、P177），所见内容仅列出模板及其支架自重标准值G1k、新浇筑混凝土自重G2k、钢筋自重G3k、施工荷载标准值Q1k=3kN/m²、集中堆放物料自重Gjk及风荷载等参数，未在已获取的证据中找到\"对水平面模板（楼板），振捣混凝土产生的荷载标准值取2.0kN/m²\"的明确表述。P50、P60、P70表格中出现的是\"倾倒混凝土时对垂直面模板荷载标准值Q3k=2kN/m²\"，属于垂直面模板的倾倒混凝土荷载，与规则所查的水平面模板振捣混凝土荷载（应为2.0kN/m²）不是同一参数，不能作为合规或违规依据。因查证轮次已用尽，无法进一步确认方案是否对楼板模板振捣荷载取值2.0kN/m²，故判定为UNCERTAIN。",
+      "confidence": 0.35,
+      "tool_calls": 4,
+      "llm_calls": 4,
+      "latency_ms": 29563,
+      "evidence_count": 5,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "振捣混凝土",
+              "荷载标准值",
+              "水平面模板"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "振捣",
+              "2.0kN/m²",
+              "楼板模板"
+            ]
+          }
+        },
+        {
+          "action": "get_table",
+          "args": {
+            "block_id": "EV-P77-B0000"
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 77
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "2.7",
+      "rule_name": "倾倒混凝土冲击荷载标准值",
+      "baseline": "UNCERTAIN",
+      "agent": "COMPLIANT",
+      "reason": "方案文档在多处计算中（P50、P60、P70）对\"倾倒混凝土时对垂直面模板荷载标准值Q3k\"均取值为2 kN/m²。根据规范要求，溜槽或导管浇筑方式对应的冲击荷载标准值为2 kN/m²，料斗≤0.2m³时也为2 kN/m²。文档采用的2 kN/m²取值符合规范中溜槽/导管或小料斗（≤0.2m³）浇筑方式对应的标准值，属于规范允许的有效取值。虽然文档未明确说明具体浇筑方式，但所取数值在规范规定的取值范围内，未发现违规取值情况。",
+      "confidence": 0.72,
+      "tool_calls": 4,
+      "llm_calls": 4,
+      "latency_ms": 35603,
+      "evidence_count": 4,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "倾倒混凝土",
+              "冲击荷载"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "溜槽",
+              "导管",
+              "料斗"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P50-B0000",
+            "before": 2,
+            "after": 2
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 50
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": true
+    },
+    {
+      "rule_id": "2.11",
+      "rule_name": "活载分项系数",
+      "baseline": "UNCERTAIN",
+      "agent": "COMPLIANT",
+      "reason": "方案中多处荷载系数参数表（P78、P94、P110、P126、P179、P194）均明确列出：承载能力极限状态下\"可变荷载的分项系数 γ_Q = 1.5\"，正常使用极限状态下 γ_Q = 1。承载能力极限状态对应不利工况，γ_Q = 1.5 满足\"不应小于1.5（不利时）\"的要求。关于\"对结构有利时取0\"，文档中未出现有利工况取值的明确表述，但各计算章节均按不利工况取1.5，未见违反。综合判定合规。",
+      "confidence": 0.85,
+      "tool_calls": 4,
+      "llm_calls": 4,
+      "latency_ms": 31794,
+      "evidence_count": 7,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "活荷载",
+              "分项系数"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "可变作用",
+              "荷载分项系数"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P78-B0001",
+            "before": 2,
+            "after": 2
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 78
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": true
+    },
+    {
+      "rule_id": "2.20",
+      "rule_name": "荷载组合项完整性(GB50666版)",
+      "baseline": "UNCERTAIN",
+      "agent": "UNCERTAIN",
+      "reason": "根据已获取的证据，方案中存在\"二、荷载组合\"章节（EV-P49-B0024），并涉及部分荷载：G4k（新浇混凝土侧压力，EV-P50-B0000）、G3k（钢筋自重，EV-P77-B0000）、Q1k（施工荷载，EV-P77-B0000）、风荷载（EV-P77-B0001、EV-P88-B0011、EV-P89-B0014）。但以下关键内容未能查证：①G1（模板及支架自重）和G2（新浇混凝土自重）是否明确参与组合；②Q2（混凝土下料水平荷载）和Q3（泵送或不均匀堆载附加水平荷载）是否按GB50666定义参与组合（文档中将\"倾倒混凝土时荷载\"标注为Q3k，与GB50666的Q2定义对应，编号体系可能沿用JGJ162-2008）；③整体稳定验算是否考虑了Q3和Q4。因搜索次数已用尽，无法进一步核实上述缺失项，证据不足以作出合规或违规判定。",
+      "confidence": 0.35,
+      "tool_calls": 4,
+      "llm_calls": 4,
+      "latency_ms": 40334,
+      "evidence_count": 6,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "荷载组合",
+              "永久荷载",
+              "可变荷载"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "G1",
+              "Q1",
+              "风荷载"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P49-B0024",
+            "before": 2,
+            "after": 3
+          }
+        },
+        {
+          "action": "get_table",
+          "args": {
+            "block_id": "EV-P50-B0000"
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": false
+    },
+    {
+      "rule_id": "5.1",
+      "rule_name": "钢管规格-扣件式",
+      "baseline": "VIOLATED",
+      "agent": "UNCERTAIN",
+      "reason": "经检索，方案中涉及扣件式钢管脚手架的内容主要引用了《建筑施工扣件式钢管脚手架安全技术规范》JGJ130-2011（如EV-P10-B0003、EV-P10-B0004关于锈蚀、弯曲变形检查的规定），且P9材料选用章节仅说明\"钢管应符合现行国家标准《直缝电焊钢管》GB/T 13793或《低压流体输送用焊接钢管》GB/T 3091中规定的Q235普通钢管的要求\"（EV-P9-B0003），并提到\"钢管外径、壁厚、断面等的偏差，应符合现行规范的规定\"（EV-P10-B0000）。在已检索范围内，方案既未明确写明钢管规格为Φ48.3×3.6mm，也未发现使用已淘汰的Φ48×3.5mm规格。由于查证轮次已用完，无法进一步确认方案是否在其他页明确给出扣件式钢管规格，故证据不足以判定合规或违规。",
+      "confidence": 0.4,
+      "tool_calls": 4,
+      "llm_calls": 4,
+      "latency_ms": 29318,
+      "evidence_count": 5,
+      "steps": [
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "扣件式钢管脚手架",
+              "钢管规格",
+              "Φ48.3",
+              "壁厚"
+            ]
+          }
+        },
+        {
+          "action": "search_document",
+          "args": {
+            "keywords": [
+              "Φ48×3.5",
+              "外径48",
+              "钢管"
+            ]
+          }
+        },
+        {
+          "action": "get_context",
+          "args": {
+            "block_id": "EV-P9-B0003",
+            "before": 3,
+            "after": 3
+          }
+        },
+        {
+          "action": "get_page",
+          "args": {
+            "page": 9
+          }
+        }
+      ],
+      "forced": true,
+      "cache_hit": true
+    }
+  ]
+}

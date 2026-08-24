@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0/1 已完成）：**Phase 2 Agent Loop 已完成** 2026-08-24：llm_chat_client.py（OpenAI兼容+模型链轮转生产版）+ semantic_agent.py（ReAct循环：4工具白名单/Budget 3轮5次/去重第3次强制交卷/预算尽强制finish只给finish工具/finish校验失败回喂修正/轨迹缓存）+ SEMANTIC_REVIEW_MODE=agent 接线（agent->dify->local三级降级）+17测试全绿234；**E2E真实LLM三规则**：2.7 批式UNCERTAIN->COMPLIANT(0.72)（4步查证P50/60/70找到Q3k=2kN/m²，Recovery升级实证）、2.11 COMPLIANT(0.85)（6处γQ=1.5参数表全带EV ID）、5.1 UNCERTAIN(0.4)（查询方向波动，Phase 3观测项）；get_context/get_table 支持EV ID定位（E2E发现）；下一步 Phase 3 真实规则批量测试（5-10条疑难规则Recovery率统计）
+- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0/1/2 已完成）：**Phase 3 Benchmark 已完成** 2026-08-24（`docs/phase3_benchmark.md`+明细JSON+可复跑脚本）：10条疑难规则 **Recovery Rate 5/9(56%)**（批式UNCERTAIN->4COMPLIANT+1VIOLATED，含1.10封面审核栏空白+P47签字XXX占位符的真实违规发现）、**Citation Validity 100%**（EV ID结构性校验）、平均4.3次工具调用/48s每规则（串行）、诚实放弃4条（1.12等文档真缺证据）、5.1阳性对照因检索方向波动未过（Phase 4 Router route_hint预留解法）；发现：全量走agent需~70min，印证Router分流必要性；下一步 Phase 4 Router（route_hint+本地启发式+route_decisions落盘）
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -299,3 +299,7 @@
 - [2026-08-24 17:27] claude 签到 — 开始处理：Phase 2 Agent Loop：llm_chat_client.py生产版（模型链轮转）+ semantic_agent.py ReAct循环（四工具+Budget+强制交卷+EV ID finish）
 
 - [2026-08-24 17:42] claude 签退 — 完成了：Phase 2 Agent Loop 完成：①llm_chat_client.py生产版（模型链轮转+重试+审计+from_env）；②semantic_agent.py ReAct循环（Budget：3轮/5次工具/search≤2/读页≤3/去重第3次强制交卷/预算尽强制finish；finish过validate_finish失败回喂修正一次；轨迹缓存key=规则+文档指纹+prompt/tool版本+模型链）；③SEMANTIC_REVIEW_MODE扩展agent档+run_semantic_stage三级降级接线；④17新测试全绿234；⑤E2E真实LLM：2.7批式UNCERTAIN->COMPLIANT（4步查证挖出Q3k=2kN/m²，Recovery升级）、2.11六处γQ=1.5全带EV ID、5.1查询方向波动记为Phase 3观测项；⑥get_context/get_table支持EV ID定位；下一步建议：Phase 3 真实规则批量测试（0.5天）：选5-10条批式UNCERTAIN疑难规则跑Agent，统计Recovery Rate/Fallback Rate/Citation Validity/平均tool calls，产出benchmark对比数据
+
+- [2026-08-24 17:43] claude 签到 — 开始处理：Phase 3 真实规则批量测试：批式疑难规则跑Agent，统计Recovery Rate/Citation Validity/tool calls，产出benchmark
+
+- [2026-08-24 17:51] claude 签退 — 完成了：Phase 3 Benchmark 完成：10条批式疑难规则真实LLM跑Agent（脚本可复跑）：Recovery 5/9=56%（1.10 VIOLATED含封面审核栏空白+签字XXX占位符真实证据链、1.18/2.1/2.7/2.11 COMPLIANT均带EV ID）；Citation Validity 100%（结构性保证）；平均4.3工具调用/48s规则；4条诚实放弃（文档真缺证据不硬编）；0降级0轮转；产出benchmark文档+明细JSON；关键发现：①5.1检索方向波动（Phase4 route_hint解法）②全量agent耗时~70min印证Router分流必要性③强制交卷9/10为常态且质量稳定；下一步建议：Phase 4 Router（0.5天）：规则库route_hint字段+本地启发式四分流（LOCAL/LLM/AGENT/HUMAN）+route_decisions.json落盘+首轮检索注入extraction_keywords作查询种子（解5.1波动）
