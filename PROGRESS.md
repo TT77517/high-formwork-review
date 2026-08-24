@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案已出：`docs/agent_upgrade_design.md`，2026-08-24，待用户确认后实施）：Tier A 语义审查工具循环（Agentic RAG：5 个检索工具 + max_rounds=3 + 轨迹缓存 + agent→批式→本地三级降级）+ Tier B 轻量规划 Agent（LLM 出审查计划/代码执行/白名单校验/失败回退默认计划）；代码侧实现不引入框架，预估 3.5 天；待确认：①Tier B 是否进第一期 ②agent 模式 LLM 选型（需 function calling）③前端轨迹展示粒度（抽屉/时间线）
+- [ ] **比赛 Agent 化改造**（方案已确认：V3 受控混合式 + V3.1 实施版 `docs/agent_architecture_v3_1.md`，2026-08-24）：双通道架构--Agent 循环代码侧直连 LLM API 原生 tool calling（新增 llm_chat_client.py），Dify 保留批式通道；本地 Router 四分流（LOCAL/LLM/AGENT/HUMAN，路由表+启发式零 LLM）；Evidence Registry 只准引用 Evidence ID；三级降级；Plan-only Planner（无 Replan）；约 6 天 Phase 0-7。铁律已更新（可引入新技术栈，AGENTS.md/CODEX_CONTEXT.md）。下一步：Phase 0 选定模型验证 tool calling 稳定性，配置 LLM_AGENT_* env
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -277,3 +277,9 @@
 - [2026-08-24 11:43] claude 签到 — 开始处理：比赛 Agent 化改造方案文档：现状 workflow 差距分析 + Tier A/B 设计 + 演示脚本
 
 - [2026-08-24 11:46] claude 签退 — 完成了：比赛Agent化改造方案文档（docs/agent_upgrade_design.md）：现状workflow差距分析（LLM无规划/工具/迭代三能力）+资产映射 + Tier A语义审查工具循环设计（5工具/max_rounds=3/轨迹缓存/三级降级）+ Tier B轻量规划Agent（LLM出计划/白名单校验）+演示脚本与答辩话术 + 3.5天实施计划与风险对策；下一步建议：用户确认方案三个决策点（TierB是否首期/LLM选型/前端轨迹粒度）后按A1起步实施semantic_agent.py
+
+- [2026-08-24 11:57] codex 签到 — 开始处理：回答比赛 Agent 化改造策略问题
+
+- [2026-08-24 16:22] claude 签到 — 开始处理：V3.1 修订版架构设计文档：合并双通道决策（agent直连LLM tool-calling+Dify批式保留）与review修改意见
+
+- [2026-08-24 16:24] claude 签退 — 完成了：V3.1 实施版架构设计文档（docs/agent_architecture_v3_1.md）：合并 V3+review 8 处修订（①调用通道定为代码侧直连LLM原生tool-calling、Dify仅批式 ②按规则rerun裁掉 ③Router本地路由表+启发式零LLM ④Replan砍掉 ⑤去重语义定义 ⑥缓存维度确认 ⑦get_page护栏 ⑧编号统一）+ llm_chat_client规格/env配置 + Phase 0-7六天计划；agent_upgrade_design.md标注已取代；下一步建议：Phase 0：选定 function calling 模型（qwen-plus/deepseek-chat/glm），配 LLM_AGENT_* env，3条规则手工跑通 tool-calling 循环验证稳定性
