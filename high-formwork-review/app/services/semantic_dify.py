@@ -221,7 +221,7 @@ def run_semantic_stage(
     document: MinerUDocument,
     project_facts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """语义审查统一入口：按 SEMANTIC_REVIEW_MODE 选择 Dify LLM 或本地模式。"""
+    """语义审查统一入口：按 SEMANTIC_REVIEW_MODE 选择 agent / Dify LLM / 本地模式。"""
     from ..dify_config import resolve_semantic_review_mode
     from ..semantic_engine import run_semantic_engine_safe
 
@@ -229,6 +229,21 @@ def run_semantic_stage(
         mode = resolve_semantic_review_mode()
     except ValueError:
         mode = "local"
+    if mode == "agent":
+        # 降级链：agent -> Dify 批式 -> 本地关键词（V3.1 §1）
+        try:
+            from .semantic_agent import run_semantic_review_agent
+
+            return run_semantic_review_agent(document, project_facts)
+        except Exception as exc:  # noqa: BLE001 - agent 通道任何失败都降级
+            result = run_semantic_review_dify_safe(document, project_facts)
+            result.setdefault("warnings", []).append(
+                {
+                    "code": "AGENT_MODE_FALLBACK",
+                    "message": f"Agent 语义审查不可用（{exc}），已降级为 Dify 批式/本地模式",
+                }
+            )
+            return result
     if mode == "dify":
         return run_semantic_review_dify_safe(document, project_facts)
     return run_semantic_engine_safe(document, project_facts)

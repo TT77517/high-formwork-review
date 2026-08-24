@@ -100,11 +100,12 @@ def resolve_semantic_review_mode(
     explicit_mode: str | None = None,
     load_environment: bool = True,
 ) -> str:
-    """语义审查模式：``local``（关键词匹配）或 ``dify``（LLM 语义判定）。
+    """语义审查模式：``local`` / ``dify`` / ``agent``。
 
-    默认 ``local``。设为 ``dify`` 时需要可用的语义审查 Workflow
-    （DIFY_SEMANTIC_API_KEY，未配置时回退 DIFY_API_KEY）；
-    调用失败时逐批降级回本地模式，任务不中断。
+    - ``local``：关键词匹配（默认）
+    - ``dify``：Dify Workflow 批式 LLM 判定
+    - ``agent``：Evidence Agent 工具循环（代码侧直连 LLM tool calling），
+      失败时降级 dify 批式，再失败降级本地，任务不中断
     """
     if load_environment:
         _load_project_env()
@@ -112,8 +113,8 @@ def resolve_semantic_review_mode(
     if mode is None and load_environment:
         mode = os.getenv("SEMANTIC_REVIEW_MODE")
     mode = (mode or "local").strip().lower()
-    if mode not in {"local", "dify"}:
-        raise ValueError("SEMANTIC_REVIEW_MODE 无效，允许值：local, dify")
+    if mode not in {"local", "dify", "agent"}:
+        raise ValueError("SEMANTIC_REVIEW_MODE 无效，允许值：local, dify, agent")
     return mode
 
 

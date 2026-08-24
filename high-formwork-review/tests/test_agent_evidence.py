@@ -328,3 +328,25 @@ class TestEvidenceIdFormat:
 
     def test_block_without_dash(self):
         assert build_evidence_id(1, "b0007") == "EV-P1-B0007"
+
+
+class TestEvIdReference:
+    """模型把 EV ID 当 block_id 传时的解析（Phase 2 E2E 发现）。"""
+
+    def test_get_context_accepts_ev_id(self, document: MinerUDocument):
+        registry = EvidenceRegistry()
+        _, eids = search_document(document, registry, keywords=["γQ"])
+        assert eids
+        text, _ = get_context(document, registry, block_id=eids[0], before=1, after=1)
+        assert "上下文" in text  # EV ID 被解析成真实 block_id 并成功取上下文
+
+    def test_get_table_accepts_ev_id(self, document: MinerUDocument):
+        registry = EvidenceRegistry()
+        _, eids = search_document(document, registry, keywords=["Φ48", "钢管"])
+        assert eids
+        text, _ = get_table(document, registry, block_id=eids[0])
+        assert "钢管" in text or "Φ" in text
+
+    def test_unknown_reference_passthrough(self, document: MinerUDocument):
+        text, _ = get_context(document, EvidenceRegistry(), block_id="nope")
+        assert "不存在" in text

@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0 已通过，见 `docs/phase0_verification_record.md`）：**Phase 1 Evidence Layer 已完成** 2026-08-24：agent_guardrails.py（EvidenceObject/Registry 去重落盘/validate_finish：状态枚举+页码范围+证据ID真实存在+VIOLATED必带证据）+ agent_tools.py（LaTeX归一化检索 Φ48×3.0 命中+关键词中心窗口+4工具全登记EV ID）+ 27 测试；真实文档冒烟：5.1 证据 P13 计算书表格直接命中、finish 引用真实 EV ID 校验通过；模型链 qwen3.8-max 首选；剩余 Phase 2-7 约 4.5 天，下一步 Phase 2 Agent Loop（llm_chat_client.py+semantic_agent.py）
+- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0/1 已完成）：**Phase 2 Agent Loop 已完成** 2026-08-24：llm_chat_client.py（OpenAI兼容+模型链轮转生产版）+ semantic_agent.py（ReAct循环：4工具白名单/Budget 3轮5次/去重第3次强制交卷/预算尽强制finish只给finish工具/finish校验失败回喂修正/轨迹缓存）+ SEMANTIC_REVIEW_MODE=agent 接线（agent->dify->local三级降级）+17测试全绿234；**E2E真实LLM三规则**：2.7 批式UNCERTAIN->COMPLIANT(0.72)（4步查证P50/60/70找到Q3k=2kN/m²，Recovery升级实证）、2.11 COMPLIANT(0.85)（6处γQ=1.5参数表全带EV ID）、5.1 UNCERTAIN(0.4)（查询方向波动，Phase 3观测项）；get_context/get_table 支持EV ID定位（E2E发现）；下一步 Phase 3 真实规则批量测试（5-10条疑难规则Recovery率统计）
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -295,3 +295,7 @@
 - [2026-08-24 17:10] claude 签到 — 开始处理：Phase 1 Evidence Layer：Evidence Object/ID/Registry/Validator + 检索质量改进（行级截取+表格感知召回）
 
 - [2026-08-24 17:18] claude 签退 — 完成了：Phase 1 Evidence Layer 完成：①agent_guardrails.py--EvidenceObject/Registry（登记去重/EV-P{n}-B{xxx}编号/落盘加载）+validate_finish（状态枚举/页码范围[解Phase0发现4]/证据ID真实存在/VIOLATED必带证据[解发现2]）+normalize_for_match/display_normalize双归一化；②agent_tools.py--LaTeX归一化检索（despaced偏移映射，'Φ48'直接命中P13计算书表格Φ48×3，解发现3根因）+关键词中心窗口（±100/140字符不再头部截断）+search/get_page/get_table/get_context四工具全登记EV ID；③27个测试，全套件217 passed；真实文档E2E：finish引用真实EV ID校验通过；下一步建议：Phase 2 Agent Loop（1天）：llm_chat_client.py生产版（继承模型链轮转）+semantic_agent.py ReAct循环（接agent_tools四工具+Budget+强制交卷+finish只准引用EV ID）
+
+- [2026-08-24 17:27] claude 签到 — 开始处理：Phase 2 Agent Loop：llm_chat_client.py生产版（模型链轮转）+ semantic_agent.py ReAct循环（四工具+Budget+强制交卷+EV ID finish）
+
+- [2026-08-24 17:42] claude 签退 — 完成了：Phase 2 Agent Loop 完成：①llm_chat_client.py生产版（模型链轮转+重试+审计+from_env）；②semantic_agent.py ReAct循环（Budget：3轮/5次工具/search≤2/读页≤3/去重第3次强制交卷/预算尽强制finish；finish过validate_finish失败回喂修正一次；轨迹缓存key=规则+文档指纹+prompt/tool版本+模型链）；③SEMANTIC_REVIEW_MODE扩展agent档+run_semantic_stage三级降级接线；④17新测试全绿234；⑤E2E真实LLM：2.7批式UNCERTAIN->COMPLIANT（4步查证挖出Q3k=2kN/m²，Recovery升级）、2.11六处γQ=1.5全带EV ID、5.1查询方向波动记为Phase 3观测项；⑥get_context/get_table支持EV ID定位；下一步建议：Phase 3 真实规则批量测试（0.5天）：选5-10条批式UNCERTAIN疑难规则跑Agent，统计Recovery Rate/Fallback Rate/Citation Validity/平均tool calls，产出benchmark对比数据

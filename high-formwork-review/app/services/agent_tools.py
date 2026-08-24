@@ -171,7 +171,8 @@ def get_table(
     *,
     block_id: str,
 ) -> tuple[str, list[str]]:
-    """读取指定表格 block 的完整文本。"""
+    """读取指定表格 block 的完整内容（block_id 或 EV ID 均可定位）。"""
+    block_id = _resolve_block_id(block_id, registry)
     for pg in document.pages:
         for block in pg.blocks:
             if block.block_id == block_id:
@@ -189,6 +190,21 @@ def get_table(
     return f"block {block_id} 不存在", []
 
 
+def _resolve_block_id(reference: str, registry: EvidenceRegistry) -> str:
+    """把模型给的定位引用解析成 block_id：支持直接给 block_id 或 EV ID。
+
+    模型常用 EV ID（如 EV-P50-B0000）当 block_id 传——先查证据登记簿
+    解析出真实 block_id，解析不了再原样返回。
+    """
+    reference = str(reference or "").strip()
+    if not reference:
+        return reference
+    evidence = registry.get(reference)
+    if evidence is not None and evidence.block_id:
+        return evidence.block_id
+    return reference
+
+
 def get_context(
     document: MinerUDocument,
     registry: EvidenceRegistry,
@@ -197,9 +213,10 @@ def get_context(
     before: int = 1,
     after: int = 1,
 ) -> tuple[str, list[str]]:
-    """读取目标 block 前后 N 个 block 的上下文。"""
+    """读取目标 block 前后 N 个 block 的上下文（block_id 或 EV ID 均可定位）。"""
     before = max(0, min(int(before), 3))
     after = max(0, min(int(after), 3))
+    block_id = _resolve_block_id(block_id, registry)
     for pg in document.pages:
         for index, block in enumerate(pg.blocks):
             if block.block_id != block_id:
