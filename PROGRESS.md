@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；**Phase 0 已通过** 2026-08-24，见 `docs/phase0_verification_record.md`）：模型选定 qwen-plus（百炼兼容模式），tool calling 稳定、循环全链路通、**Recovery 实证**（规则 2.11 批式 UNCERTAIN->Agent 2轮 COMPLIANT）；4 个设计发现（强制交卷必须/Evidence ID 必要性实证/检索截断问题/page 校验）；剩余 Phase 1-7 约 5.5 天；验证脚本 scripts/phase0_tool_calling_check.py
+- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；**Phase 0 已通过** 2026-08-24，见 `docs/phase0_verification_record.md`）：**模型链首选 qwen3.8-max**（免费额度+质量优于qwen-plus：阳性对照5.1通过、P11材料表Φ48×3.0证据校验✅、单轮并行多工具）；LLM_AGENT_MODEL 支持逗号分隔优先级链，额度耗尽自动轮转（Arrearage/限流/额度/模型不存在触发，粘性切换+审计），前5免费模型优先、qwen-plus垫底；Recovery 实证（2.11 批式UNCERTAIN->Agent COMPLIANT，参数表+公式交叉验证）；剩余 Phase 1-7 约 5.5 天
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -287,3 +287,7 @@
 - [2026-08-24 16:28] claude 签到 — 开始处理：Phase 0 能力验证：选定 function calling 模型、配置 LLM_AGENT_* env、3条规则手工跑通 tool-calling 循环
 
 - [2026-08-24 16:46] claude 签退 — 完成了：Phase 0 能力验证通过：模型选定 qwen-plus（qwen3.5-ocr 不支持tool calling已排除/qwen3-max参数格式脏）；3条规则跑通tool-calling循环，Recovery实证（2.11 批式UNCERTAIN->Agent 2轮COMPLIANT，γQ=1.5 P125）；4个设计发现（强制交卷必须/Evidence ID必要性实证/检索截断/page校验）；验证脚本+记录文档落盘；190测试全绿；下一步建议：Phase 1 Evidence Layer（0.5天）：Evidence Object/ID/Registry/Validator + 检索质量改进（命中block行级截取+表格感知召回，解5.1阳性对照失败根因）
+
+- [2026-08-24 16:58] claude 签到 — 开始处理：额度恢复验证 + LLM模型自动降级切换机制（免费额度耗尽自动换下一模型）
+
+- [2026-08-24 17:06] claude 签退 — 完成了：①充值后6模型全部恢复；②模型链自动轮转机制落地（LLM_AGENT_MODEL逗号分隔优先级链，Arrearage/限流/额度/模型不存在触发切换+粘性+审计，bogus模型轮转测试通过）；③qwen3.8-max质量复验优于qwen-plus（阳性对照5.1转VIOLATED且P11证据校验通过、2.11参数表+公式交叉验证、单轮并行多工具）；链序：5免费模型优先+qwen-plus垫底；190测试全绿；下一步建议：Phase 1 Evidence Layer（0.5天）：Evidence Object/ID/Registry/Validator + 检索质量改进（命中block行级截取+表格感知召回）

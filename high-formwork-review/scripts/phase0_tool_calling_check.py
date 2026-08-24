@@ -106,41 +106,83 @@ def tool_get_table(document: MinerUDocument, block_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# LLM 客户端（Phase 0 原型：OpenAI 兼容 + tools）
+# LLM 客户端（Phase 0 原型：OpenAI 兼容 + tools + 模型链自动切换）
 # ---------------------------------------------------------------------------
 
+# 模型链：LLM_AGENT_MODEL 支持逗号分隔优先级列表（前面的额度耗尽自动切后面的）
+# 触发切换的错误：欠费(Arrearage)/限流(Throttling/429)/额度耗尽/模型不存在
+_MODEL_CHAIN = [
+    m.strip() for m in os.getenv("LLM_AGENT_MODEL", "qwen-plus").split(",") if m.strip()
+]
+_current_model = _MODEL_CHAIN[0] if _MODEL_CHAIN else ""
+_rotation_events: list[dict] = []  # 切换审计：{from, to, reason}
+
+
+def _is_rotatable_error(status_code: int, err_body: dict) -> bool:
+    """判断该错误是否应该换下一个模型重试（而非直接失败）。"""
+    code = str(err_body.get("code") or "")
+    message = str(err_body.get("message") or "")
+    if status_code == 429:
+        return True
+    keywords = ("arrear", "quota", "throttl", "rate limit", "balance",
+                "免费额度", "欠费", "限流", "not exist", "invalid model")
+    text = f"{code} {message}".lower()
+    return any(k in text for k in keywords)
+
+
 def llm_chat(messages: list[dict], tools: list[dict]) -> dict[str, Any]:
-    """同步调用 chat/completions；返回 {tool_calls, content}。"""
+    """同步调用 chat/completions；模型额度耗尽时沿链自动切换。返回 {tool_calls, content, model}。"""
+    global _current_model
     import httpx
 
     api_key = os.getenv("LLM_AGENT_API_KEY", "").strip()
     base_url = os.getenv("LLM_AGENT_BASE_URL", "").strip().rstrip("/")
-    model = os.getenv("LLM_AGENT_MODEL", "").strip()
-    if not (api_key and base_url and model):
+    if not (api_key and base_url and _MODEL_CHAIN):
         raise SystemExit(
             "缺少 LLM_AGENT_API_KEY / LLM_AGENT_BASE_URL / LLM_AGENT_MODEL（写入 .env）"
         )
-    resp = httpx.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={
+
+    # 尝试顺序：当前粘性模型优先，然后是链上其余模型
+    order = [_current_model] + [m for m in _MODEL_CHAIN if m != _current_model]
+    last_error = "未知错误"
+    for model in order:
+        try:
+            resp = httpx.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"model": model, "messages": messages,
+                      "tools": tools, "temperature": 0.1},
+                timeout=90,
+            )
+        except httpx.HTTPError as exc:
+            last_error = f"{model}: {exc}"
+            continue
+        if resp.is_error:
+            try:
+                err_body = resp.json().get("error", {})
+            except ValueError:
+                err_body = {"message": resp.text[:200]}
+            last_error = f"{model}: HTTP {resp.status_code} {err_body.get('code', '')} {(err_body.get('message') or '')[:100]}"
+            if _is_rotatable_error(resp.status_code, err_body):
+                continue  # 换下一个模型
+            raise RuntimeError(f"LLM 调用失败（不可轮转错误）：{last_error}")
+        msg = resp.json()["choices"][0]["message"]
+        if model != _current_model:
+            _rotation_events.append(
+                {"from": _current_model, "to": model, "reason": last_error}
+            )
+            print(f"  [模型切换] {_current_model} -> {model}（原因：{last_error[:80]}）")
+            _current_model = model
+        return {
+            "tool_calls": [
+                {"name": tc["function"]["name"],
+                 "arguments": json.loads(tc["function"]["arguments"] or "{}")}
+                for tc in (msg.get("tool_calls") or [])
+            ],
+            "content": msg.get("content") or "",
             "model": model,
-            "messages": messages,
-            "tools": tools,
-            "temperature": 0.1,
-        },
-        timeout=90,
-    )
-    resp.raise_for_status()
-    msg = resp.json()["choices"][0]["message"]
-    return {
-        "tool_calls": [
-            {"name": tc["function"]["name"],
-             "arguments": json.loads(tc["function"]["arguments"] or "{}")}
-            for tc in (msg.get("tool_calls") or [])
-        ],
-        "content": msg.get("content") or "",
-    }
+        }
+    raise RuntimeError(f"模型链全部不可用：{last_error}")
 
 
 TOOL_SPECS = [
@@ -297,7 +339,7 @@ def main() -> int:
         str(r["rule_id"]): r["status"]
         for r in json.loads((job_dir / "semantic_results.json").read_text(encoding="utf-8"))["results"]
     }
-    print(f"文档：{len(document.pages)} 页 | 模型：{os.getenv('LLM_AGENT_MODEL')}\n")
+    print(f"文档：{len(document.pages)} 页 | 模型链：{' -> '.join(_MODEL_CHAIN)}（当前：{_current_model}）\n")
     for rid in TEST_RULE_IDS:
         rule = rules.get(rid)
         if not rule:
@@ -320,6 +362,10 @@ def main() -> int:
         print(f"  证据校验：{'✅ 引用真实存在于文档' if ok and quote else ('❌ 未能定位' if quote else '（无引用）')}"
               f"{' @p' + str(page) if page else ''}")
         print()
+    if _rotation_events:
+        print("模型切换记录：")
+        for ev in _rotation_events:
+            print(f"  {ev['from']} -> {ev['to']}：{ev['reason'][:100]}")
     return 0
 
 
