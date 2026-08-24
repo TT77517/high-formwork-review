@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案已确认：V3 受控混合式 + V3.1 实施版 `docs/agent_architecture_v3_1.md`，2026-08-24）：双通道架构--Agent 循环代码侧直连 LLM API 原生 tool calling（新增 llm_chat_client.py），Dify 保留批式通道；本地 Router 四分流（LOCAL/LLM/AGENT/HUMAN，路由表+启发式零 LLM）；Evidence Registry 只准引用 Evidence ID；三级降级；Plan-only Planner（无 Replan）；约 6 天 Phase 0-7。铁律已更新（可引入新技术栈，AGENTS.md/CODEX_CONTEXT.md）。下一步：Phase 0 选定模型验证 tool calling 稳定性，配置 LLM_AGENT_* env
+- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；**Phase 0 已通过** 2026-08-24，见 `docs/phase0_verification_record.md`）：模型选定 qwen-plus（百炼兼容模式），tool calling 稳定、循环全链路通、**Recovery 实证**（规则 2.11 批式 UNCERTAIN->Agent 2轮 COMPLIANT）；4 个设计发现（强制交卷必须/Evidence ID 必要性实证/检索截断问题/page 校验）；剩余 Phase 1-7 约 5.5 天；验证脚本 scripts/phase0_tool_calling_check.py
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -283,3 +283,7 @@
 - [2026-08-24 16:22] claude 签到 — 开始处理：V3.1 修订版架构设计文档：合并双通道决策（agent直连LLM tool-calling+Dify批式保留）与review修改意见
 
 - [2026-08-24 16:24] claude 签退 — 完成了：V3.1 实施版架构设计文档（docs/agent_architecture_v3_1.md）：合并 V3+review 8 处修订（①调用通道定为代码侧直连LLM原生tool-calling、Dify仅批式 ②按规则rerun裁掉 ③Router本地路由表+启发式零LLM ④Replan砍掉 ⑤去重语义定义 ⑥缓存维度确认 ⑦get_page护栏 ⑧编号统一）+ llm_chat_client规格/env配置 + Phase 0-7六天计划；agent_upgrade_design.md标注已取代；下一步建议：Phase 0：选定 function calling 模型（qwen-plus/deepseek-chat/glm），配 LLM_AGENT_* env，3条规则手工跑通 tool-calling 循环验证稳定性
+
+- [2026-08-24 16:28] claude 签到 — 开始处理：Phase 0 能力验证：选定 function calling 模型、配置 LLM_AGENT_* env、3条规则手工跑通 tool-calling 循环
+
+- [2026-08-24 16:46] claude 签退 — 完成了：Phase 0 能力验证通过：模型选定 qwen-plus（qwen3.5-ocr 不支持tool calling已排除/qwen3-max参数格式脏）；3条规则跑通tool-calling循环，Recovery实证（2.11 批式UNCERTAIN->Agent 2轮COMPLIANT，γQ=1.5 P125）；4个设计发现（强制交卷必须/Evidence ID必要性实证/检索截断/page校验）；验证脚本+记录文档落盘；190测试全绿；下一步建议：Phase 1 Evidence Layer（0.5天）：Evidence Object/ID/Registry/Validator + 检索质量改进（命中block行级截取+表格感知召回，解5.1阳性对照失败根因）
