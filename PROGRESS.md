@@ -39,7 +39,7 @@
 - [x] 修复"规范审查方式暂不可用"——后端 REVIEW_MODES 未同步新模式名（已验证修复完整）
 - [x] MinerU 缓存验证（同 PDF 二次上传不调 MinerU / 改名同内容命中 / 同名不同内容不命中 / 缓存损坏自动失效）
 - [x] 规范语义审查 Agent 架构设计（完成设计文档，待实施）
-- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；**Phase 0 已通过** 2026-08-24，见 `docs/phase0_verification_record.md`）：**模型链首选 qwen3.8-max**（免费额度+质量优于qwen-plus：阳性对照5.1通过、P11材料表Φ48×3.0证据校验✅、单轮并行多工具）；LLM_AGENT_MODEL 支持逗号分隔优先级链，额度耗尽自动轮转（Arrearage/限流/额度/模型不存在触发，粘性切换+审计），前5免费模型优先、qwen-plus垫底；Recovery 实证（2.11 批式UNCERTAIN->Agent COMPLIANT，参数表+公式交叉验证）；剩余 Phase 1-7 约 5.5 天
+- [ ] **比赛 Agent 化改造**（方案：`docs/agent_architecture_v3_1.md`；Phase 0 已通过，见 `docs/phase0_verification_record.md`）：**Phase 1 Evidence Layer 已完成** 2026-08-24：agent_guardrails.py（EvidenceObject/Registry 去重落盘/validate_finish：状态枚举+页码范围+证据ID真实存在+VIOLATED必带证据）+ agent_tools.py（LaTeX归一化检索 Φ48×3.0 命中+关键词中心窗口+4工具全登记EV ID）+ 27 测试；真实文档冒烟：5.1 证据 P13 计算书表格直接命中、finish 引用真实 EV ID 校验通过；模型链 qwen3.8-max 首选；剩余 Phase 2-7 约 4.5 天，下一步 Phase 2 Agent Loop（llm_chat_client.py+semantic_agent.py）
 - [ ] 更多规范规则的补充与完善（85条空关键词已补全，剩余待持续优化）
 - [ ] 测试覆盖补充
 - [x] 修复剩余 3 个存量测试失败（2026-08-21：test_web 文案断言更新为现行五模式、compliance→smart、DR-01→DR-90 编号迁移；全套件转绿 156 passed）
@@ -291,3 +291,7 @@
 - [2026-08-24 16:58] claude 签到 — 开始处理：额度恢复验证 + LLM模型自动降级切换机制（免费额度耗尽自动换下一模型）
 
 - [2026-08-24 17:06] claude 签退 — 完成了：①充值后6模型全部恢复；②模型链自动轮转机制落地（LLM_AGENT_MODEL逗号分隔优先级链，Arrearage/限流/额度/模型不存在触发切换+粘性+审计，bogus模型轮转测试通过）；③qwen3.8-max质量复验优于qwen-plus（阳性对照5.1转VIOLATED且P11证据校验通过、2.11参数表+公式交叉验证、单轮并行多工具）；链序：5免费模型优先+qwen-plus垫底；190测试全绿；下一步建议：Phase 1 Evidence Layer（0.5天）：Evidence Object/ID/Registry/Validator + 检索质量改进（命中block行级截取+表格感知召回）
+
+- [2026-08-24 17:10] claude 签到 — 开始处理：Phase 1 Evidence Layer：Evidence Object/ID/Registry/Validator + 检索质量改进（行级截取+表格感知召回）
+
+- [2026-08-24 17:18] claude 签退 — 完成了：Phase 1 Evidence Layer 完成：①agent_guardrails.py--EvidenceObject/Registry（登记去重/EV-P{n}-B{xxx}编号/落盘加载）+validate_finish（状态枚举/页码范围[解Phase0发现4]/证据ID真实存在/VIOLATED必带证据[解发现2]）+normalize_for_match/display_normalize双归一化；②agent_tools.py--LaTeX归一化检索（despaced偏移映射，'Φ48'直接命中P13计算书表格Φ48×3，解发现3根因）+关键词中心窗口（±100/140字符不再头部截断）+search/get_page/get_table/get_context四工具全登记EV ID；③27个测试，全套件217 passed；真实文档E2E：finish引用真实EV ID校验通过；下一步建议：Phase 2 Agent Loop（1天）：llm_chat_client.py生产版（继承模型链轮转）+semantic_agent.py ReAct循环（接agent_tools四工具+Budget+强制交卷+finish只准引用EV ID）
