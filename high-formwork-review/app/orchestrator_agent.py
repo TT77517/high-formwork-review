@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from .models import MinerUDocument
+from .uncertainty_analysis import build_uncertainty_analysis
 
 TOOL_ORDER = [
     "completeness_review",
@@ -43,6 +44,13 @@ def build_orchestrator_state(
     conflicts = _parameter_conflicts(parameter_pool)
     doc_corrections = _document_parse_corrections(decisions or [])
     formula_rechecks = _formula_rechecks(calculation)
+    uncertainty_analysis = build_uncertainty_analysis(
+        project_facts=project_facts,
+        completeness_results=completeness_results,
+        rule_engine=rule_engine,
+        semantic=semantic,
+        calculation=calculation,
+    )
     semantic_confirmations = _semantic_confirmation_items(semantic)
 
     dispatch_plan = _dispatch_plan(
@@ -73,6 +81,7 @@ def build_orchestrator_state(
         "tool_observations": observations,
         "parameter_candidate_pool": parameter_pool,
         "parameter_conflicts": conflicts,
+        "uncertainty_analysis": uncertainty_analysis,
         "human_confirmation": {
             "required": bool(
                 conflicts

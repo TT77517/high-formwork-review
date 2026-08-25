@@ -9,6 +9,7 @@ const DIFY_CN = { not_requested:'增强复核：未请求',failed:'增强复核�
 const HUMAN_CN = { pending:'待复核',confirmed:'确认可用',rejected:'驳回',confirmed_pass:'确认已具备',confirmed_missing:'确认存在缺项',unable_to_verify:'暂无法核验',false_positive:'排除误报',need_supplement:'记录修正/要求补充' };
 const SEVERITY_CN = { 'A-mandatory':'A级强制','B-required':'B级应执行','C-recommended':'C级推荐','D-info':'D级提示' };
 const MODULE_CN = { '01_procedure_compliance':'程序合规','02_load_values':'荷载取值','03_structural_calculation':'结构计算','04_construction_requirements':'构造要求','05_material_requirements':'材料要求','06_safety_measures':'安全措施' };
+const UNCERTAINTY_CN = { missing_content:'真缺内容', missing_parameter:'缺参数', insufficient_evidence:'证据不足', broad_rule:'规则过宽' };
 const SEMANTIC_MODE_CN = { agent:'规范Agent已启用', dify:'Dify批式审查', local:'本地规则审查', agent_llm_semantic:'Agent混合审查', dify_semantic:'Dify批式审查', local_semantic:'本地规则审查' };
 const ORCH_FLOW = [
   ['mineru_parsing', '解析取证'],
@@ -972,17 +973,37 @@ function renderSemanticUncertainPanel(allResults) {
   if (!el) return;
   const uncertainItems = (allResults || []).filter(r => r.status === 'UNCERTAIN');
   if (!uncertainItems.length) { el.innerHTML = ''; return; }
-  const deterministic = uncertainItems.filter(r => r.check_type === 'deterministic' || r.source === 'project_facts').length;
-  const semantic = uncertainItems.length - deterministic;
-  const manual = uncertainItems.filter(r => r.manual_review).length;
+  const analysis = orchestratorData?.uncertainty_analysis;
   const fallback = (semanticData?.warnings || []).filter(w => String(w.code || '').includes('FALLBACK')).length;
-  const moduleCount = {};
-  uncertainItems.forEach(r => { const m = MODULE_CN[r.module] || r.module || '未分组'; moduleCount[m] = (moduleCount[m] || 0) + 1; });
-  const topModules = Object.entries(moduleCount).sort((a,b) => b[1]-a[1]).slice(0, 3).map(([m,n]) => `${m} ${n}`).join(' · ');
-  el.innerHTML = `<div class="semantic-insight">
-    <b>无法判定来源</b>
-    <span>共 ${uncertainItems.length} 条：参数/确定性证据缺失 ${deterministic}，语义证据不足 ${semantic}，需人工抽核 ${manual}${fallback ? `，LLM批式降级 ${fallback} 批` : ''}。</span>
-    ${topModules ? `<small>集中模块：${esc(topModules)}</small>` : ''}
+  if (!analysis?.categories?.length) {
+    const deterministic = uncertainItems.filter(r => r.check_type === 'deterministic' || r.source === 'project_facts').length;
+    const semantic = uncertainItems.length - deterministic;
+    const manual = uncertainItems.filter(r => r.manual_review).length;
+    el.innerHTML = `<div class="semantic-insight">
+      <b>无法判定来源</b>
+      <span>共 ${uncertainItems.length} 条：参数/确定性证据缺失 ${deterministic}，语义证据不足 ${semantic}，需人工抽核 ${manual}${fallback ? `，LLM批式降级 ${fallback} 批` : ''}。</span>
+    </div>`;
+    return;
+  }
+  const sourceName = s => ({completeness_review:'完整性', rule_engine:'确定性', semantic_engine:'语义', calculation_engine:'计算'}[s] || s || '');
+  const itemHtml = item => `<button class="uncertain-item" type="button" onclick="openSemanticDrawer('${esc(item.rule_id||'')}', '', [...(ruleEngineData?.results||[]), ...(semanticData?.results||[]), ...(calcData?.results||[])])">
+    <span><b>${esc(item.rule_id||'-')}</b> ${esc(item.rule_name||'')}</span>
+    <small>${esc(sourceName(item.source))} · ${esc(item.category_reason||'')}</small>
+  </button>`;
+  const cards = analysis.categories.map(c => {
+    const items = (c.items || []).slice(0, 3).map(itemHtml).join('');
+    return `<div class="uncertain-card ${c.count ? '' : 'muted'}">
+      <div class="uncertain-card-head"><b>${esc(c.label || UNCERTAINTY_CN[c.category] || c.category)}</b><span>${c.count || 0}</span></div>
+      <p>${esc(c.action || '')}</p>
+      ${items ? `<div class="uncertain-examples">${items}</div>` : '<small class="empty-hint">暂无此类无法判定</small>'}
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="uncertain-panel">
+    <div class="uncertain-head">
+      <div><b>无法判定归因</b><span>共 ${analysis.total_uncertain || uncertainItems.length} 条，按后端审查原因归为四类${fallback ? `；LLM批式降级 ${fallback} 批` : ''}</span></div>
+      <button type="button" class="btn-small" onclick="$('#semanticStatusFilter').value='UNCERTAIN'; semState.page=1; renderSemanticTable();">只看无法判定</button>
+    </div>
+    <div class="uncertain-grid">${cards}</div>
   </div>`;
 }
 function renderSemanticTable() {

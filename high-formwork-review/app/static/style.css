@@ -149,6 +149,23 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .semantic-insight { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; margin: -8px 0 14px; border: 1px solid var(--border-secondary); border-radius: var(--radius); background: #fafafa; color: var(--text-secondary); font-size: 13px; }
 .semantic-insight b { color: var(--text); }
 .semantic-insight small { color: var(--text-tertiary); }
+.uncertain-panel { padding: 14px; margin: -8px 0 14px; border: 1px solid var(--border-secondary); border-radius: var(--radius); background: #fafafa; }
+.uncertain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.uncertain-head b { display: block; margin-bottom: 2px; color: var(--text); }
+.uncertain-head span { color: var(--text-secondary); font-size: 13px; }
+.uncertain-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.uncertain-card { background: #fff; border: 1px solid var(--border-secondary); border-radius: var(--radius-sm); padding: 10px; min-height: 136px; }
+.uncertain-card.muted { color: var(--text-tertiary); background: #fcfcfc; }
+.uncertain-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.uncertain-card-head b { font-size: 14px; }
+.uncertain-card-head span { min-width: 28px; height: 24px; line-height: 24px; text-align: center; border-radius: var(--radius-sm); background: var(--warning-bg); color: #ad6800; font-weight: 600; }
+.uncertain-card p { margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }
+.uncertain-examples { display: flex; flex-direction: column; gap: 6px; }
+.uncertain-item { width: 100%; border: 1px solid var(--border-secondary); border-radius: var(--radius-sm); padding: 6px 8px; background: #fff; text-align: left; cursor: pointer; }
+.uncertain-item:hover { border-color: var(--primary-hover); color: var(--primary); }
+.uncertain-item span { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uncertain-item small { display: block; color: var(--text-tertiary); font-size: 11px; line-height: 1.4; margin-top: 2px; }
+.empty-hint { color: var(--text-tertiary); font-size: 12px; }
 
 /* Tables */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border-secondary); border-radius: var(--radius); }
@@ -419,8 +436,9 @@ button.ev-thumb-table:hover { border-color: var(--primary); color: var(--primary
   .tool-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
   .tool-card { min-height: 92px; }
   .ai-advice-list { grid-template-columns: 1fr; }
+  .uncertain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .agent-step::after { display: none; }
 }
 @media (max-width: 460px) {
-  .agent-flow, .tool-grid { grid-template-columns: 1fr; }
+  .agent-flow, .tool-grid, .uncertain-grid { grid-template-columns: 1fr; }
 }

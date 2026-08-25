@@ -342,6 +342,11 @@ def test_static_app_uses_ai_summary_plan_card(client: TestClient) -> None:
     assert "Agent 自主查证目标：" not in text
     assert "/orchestrator" in text
     assert "tool_observations" in text
+    assert "无法判定归因" in text
+    assert "真缺内容" in text
+    assert "缺参数" in text
+    assert "证据不足" in text
+    assert "规则过宽" in text
 
 
 def test_non_pdf_is_rejected(client: TestClient) -> None:

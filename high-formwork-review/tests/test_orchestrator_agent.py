@@ -47,13 +47,36 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
         },
         project_qualification={"support_system_label": "承插型盘扣式"},
         completeness_summary={"total_rules": 10, "pass_count": 8, "missing_count": 1, "uncertain_count": 1},
-        completeness_results=[{"requires_human_review": True}],
-        rule_engine={"total_rules": 2, "compliant": 1, "violated": 1, "uncertain": 0, "pending_confirmation": 0},
-        semantic={
+        completeness_results=[
+            {
+                "rule_id": "HF-COMP-009",
+                "name": "计算书",
+                "status": "UNCERTAIN",
+                "reason": "全文检查后未发现目标正文章节、相关内容或相关解析风险",
+                "requires_human_review": True,
+            }
+        ],
+        rule_engine={
             "total_rules": 3,
             "compliant": 1,
+            "violated": 1,
+            "uncertain": 1,
+            "pending_confirmation": 0,
+            "results": [
+                {
+                    "rule_id": "4.12",
+                    "rule_name": "可调托撑悬臂长度",
+                    "status": "UNCERTAIN",
+                    "reason": "未从方案中提取到「head_jack_cantilever_length」参数",
+                    "param_name": "head_jack_cantilever_length",
+                }
+            ],
+        },
+        semantic={
+            "total_rules": 4,
+            "compliant": 1,
             "violated": 0,
-            "uncertain": 2,
+            "uncertain": 3,
             "pending_confirmation": 0,
             "mode": "agent_llm_semantic",
             "route_stats": {"AGENT_REQUIRED": 1, "HUMAN_REQUIRED": 1},
@@ -62,13 +85,27 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
                 {"rule_id": "4.21", "route": "HUMAN_REQUIRED"},
             ],
             "results": [
-                {"rule_id": "5.1", "route": "AGENT_REQUIRED", "agent": {"steps": []}},
+                {
+                    "rule_id": "5.1",
+                    "rule_name": "钢管规格",
+                    "status": "UNCERTAIN",
+                    "reason": "初始证据召回不足，证据不足",
+                    "route": "AGENT_REQUIRED",
+                    "agent": {"steps": []},
+                },
                 {
                     "rule_id": "4.21",
                     "rule_name": "扫地杆距底板高度限值",
+                    "status": "UNCERTAIN",
                     "route": "HUMAN_REQUIRED",
                     "manual_review": True,
-                    "reason": "关键参数未识别",
+                    "reason": "关键参数未识别（扫地杆高度）",
+                },
+                {
+                    "rule_id": "9.9",
+                    "rule_name": "宽泛规则",
+                    "status": "UNCERTAIN",
+                    "reason": "规则 9.9 未配置关键词，无法进行本地关键词匹配，需人工复核",
                 },
             ],
         },
@@ -76,13 +113,20 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
             "total_rules": 1,
             "compliant": 1,
             "violated": 0,
-            "uncertain": 0,
+            "uncertain": 1,
             "results": [
                 {
                     "rule_id": "3.9",
                     "rule_name": "立杆稳定性",
                     "status": "COMPLIANT",
                     "evidence": [{"page": 7, "quote": "计算结果 132.5≤205"}],
+                },
+                {
+                    "rule_id": "3.99",
+                    "rule_name": "缺计算片段",
+                    "status": "UNCERTAIN",
+                    "reason": "计算书中找到部分关键词（1/5），验算内容可能不完整",
+                    "evidence": [{"page": 8, "quote": "仅有稳定字样"}],
                 }
             ],
         },
@@ -116,6 +160,15 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
         "drawing_review",
     ]
     assert state["parameter_conflicts"][0]["parameter"] == "support_height"
+    assert state["uncertainty_analysis"]["total_uncertain"] == 6
+    by_category = {
+        item["category"]: item["count"]
+        for item in state["uncertainty_analysis"]["categories"]
+    }
+    assert by_category["missing_content"] == 1
+    assert by_category["missing_parameter"] == 2
+    assert by_category["insufficient_evidence"] == 2
+    assert by_category["broad_rule"] == 1
     assert any(
         item["type"] == "semantic_human_required" and item["rule_id"] == "4.21"
         for item in state["human_confirmation"]["items"]

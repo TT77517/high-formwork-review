@@ -35,6 +35,7 @@
 - [x] 上下文连续性协议（避免上下文过载）：scripts/context_handoff.sh / .ps1 一键生成 .context/handoff.md（分支/最近提交/未提交改动/当前阻塞/待完成未完成项/可选本轮要点+启动提示词）；make handoff 目标；AGENTS.md 增入口协议"续接检查"步与"上下文连续性协议"小节；.context/ 入 .gitignore（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
 - [x] Web 端总控审查 Agent 工作台（2026-08-25）：任务概览改为"上传解析→Agent识别工程特征→Agent制定审查计划→完整性审查工具→规范审查Agent→计算校核工具→图文一致性工具→人工复核→报告生成"；四类审查能力以 Agent 工具卡呈现；规范语义审查默认切到 agent 模式并在页面显示；时间线按业务调度顺序展示；关键测试与浏览器验证通过
 - [x] 后端总控 Agent 统一落盘对象（2026-08-25）：新增 `app/orchestrator_agent.py`，生成 `orchestrator_agent.json`（统一 `dispatch_plan` / `tool_observations` / 参数候选池 / 参数冲突人工确认 / 文档解析修正重跑上下文 / 3-5 条公式复算摘要 / 图文一致性 Agent 追证联动状态）；新增 `GET /api/jobs/{id}/orchestrator`，前端任务概览改读统一总控观测；证据召回补目录降权与章节二次追证；Router 修正 `conflict` 状态参数分流为 HUMAN_REQUIRED
+- [x] 无法判定归因展示（2026-08-25）：新增 `uncertainty_analysis.py`，把完整性/确定性/语义/计算的 UNCERTAIN 归为真缺内容、缺参数、证据不足、规则过宽四类；总控 `orchestrator_agent.json` 增 `uncertainty_analysis`；规范语义审查页“无法判定来源”升级为四类归因卡片，展示数量、建议动作和代表规则；老任务缺总控产物时保留原粗粒度兜底
 
 ## 🔲 待完成
 
@@ -333,9 +334,13 @@
 
 - [2026-08-25 15:35] codex 签到 — 开始处理：接续Agent化改造：总控对象、工具调度、证据追证、人工确认与前端闭环
 - [2026-08-25 16:05] codex 签退 — 完成了：后端总控 Agent 统一对象落地（orchestrator_agent.json + /api/jobs/{id}/orchestrator），四类审查工具观测、参数候选池/冲突确认、文档解析修正重跑上下文、公式复算摘要、图文追证联动与前端概览接入；证据召回新增目录降权+章节二次追证，Router 支持 conflict 状态；下一步建议：用真实样例新上传跑 agent 模式，浏览器验证 orchestrator_agent.json 与概览展示，并继续扩展计算公式复算覆盖面
+- [2026-08-25 18:24] codex 签到 — 开始处理：人工复核与结果解释优化：优先实现无法判定归因展示
+- [2026-08-25 18:33] codex 签退 — 完成了：无法判定归因展示（后端 uncertainty_analysis 四类归因 + 总控 JSON 接入 + 规范页四类卡片展示）；下一步建议：继续做人工复核页“缺失参数 → 关联规则 → 填值重跑”和规范详情页三段式解释
 - [2026-08-25 17:07] codex 补充 — 验证用户新上传样例：服务进程已启动且新任务 `81e48fcb...` 已创建，实际数据根为 `/Users/admin/high-formwork-data/web/jobs`；任务已生成 `review_plan.json`，但长耗时语义 Agent 阶段开始后状态仍停留在规则引擎完成，导致 Web 端看起来无明细/未推进。本轮修正 `_run_review_stages` 阶段状态：进入每个工具/Agent 阶段即写入进行中状态，完成后再写完成状态，并按当前 `status.stage` 上报失败阶段；下一步建议：重启本地服务后重新上传样例，确认页面显示“规范审查 Agent 进行中”并等待 `orchestrator_agent.json` 完整落盘
 - [2026-08-25 17:21] codex 补充 — 重启服务后重传样例 `f956cee0...`，确认前端/API 已正确显示“总控 Agent 制定审查计划进行中”与“规范审查 Agent（规则/Dify/自主查证分流）进行中”；同时发现 Planner LLM 耗时约 80s 才放行，演示体验偏慢。本轮给 `review_planner` 增加轻量调用预算：默认 20s、0 重试、仅首个模型，失败立即降级本地统计计划，避免总控计划阻塞四类工具调度；下一步建议：重启服务后再传样例，确认 Planner 最长等待受控，然后继续优化语义证据召回与参数缺失分流
 - [2026-08-25 17:25] codex 补充 — 针对样例 `81e48fcb...` 的 UNCERTAIN 明细抽样，发现 6.30/6.32/6.33/6.35 等规则虽被 Router 判为 LLM_READY，但证据主要来自目录页或少量片段，批式 LLM 无法闭环。本轮优化 `agent_router` 证据质量门槛：LLM_READY 不再只看总命中数，必须至少 2 个非目录正文 block；若目录命中多但正文有效证据不足，自动升级为 AGENT_REQUIRED 深挖正文。新增目录重命中回归测试；下一步建议：重启服务后再跑样例，重点观察应急/保障/监测类规则的路由是否从 LLM_READY 转 Agent，并继续把“关键参数缺失”分流到人工确认/参数修正
 - [2026-08-25 17:42] codex 补充 — 继续处理“规则依赖参数提取，方案没写或解析没抓到就无法判定”：`agent_router` 新增 missing_fact_keys 与关键参数别名扩展，只有 ProjectFacts 明确给出 status=missing 或 value 为空时才触发，规则文本命中对应别名则路由 HUMAN_REQUIRED，进入人工确认/参数修正重跑链路；真实样例离线验证识别出顶托悬臂长度、扫地杆高度缺失，并将扫地杆相关 4.4/4.21/4.29/4.34 分流人工确认。测试覆盖缺失、缺字段不误判、确认值不误判；下一步建议：前端人工复核页把 HUMAN_REQUIRED 的参数项聚合成“需补参数”清单，并把 6.30 等正文命中足够但 LLM 仍引用目录的问题转向证据片段排序/摘要优化
 - [2026-08-25 17:54] codex 补充 — 闭环修复：语义 Agent 的 HUMAN_REQUIRED 路由项不再只停留在语义表格，已进入 `review_results.human_review_queue` 与 `orchestrator_agent.human_confirmation`；前端总控 AI 总结优先读取总控人工确认结果，避免显示“人工确认 0 项”。真实样例新任务 `ae556025...` 验证：路由统计 LOCAL 0 / LLM 66 / Agent 9 / 人工 3；人工复核队列 19 项，其中规范语义 4 项（3 条扫地杆参数缺失 + 1 条监测频率 Agent 查证违规）；总控人工确认 9 项。下一步建议：继续优化证据片段排序/摘要，让 LLM_READY 规则少引用目录和碎片证据，并把参数修正面板按“缺失参数→关联规则→重跑影响范围”聚合展示
 - [2026-08-25 18:07] codex 补充 — 执行下一步优化：①语义证据召回新增正文优先/目录降权/表格段落加权/关键词中心窗口，并在标题命中时自动补同小节后续正文，Dify 批式 evidence_text 与 quote 回填 blocks 共用同一套排序；真实样例抽查 6.30/6.32/6.33/6.35 已优先正文/表格，6.9 不再只给“监测频率”标题，而带出同小节正文；②人工复核参数修正面板新增“需补参数→影响规则→重跑影响范围”聚合，样例显示“扫地杆中心线高度影响 3 条规则”。测试：新增证据质量回归，48 条聚焦测试通过，compileall 与 app.js 语法检查通过；下一步建议：重传样例跑完整新证据版本，抽检 LLM_READY 规则的 UNCERTAIN 是否减少，并进一步做 evidence score/route_decisions 可视化
+
+- [2026-08-25 18:24] codex 签到 — 开始处理：人工复核与结果解释优化：优先实现无法判定归因展示
