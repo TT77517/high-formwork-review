@@ -6,8 +6,10 @@ import pytest
 
 from app.services.llm_chat_client import ChatResponse, LLMChatError
 from app.services.review_planner import (
+    DEFAULT_PLANNER_LLM_TIMEOUT_SECONDS,
     MANDATORY_CHECKS,
     _parse_plan_json,
+    _planner_llm_client,
     build_review_plan,
     build_review_plan_local,
 )
@@ -21,6 +23,9 @@ class FakeChatClient:
         self.content = content
         self.error = error
         self.calls = 0
+        self.timeout_seconds = 90.0
+        self.max_retries = 2
+        self.models = ["slow-a", "slow-b"]
 
     def chat_sync(self, messages, *, tools=None, temperature=0.1):
         self.calls += 1
@@ -104,6 +109,20 @@ class TestLLMPlan:
         plan = build_review_plan(qualification, facts, client=client)
         assert plan["generated_by"] == "local_stats"
         assert plan["focus_areas"]  # 本地计划完整可用
+
+    def test_default_planner_client_is_capped_for_fast_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        client = FakeChatClient()
+        monkeypatch.setattr(
+            "app.services.review_planner.LLMChatClient.from_env",
+            lambda: client,
+        )
+        capped = _planner_llm_client()
+        assert capped is client
+        assert capped.timeout_seconds == DEFAULT_PLANNER_LLM_TIMEOUT_SECONDS
+        assert capped.max_retries == 0
+        assert capped.models == ["slow-a"]
 
     def test_invalid_priority_filtered(self):
         parsed = _parse_plan_json(

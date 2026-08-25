@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
@@ -20,6 +21,9 @@ from .agent_router import FACT_NAME_ALIASES, conflicting_fact_keys
 from .llm_chat_client import LLMChatClient, LLMChatError
 
 PLANNER_PROMPT_VERSION = "planner-v1"
+DEFAULT_PLANNER_LLM_TIMEOUT_SECONDS = 20.0
+DEFAULT_PLANNER_LLM_MAX_RETRIES = 0
+DEFAULT_PLANNER_LLM_MODEL_LIMIT = 1
 
 # 强制检查白名单：Planner 无权关闭（V3.1 §5）
 MANDATORY_CHECKS = [
@@ -135,7 +139,7 @@ def build_review_plan(
     """生成审查计划：LLM 优先，任何失败降级本地统计（任务不中断）。"""
     plan = build_review_plan_local(qualification, facts, rule_stats)
     try:
-        chat_client = client or LLMChatClient.from_env()
+        chat_client = client or _planner_llm_client()
         context = {
             "project_type": qualification.get("project_type"),
             "support_system": qualification.get("support_system"),
@@ -165,6 +169,22 @@ def build_review_plan(
     except (LLMChatError, OSError, ValueError):
         pass  # 降级本地，静默（generated_by 已标 local_stats）
     return plan
+
+
+def _planner_llm_client() -> LLMChatClient:
+    """Planner 是非阻塞优化项，限制耗时，失败后由本地统计计划兜底。"""
+    chat_client = LLMChatClient.from_env()
+    chat_client.timeout_seconds = min(
+        chat_client.timeout_seconds,
+        _env_float("PLANNER_LLM_TIMEOUT_SECONDS", DEFAULT_PLANNER_LLM_TIMEOUT_SECONDS),
+    )
+    chat_client.max_retries = min(
+        chat_client.max_retries,
+        _env_int("PLANNER_LLM_MAX_RETRIES", DEFAULT_PLANNER_LLM_MAX_RETRIES),
+    )
+    model_limit = max(1, _env_int("PLANNER_LLM_MODEL_LIMIT", DEFAULT_PLANNER_LLM_MODEL_LIMIT))
+    chat_client.models = chat_client.models[:model_limit]
+    return chat_client
 
 
 def _parse_plan_json(content: str) -> dict[str, Any] | None:
@@ -201,3 +221,17 @@ def _parse_plan_json(content: str) -> dict[str, Any] | None:
         "agent_targets": agent_targets,
         "human_confirmations": human_confirmations,
     }
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, "").strip() or default)
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, "").strip() or default)
+    except ValueError:
+        return default
