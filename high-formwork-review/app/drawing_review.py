@@ -353,6 +353,7 @@ def _enrich_drawing_evidence(
             item["image_path"] = image_block.image_path
             item["block_id"] = image_block.block_id
             item["block_type"] = image_block.block_type
+            item.setdefault("source", "ocr" if item.get("source") == "ocr" else "native_text")
             continue
         # 无图片：找含关键词的表格 block，补 table_html 供前端渲染
         keyword = item.get("keyword", "")
@@ -370,6 +371,7 @@ def _enrich_drawing_evidence(
             item["table_html"] = table_block.table_html
             item["block_id"] = table_block.block_id
             item["block_type"] = table_block.block_type
+            item.setdefault("source", "table")
     return evidence
 
 
@@ -383,6 +385,16 @@ def _build_cross_result(
     reason: str,
     text_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    evidence_quality = _evidence_quality(drawing_evidence, status)
+    explanation = _review_explanation(
+        status=status,
+        conclusion=reason,
+        text_evidence=text_evidence or [],
+        drawing_evidence=drawing_evidence,
+        body_value=body_value,
+        drawing_value=drawing_value,
+        evidence_quality=evidence_quality,
+    )
     return {
         "review_item_id": review_id,
         "category": "图文一致性",
@@ -394,6 +406,8 @@ def _build_cross_result(
         "drawing_value": drawing_value,
         "text_evidence": text_evidence or [],
         "drawing_evidence": drawing_evidence,
+        "evidence_quality": evidence_quality,
+        "review_explanation": explanation,
         "automation_level": "text_level_cross_check",
         "requires_human_review": status != "PASS",
         "boundary": (
@@ -421,6 +435,7 @@ def _drawing_recall_card(
         conclusion = "已召回相关图纸页，但正文参数证据不足，需人工复核。"
     else:
         conclusion = "未召回相关图纸页，需人工从图纸目录确认。"
+    evidence_quality = _evidence_quality(drawings, status)
     return {
         "review_item_id": review_item_id,
         "category": "图文复核",
@@ -431,6 +446,16 @@ def _drawing_recall_card(
         "conclusion": conclusion,
         "text_evidence": text_evidence,
         "drawing_evidence": drawings,
+        "evidence_quality": evidence_quality,
+        "review_explanation": _review_explanation(
+            status=status,
+            conclusion=conclusion,
+            text_evidence=text_evidence,
+            drawing_evidence=drawings,
+            body_value=None,
+            drawing_value=None,
+            evidence_quality=evidence_quality,
+        ),
         "automation_level": "evidence_recall_only",
         "requires_human_review": True,
         "boundary": "系统仅召回疑似相关图纸页和正文证据；图纸尺寸需人工复核。",
@@ -463,6 +488,7 @@ def _find_drawing_pages(
                 "page_type": page.page_type,
                 "parse_status": page.parse_status,
                 "keyword_hits": keyword_hits[:5],
+                "source": "native_text",
                 "requires_human_review": True,
                 "reason": "图纸/混合页面命中构造关键词，适合作为图文一致性人工复核入口。",
             }
@@ -665,4 +691,86 @@ def _evidence_dict(item: Any) -> dict[str, Any]:
         "block_id": item.get("block_id"),
         "block_type": item.get("block_type"),
         "quote": item.get("quote") or item.get("text"),
+    }
+
+
+def _evidence_quality(
+    drawing_evidence: list[dict[str, Any]],
+    status: str,
+) -> dict[str, Any]:
+    if not drawing_evidence:
+        return {
+            "level": "weak",
+            "label": "证据弱",
+            "reasons": ["未召回可定位的图纸文字或表格证据"],
+        }
+
+    values = {
+        str(item.get("value"))
+        for item in drawing_evidence
+        if item.get("value") is not None
+    }
+    if len(values) >= 2:
+        return {
+            "level": "conflict",
+            "label": "数值冲突",
+            "reasons": [f"图纸证据出现多个候选值：{', '.join(sorted(values))}"],
+        }
+
+    sources = {item.get("source") or item.get("block_type") for item in drawing_evidence}
+    if "ocr" in sources:
+        return {
+            "level": "medium",
+            "label": "OCR命中",
+            "reasons": ["图纸值来自图片 OCR，需人工核对识别准确性"],
+        }
+    if any(item.get("table_html") or item.get("block_type") in {"table", "table_continuation"} for item in drawing_evidence):
+        return {
+            "level": "high",
+            "label": "表格命中",
+            "reasons": ["图纸值来自 MinerU 表格结构化证据"],
+        }
+    if any(item.get("quote") or item.get("keyword_hits") for item in drawing_evidence):
+        return {
+            "level": "high" if status == "PASS" else "medium",
+            "label": "原文命中",
+            "reasons": ["图纸页文本层命中构造关键词或参数标注"],
+        }
+    return {
+        "level": "weak",
+        "label": "证据弱",
+        "reasons": ["仅召回图片页，缺少可解析的文字标注"],
+    }
+
+
+def _review_explanation(
+    *,
+    status: str,
+    conclusion: str,
+    text_evidence: list[dict[str, Any]],
+    drawing_evidence: list[dict[str, Any]],
+    body_value: float | None,
+    drawing_value: float | None,
+    evidence_quality: dict[str, Any],
+) -> dict[str, Any]:
+    found: list[str] = []
+    missing: list[str] = []
+    if body_value is not None:
+        found.append(f"正文识别值：{body_value}")
+    elif text_evidence:
+        found.append(f"召回正文证据 {len(text_evidence)} 条")
+    else:
+        missing.append("未取得正文参数证据")
+    if drawing_value is not None:
+        found.append(f"图纸标注值：{drawing_value}")
+    elif drawing_evidence:
+        found.append(f"召回图纸页/图纸证据 {len(drawing_evidence)} 条")
+    else:
+        missing.append("未取得图纸标注值")
+    if evidence_quality.get("level") in {"weak", "conflict"}:
+        missing.extend(evidence_quality.get("reasons") or [])
+    return {
+        "found": found,
+        "missing": missing,
+        "decision": conclusion if conclusion else f"当前状态：{status}",
     }

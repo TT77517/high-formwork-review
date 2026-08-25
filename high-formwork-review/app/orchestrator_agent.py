@@ -20,6 +20,23 @@ TOOL_ORDER = [
     "drawing_review",
 ]
 
+RERUN_PARAMETER_KEYS = {
+    "support_height",
+    "standard_step_height",
+    "head_jack_cantilever_length",
+    "head_jack_screw_exposed_length",
+    "sweeper_centerline_height_above_base_plate",
+    "vertical_spacing",
+    "horizontal_spacing",
+    "framework_height",
+    "height_to_width_ratio",
+    "support_span",
+    "concentrated_line_load",
+    "total_load",
+    "panel_thickness",
+    "steel_plate_thickness",
+}
+
 
 def build_orchestrator_state(
     document: MinerUDocument,
@@ -44,6 +61,13 @@ def build_orchestrator_state(
     conflicts = _parameter_conflicts(parameter_pool)
     doc_corrections = _document_parse_corrections(decisions or [])
     formula_rechecks = _formula_rechecks(calculation)
+    parameter_to_rules = _parameter_to_rules(
+        parameter_pool=parameter_pool,
+        rule_engine=rule_engine,
+        semantic=semantic,
+        calculation=calculation,
+    )
+    drawing_quality = _drawing_evidence_quality_summary(drawing_review)
     uncertainty_analysis = build_uncertainty_analysis(
         project_facts=project_facts,
         completeness_results=completeness_results,
@@ -70,7 +94,7 @@ def build_orchestrator_state(
         ),
         _semantic_observation(rule_engine, semantic),
         _calculation_observation(calculation, consistency_review, formula_rechecks),
-        _drawing_observation(drawing_review, semantic),
+        _drawing_observation(drawing_review, semantic, drawing_quality),
     ]
 
     return {
@@ -80,6 +104,7 @@ def build_orchestrator_state(
         "dispatch_plan": dispatch_plan,
         "tool_observations": observations,
         "parameter_candidate_pool": parameter_pool,
+        "parameter_to_rules": parameter_to_rules,
         "parameter_conflicts": conflicts,
         "uncertainty_analysis": uncertainty_analysis,
         "human_confirmation": {
@@ -101,6 +126,7 @@ def build_orchestrator_state(
             "document_corrections_participate": bool(doc_corrections),
         },
         "formula_recalculations": formula_rechecks,
+        "drawing_evidence_quality": drawing_quality,
         "notice": "总控 Agent 只做审查调度与证据组织，不输出最终合格/不合格结论。",
     }
 
@@ -234,6 +260,7 @@ def _calculation_observation(
 def _drawing_observation(
     drawing_review: list[dict[str, Any]],
     semantic: dict[str, Any],
+    drawing_quality: dict[str, Any],
 ) -> dict[str, Any]:
     trace_count = sum(1 for item in semantic.get("results", []) if item.get("route") == "AGENT_REQUIRED")
     return {
@@ -249,6 +276,7 @@ def _drawing_observation(
         "evidence_chase": {
             "semantic_agent_trace_available": trace_count > 0,
             "linked_agent_trace_count": trace_count,
+            "evidence_quality": drawing_quality,
         },
     }
 
@@ -366,6 +394,25 @@ def _formula_rechecks(calculation: dict[str, Any]) -> list[dict[str, Any]]:
     for result in calculation.get("results", []):
         if result.get("status") not in {"COMPLIANT", "VIOLATED", "UNCERTAIN"}:
             continue
+        recheck = result.get("calculation_recheck")
+        if isinstance(recheck, dict):
+            checks.append({
+                "rule_id": result.get("rule_id"),
+                "rule_name": result.get("rule_name"),
+                "formula_id": recheck.get("formula_id"),
+                "formula_name": recheck.get("formula_name"),
+                "pages": recheck.get("pages", []),
+                "expression": recheck.get("expression"),
+                "substituted_expression": recheck.get("substituted_expression"),
+                "computed_value": recheck.get("computed_value"),
+                "operator": recheck.get("operator"),
+                "allowed_value": recheck.get("allowed_value"),
+                "recalculated_status": recheck.get("status"),
+                "warnings": recheck.get("warnings", []),
+            })
+            if len(checks) >= 5:
+                return checks
+            continue
         for evidence in result.get("evidence", []):
             quote = str(evidence.get("quote") or "")
             parsed = _parse_numeric_comparison(quote)
@@ -386,6 +433,92 @@ def _formula_rechecks(calculation: dict[str, Any]) -> list[dict[str, Any]]:
             if len(checks) >= 5:
                 return checks
     return checks
+
+
+def _parameter_to_rules(
+    *,
+    parameter_pool: list[dict[str, Any]],
+    rule_engine: dict[str, Any],
+    semantic: dict[str, Any],
+    calculation: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    known = {item.get("parameter") for item in parameter_pool} | RERUN_PARAMETER_KEYS
+    mapping: dict[str, list[dict[str, Any]]] = {str(param): [] for param in known if param}
+    for source, payload in (
+        ("rule_engine", rule_engine),
+        ("semantic_engine", semantic),
+        ("calculation_engine", calculation),
+    ):
+        for result in payload.get("results", []):
+            params = set()
+            if result.get("param_name"):
+                params.add(str(result["param_name"]))
+            params.update(_params_from_text(str(result.get("reason") or "")))
+            recheck = result.get("calculation_recheck") or {}
+            if isinstance(recheck, dict) and recheck.get("status") == "UNCERTAIN":
+                params.update(_params_from_formula_id(str(recheck.get("formula_id") or "")))
+            for param in params:
+                if param in mapping:
+                    mapping[param].append({
+                        "source": source,
+                        "rule_id": result.get("rule_id"),
+                        "rule_name": result.get("rule_name") or result.get("name") or result.get("title"),
+                        "status": result.get("status"),
+                    })
+    return {
+        param: _dedupe_rule_refs(items)
+        for param, items in mapping.items()
+        if items
+    }
+
+
+def _params_from_text(text: str) -> set[str]:
+    params = set(re.findall(r"\b[a-zA-Z][a-zA-Z0-9_]{2,}\b", text))
+    return {
+        param
+        for param in params
+        if param in RERUN_PARAMETER_KEYS
+    }
+
+
+def _params_from_formula_id(formula_id: str) -> set[str]:
+    if formula_id == "slenderness":
+        return {"standard_step_height", "support_height"}
+    if formula_id == "vertical_stability":
+        return {"support_height", "standard_step_height"}
+    if formula_id == "jack_capacity":
+        return {"head_jack_cantilever_length"}
+    return set()
+
+
+def _dedupe_rule_refs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    seen = set()
+    for item in items:
+        key = (item.get("source"), item.get("rule_id"), item.get("rule_name"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _drawing_evidence_quality_summary(drawing_review: list[dict[str, Any]]) -> dict[str, Any]:
+    counts: dict[str, int] = {}
+    items = []
+    for item in drawing_review:
+        quality = item.get("evidence_quality") or {}
+        label = quality.get("label") or "未标注"
+        counts[label] = counts.get(label, 0) + 1
+        items.append({
+            "review_item_id": item.get("review_item_id"),
+            "title": item.get("title"),
+            "status": item.get("status"),
+            "level": quality.get("level"),
+            "label": label,
+            "reasons": quality.get("reasons", []),
+        })
+    return {"counts": counts, "items": items}
 
 
 def _parse_numeric_comparison(text: str) -> tuple[float, str, float] | None:

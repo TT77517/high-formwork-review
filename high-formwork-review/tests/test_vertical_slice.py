@@ -498,6 +498,8 @@ def test_drawing_cross_check_extended_params_pass() -> None:
     assert ratio["status"] == "PASS"
     sweeper = next(v for k, v in by_title.items() if "扫地杆" in k)
     assert sweeper["status"] == "PASS"
+    assert sweeper["evidence_quality"]["label"] == "原文命中"
+    assert sweeper["review_explanation"]["decision"]
 
 
 def test_drawing_cross_check_spec_clause_filtered_for_extended_params() -> None:
@@ -658,6 +660,7 @@ def test_drawing_ocr_source_tagging_by_capture_position() -> None:
     assert result["status"] == "PASS"
     ocr_evidence = [e for e in (result.get("drawing_evidence") or []) if e.get("source") == "ocr"]
     assert ocr_evidence, "跨文本层/OCR段的匹配必须标 source: ocr"
+    assert result["evidence_quality"]["label"] == "OCR命中"
 
 
 def test_drawing_ocr_direct_path_resolution(tmp_path) -> None:
@@ -779,6 +782,23 @@ def test_drawing_cross_check_combined_dunhao_annotation() -> None:
     h = next(v for k, v in by_title.items() if "横距" in k)
     assert v["status"] == "PASS", "纵距、横距组合标注不应因顿号丢失"
     assert h["status"] == "PASS"
+
+
+def test_drawing_cross_check_conflicting_values_get_quality_label() -> None:
+    """图纸存在多个候选值时，结果打数值冲突标签，方便人工优先复核。"""
+    doc = _document_with_pages(
+        [(1, "text", "参数表"), (2, "drawing", "步距h(mm) 1500\n步距h(mm) 1800")]
+    )
+    facts = {
+        "facts": {"standard_step_height": {"value": 1.5, "status": "confirmed", "evidence": []}}
+    }
+
+    result = build_drawing_review(doc, facts)
+
+    step = next(item for item in result if "步距" in item.get("title", ""))
+    assert step["status"] == "PASS"
+    assert step["evidence_quality"]["label"] == "数值冲突"
+    assert "图纸证据出现多个候选值" in step["review_explanation"]["missing"][0]
 
 
 def test_drawing_cross_check_alias_overlap_deduped() -> None:

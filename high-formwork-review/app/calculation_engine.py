@@ -16,6 +16,7 @@ import re
 import unicodedata
 from typing import Any
 
+from .calculation_rechecker import recheck_calculation
 from .models import MinerUDocument
 from .rule_engine import (
     MODULE_FILES,
@@ -150,7 +151,7 @@ def run_calculation_engine(
     return {
         "version": "4.0.0",
         "engine_type": "calculation",
-        "mode": "formula_existence_check",
+        "mode": "formula_existence_and_recheck_v1",
         "total_rules": len(rules),
         "compliant": compliant,
         "violated": violated,
@@ -222,6 +223,15 @@ def _evaluate_calculation(
             })
 
     threshold_match = len(keywords)
+    recheck = recheck_calculation(rule, segments or [])
+    if recheck is not None and recheck.get("status") in {"PASS", "ISSUE"}:
+        status = "COMPLIANT" if recheck["status"] == "PASS" else "VIOLATED"
+        reason = (
+            f"已进行公式复算：{recheck.get('substituted_expression')}，"
+            f"结果{'满足' if status == 'COMPLIANT' else '不满足'}限值要求"
+        )
+        return _build_calc_result(rule, status, reason, evidence, recheck=recheck)
+
     if matched_count >= max(2, threshold_match // 2):
         status = "COMPLIANT"
         reason = f"计算书中找到该验算项目，关键词匹配 {matched_count}/{len(keywords)}：{'、'.join(matched_keywords[:5])}"
@@ -237,7 +247,7 @@ def _evaluate_calculation(
             status = "UNCERTAIN"
             reason = "未识别到计算书内容，无法判定"
 
-    return _build_calc_result(rule, status, reason, evidence)
+    return _build_calc_result(rule, status, reason, evidence, recheck=recheck)
 
 
 def _build_calc_result(
@@ -245,10 +255,13 @@ def _build_calc_result(
     status: str,
     reason: str,
     evidence: list[dict[str, Any]],
+    *,
+    recheck: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     code_ref = rule.get("code_ref") or {}
     cl = rule.get("check_logic") or {}
-    return {
+    explanation = _calculation_explanation(status, reason, evidence, recheck)
+    result = {
         "rule_id": rule.get("rule_id", ""),
         "rule_name": rule.get("rule_name", ""),
         "module": rule.get("module", ""),
@@ -267,7 +280,33 @@ def _build_calc_result(
         "typical_violation": rule.get("typical_violation", ""),
         "manual_review": rule.get("manual_review", True),
         "evidence": evidence[:5],
+        "review_explanation": explanation,
     }
+    if recheck is not None:
+        result["calculation_recheck"] = recheck
+        if recheck.get("uncertainty_category"):
+            result["uncertainty_category"] = recheck.get("uncertainty_category")
+    return result
+
+
+def _calculation_explanation(
+    status: str,
+    reason: str,
+    evidence: list[dict[str, Any]],
+    recheck: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if recheck and isinstance(recheck.get("explanation"), dict):
+        exp = recheck["explanation"]
+        return {
+            "found": list(exp.get("found") or []),
+            "missing": list(exp.get("missing") or []),
+            "decision": exp.get("decision") or reason,
+        }
+    found = []
+    if evidence:
+        found.append(f"找到 {len(evidence)} 条计算书证据")
+    missing = [] if status in {"COMPLIANT", "VIOLATED"} else ["尚未取得可复算的完整参数或公式片段"]
+    return {"found": found, "missing": missing, "decision": reason}
 
 
 def run_calculation_engine_safe(

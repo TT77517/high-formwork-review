@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.calculation_engine import run_calculation_engine
+from app.calculation_rechecker import recheck_calculation
 from app.rule_engine import (
     load_rule_library,
     run_rule_engine,
@@ -75,3 +76,58 @@ def test_coupler_system_evaluates_koujian_rules_and_skips_pankou():
             assert results[rid]["status"] in {"COMPLIANT", "VIOLATED", "UNCERTAIN"}, rid
         else:
             assert results[rid]["status"] == "NOT_APPLICABLE", rid
+
+
+def test_calculation_rechecker_recalculates_slenderness_pass():
+    rule = {"rule_id": "3.14", "rule_name": "长细比限值-盘扣式"}
+    segments = [{"text": "立杆长细比验算：λ=l0/i=2250/15.9=141.5≤150", "block_id": "b1", "physical_page": 8}]
+
+    result = recheck_calculation(rule, segments)
+
+    assert result is not None
+    assert result["status"] == "PASS"
+    assert result["formula_id"] == "slenderness"
+    assert result["computed_value"] < result["allowed_value"]
+    assert "2250" in result["substituted_expression"]
+
+
+def test_calculation_rechecker_recalculates_stability_issue():
+    rule = {"rule_id": "3.12", "rule_name": "立杆稳定性验算-盘扣式"}
+    segments = [{
+        "text": "立杆稳定性验算：N=95kN，稳定系数φ=0.45，截面面积A=450mm2，f=205N/mm2。",
+        "block_id": "b2",
+        "physical_page": 9,
+    }]
+
+    result = recheck_calculation(rule, segments)
+
+    assert result is not None
+    assert result["status"] == "ISSUE"
+    assert result["computed_value"] > result["allowed_value"]
+    assert "95000" in result["substituted_expression"]
+
+
+def test_calculation_rechecker_recalculates_jack_capacity_and_missing_param():
+    ok = recheck_calculation(
+        {"rule_id": "3.17", "rule_name": "可调托撑承载力验算"},
+        [{"text": "可调托撑承载力验算：N=38kN，Nd=40kN，满足要求。", "block_id": "b3", "physical_page": 10}],
+    )
+    missing = recheck_calculation(
+        {"rule_id": "3.17", "rule_name": "可调托撑承载力验算"},
+        [{"text": "可调托撑承载力验算见计算书，满足要求。", "block_id": "b4", "physical_page": 11}],
+    )
+
+    assert ok is not None and ok["status"] == "PASS"
+    assert missing is not None and missing["status"] == "UNCERTAIN"
+    assert missing["uncertainty_category"] == "missing_parameter"
+
+
+def test_calculation_engine_attaches_real_recheck_result():
+    doc = _document("计算书\n长细比验算：λ=l0/i=2250/15.9=141.5≤150。")
+
+    result = run_calculation_engine(doc, _facts("disk_lock"))
+    by_id = {r["rule_id"]: r for r in result["results"]}
+
+    assert result["mode"] == "formula_existence_and_recheck_v1"
+    assert by_id["3.14"]["calculation_recheck"]["status"] == "PASS"
+    assert by_id["3.14"]["review_explanation"]["decision"]

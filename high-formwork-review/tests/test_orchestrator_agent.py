@@ -120,6 +120,18 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
                     "rule_name": "立杆稳定性",
                     "status": "COMPLIANT",
                     "evidence": [{"page": 7, "quote": "计算结果 132.5≤205"}],
+                    "calculation_recheck": {
+                        "formula_id": "vertical_stability",
+                        "formula_name": "立杆稳定性复算",
+                        "pages": [7],
+                        "expression": "σ = N / (φA) <= f",
+                        "substituted_expression": "sigma = 60000 / (0.65 * 489) = 188.78 <= 205",
+                        "computed_value": 188.78,
+                        "operator": "<=",
+                        "allowed_value": 205,
+                        "status": "PASS",
+                        "warnings": [],
+                    },
                 },
                 {
                     "rule_id": "3.99",
@@ -132,7 +144,13 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
         },
         substantive_review=[],
         consistency_review=[{"status": "ISSUE"}],
-        drawing_review=[{"status": "ISSUE", "requires_human_review": True}],
+        drawing_review=[{
+            "review_item_id": "DR-01",
+            "title": "步距图文交叉验证",
+            "status": "ISSUE",
+            "requires_human_review": True,
+            "evidence_quality": {"level": "conflict", "label": "数值冲突", "reasons": ["多个候选值"]},
+        }],
         review_plan={"generated_by": "local_stats", "focus_areas": [{"area": "构造", "priority": "HIGH"}]},
         decisions=[
             {
@@ -175,3 +193,6 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
     )
     assert state["rerun_context"]["document_corrections_participate"] is True
     assert state["formula_recalculations"][0]["recalculated_status"] == "PASS"
+    assert state["formula_recalculations"][0]["formula_id"] == "vertical_stability"
+    assert state["drawing_evidence_quality"]["counts"]["数值冲突"] == 1
+    assert state["parameter_to_rules"]["head_jack_cantilever_length"][0]["rule_id"] == "4.12"
