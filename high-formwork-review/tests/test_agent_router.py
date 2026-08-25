@@ -39,6 +39,16 @@ def _document(blocks: list[MinerUBlock]) -> MinerUDocument:
     )
 
 
+def _document_with_pages(pages: list[MinerUPage]) -> MinerUDocument:
+    return MinerUDocument(
+        document_id="DOC-ROUTER",
+        source_file_name="f.pdf",
+        source_sha256="sha-router",
+        physical_page_count=len(pages),
+        pages=pages,
+    )
+
+
 @pytest.fixture
 def doc() -> MinerUDocument:
     return _document([
@@ -74,7 +84,33 @@ class TestRouteRule:
     def test_sufficient_hits_llm_ready(self, doc):
         decision = route_rule(_rule(), doc)  # 两个 block 命中"扫地杆"
         assert decision["route"] == "LLM_READY"
-        assert "2 个 block" in decision["reason"]
+        assert "2 个正文 block" in decision["reason"]
+
+    def test_toc_heavy_hits_require_agent_chase(self):
+        toc_page = MinerUPage(
+            physical_page=1, source_page_index=0, width=None, height=None,
+            printed_page=None, page_type="toc", parse_status="complete",
+            text="", warnings=["识别为目录页，标题不会生成正文 section"],
+            blocks=[
+                _block("p0001-b0000", "8. 应急处置措施....73", page=1),
+                _block("p0001-b0001", "8.2 应急救援组织机构及职责....74", page=1),
+            ],
+        )
+        body_page = MinerUPage(
+            physical_page=2, source_page_index=1, width=None, height=None,
+            printed_page=None, page_type="text", parse_status="complete",
+            text="", blocks=[_block("p0002-b0000", "应急救援组织机构设置如下", page=2)],
+        )
+        document = _document_with_pages([toc_page, body_page])
+        rule = _rule(
+            rule_id="6.30",
+            rule_name="应急响应流程与处置措施可操作性",
+            check_logic={"extraction_keywords": ["应急处置", "应急救援"]},
+        )
+        decision = route_rule(rule, document)
+        assert decision["route"] == "AGENT_REQUIRED"
+        assert "正文有效证据仅 1 个" in decision["reason"]
+        assert "目录 2 个" in decision["reason"]
 
     def test_insufficient_hits_agent_required(self):
         doc = _document([_block("p0001-b0000", "完全无关的内容")])

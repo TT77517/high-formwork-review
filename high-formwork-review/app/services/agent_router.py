@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import MinerUDocument
-from .agent_tools import _despaced_with_offsets
+from .agent_tools import _despaced_with_offsets, _index_blocks
 
 VALID_ROUTES = {"LOCAL_READY", "LLM_READY", "AGENT_REQUIRED", "HUMAN_REQUIRED"}
 LLM_READY_HIT_THRESHOLD = 2
@@ -51,24 +51,27 @@ def conflicting_fact_keys(facts: dict[str, Any] | None) -> list[str]:
     return conflicting
 
 
-def _count_keyword_hits(document: MinerUDocument, keywords: list[str]) -> int:
-    """统计命中任一关键词的 block 数（归一化匹配，零 LLM）。"""
+def _keyword_hit_stats(document: MinerUDocument, keywords: list[str]) -> dict[str, int]:
+    """统计命中关键词的 block 数，并拆分目录/正文证据质量。"""
     terms = [
         "".join(_despaced_with_offsets(k)[0])
         for k in keywords
         if k and _despaced_with_offsets(k)[0]
     ]
     if not terms:
-        return 0
-    hits = 0
-    for page in document.pages:
-        for block in page.blocks:
-            despaced, _ = _despaced_with_offsets(block.text or "")
-            if not despaced:
-                continue
-            if any(term in despaced for term in terms):
-                hits += 1
-    return hits
+        return {"total": 0, "body": 0, "toc": 0}
+    total = body = toc = 0
+    for _page, block, _section_path, is_toc in _index_blocks(document):
+        despaced, _ = _despaced_with_offsets(block.text or "")
+        if not despaced:
+            continue
+        if any(term in despaced for term in terms):
+            total += 1
+            if is_toc:
+                toc += 1
+            else:
+                body += 1
+    return {"total": total, "body": body, "toc": toc}
 
 
 def route_rule(
@@ -106,12 +109,25 @@ def route_rule(
     keywords = rule.get("check_logic", {}).get("extraction_keywords") or [
         rule.get("rule_name", "")
     ]
-    hits = _count_keyword_hits(document, [str(k) for k in keywords if k])
-    if hits >= LLM_READY_HIT_THRESHOLD:
+    hit_stats = _keyword_hit_stats(document, [str(k) for k in keywords if k])
+    hits = hit_stats["total"]
+    body_hits = hit_stats["body"]
+    toc_hits = hit_stats["toc"]
+    if hits >= LLM_READY_HIT_THRESHOLD and body_hits < LLM_READY_HIT_THRESHOLD:
+        return {
+            "rule_id": rule_id,
+            "route": "AGENT_REQUIRED",
+            "reason": (
+                f"初始证据召回 {hits} 个 block，但正文有效证据仅 {body_hits} 个"
+                f"（目录 {toc_hits} 个），需 Agent 深挖正文"
+            ),
+            "decided_by": "heuristic",
+        }
+    if body_hits >= LLM_READY_HIT_THRESHOLD:
         return {
             "rule_id": rule_id,
             "route": "LLM_READY",
-            "reason": f"初始证据召回 {hits} 个 block，批式一次判定即可",
+            "reason": f"初始证据召回 {body_hits} 个正文 block，批式一次判定即可",
             "decided_by": "heuristic",
         }
     return {
