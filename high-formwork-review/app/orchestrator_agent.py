@@ -43,6 +43,7 @@ def build_orchestrator_state(
     conflicts = _parameter_conflicts(parameter_pool)
     doc_corrections = _document_parse_corrections(decisions or [])
     formula_rechecks = _formula_rechecks(calculation)
+    semantic_confirmations = _semantic_confirmation_items(semantic)
 
     dispatch_plan = _dispatch_plan(
         document=document,
@@ -50,6 +51,7 @@ def build_orchestrator_state(
         review_plan=review_plan,
         conflicts=conflicts,
         doc_corrections=doc_corrections,
+        semantic_confirmations=semantic_confirmations,
     )
     observations = [
         _tool_observation(
@@ -72,9 +74,15 @@ def build_orchestrator_state(
         "parameter_candidate_pool": parameter_pool,
         "parameter_conflicts": conflicts,
         "human_confirmation": {
-            "required": bool(conflicts or doc_corrections or project_qualification.get("requires_human_review")),
+            "required": bool(
+                conflicts
+                or doc_corrections
+                or semantic_confirmations
+                or project_qualification.get("requires_human_review")
+            ),
             "items": [
                 *_conflict_confirmation_items(conflicts),
+                *semantic_confirmations,
                 *_document_confirmation_items(doc_corrections),
             ],
         },
@@ -95,6 +103,7 @@ def _dispatch_plan(
     review_plan: dict[str, Any] | None,
     conflicts: list[dict[str, Any]],
     doc_corrections: list[dict[str, Any]],
+    semantic_confirmations: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     focus = (review_plan or {}).get("focus_areas") or []
     agent_targets = (review_plan or {}).get("agent_targets") or []
@@ -125,14 +134,14 @@ def _dispatch_plan(
             "step": 4,
             "stage": "human_confirmation",
             "name": "人工确认",
-            "status": "pending" if conflicts or doc_corrections else "not_required",
-            "pending_count": len(conflicts) + len(doc_corrections),
+            "status": "pending" if conflicts or doc_corrections or semantic_confirmations else "not_required",
+            "pending_count": len(conflicts) + len(doc_corrections) + len(semantic_confirmations),
         },
         {
             "step": 5,
             "stage": "rerun",
             "name": "确认后重跑",
-            "status": "available" if conflicts or doc_corrections else "not_required",
+            "status": "available" if conflicts or doc_corrections or semantic_confirmations else "not_required",
             "inputs": ["support_system", "numeric_parameters", "document_parse_corrections"],
         },
     ]
@@ -326,6 +335,21 @@ def _document_confirmation_items(corrections: list[dict[str, Any]]) -> list[dict
         }
         for item in corrections
     ]
+
+
+def _semantic_confirmation_items(semantic: dict[str, Any]) -> list[dict[str, Any]]:
+    items = []
+    for result in semantic.get("results", []):
+        if result.get("route") != "HUMAN_REQUIRED" or not result.get("manual_review"):
+            continue
+        items.append({
+            "type": "semantic_human_required",
+            "rule_id": result.get("rule_id"),
+            "rule_name": result.get("rule_name"),
+            "reason": result.get("reason"),
+            "route": result.get("route"),
+        })
+    return items
 
 
 def _formula_rechecks(calculation: dict[str, Any]) -> list[dict[str, Any]]:

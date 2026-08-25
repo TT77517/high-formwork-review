@@ -56,9 +56,21 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
             "uncertain": 2,
             "pending_confirmation": 0,
             "mode": "agent_llm_semantic",
-            "route_stats": {"AGENT_REQUIRED": 1},
-            "route_decisions": [{"rule_id": "5.1", "route": "AGENT_REQUIRED"}],
-            "results": [{"rule_id": "5.1", "route": "AGENT_REQUIRED", "agent": {"steps": []}}],
+            "route_stats": {"AGENT_REQUIRED": 1, "HUMAN_REQUIRED": 1},
+            "route_decisions": [
+                {"rule_id": "5.1", "route": "AGENT_REQUIRED"},
+                {"rule_id": "4.21", "route": "HUMAN_REQUIRED"},
+            ],
+            "results": [
+                {"rule_id": "5.1", "route": "AGENT_REQUIRED", "agent": {"steps": []}},
+                {
+                    "rule_id": "4.21",
+                    "rule_name": "扫地杆距底板高度限值",
+                    "route": "HUMAN_REQUIRED",
+                    "manual_review": True,
+                    "reason": "关键参数未识别",
+                },
+            ],
         },
         calculation={
             "total_rules": 1,
@@ -104,5 +116,9 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
         "drawing_review",
     ]
     assert state["parameter_conflicts"][0]["parameter"] == "support_height"
+    assert any(
+        item["type"] == "semantic_human_required" and item["rule_id"] == "4.21"
+        for item in state["human_confirmation"]["items"]
+    )
     assert state["rerun_context"]["document_corrections_participate"] is True
     assert state["formula_recalculations"][0]["recalculated_status"] == "PASS"

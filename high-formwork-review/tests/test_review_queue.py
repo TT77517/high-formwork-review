@@ -67,7 +67,18 @@ def test_queue_order_item_keys_and_new_sources():
     semantic = {
         "pending_confirmation": 1,
         "results": [
-            {"rule_id": "6.1", "rule_name": "s1", "status": "VIOLATED", "reason": "bad", "evidence": []}
+            {"rule_id": "6.1", "rule_name": "s1", "status": "VIOLATED", "reason": "bad", "evidence": []},
+            {
+                "rule_id": "4.21",
+                "rule_name": "扫地杆距底板高度限值",
+                "status": "UNCERTAIN",
+                "reason": "关键参数未识别",
+                "evidence": [],
+                "manual_review": True,
+                "route": "HUMAN_REQUIRED",
+                "severity": "B-required",
+                "module": "04_construction_requirements",
+            },
         ],
     }
     pages = [
@@ -86,6 +97,10 @@ def test_queue_order_item_keys_and_new_sources():
     assert q[0]["actionable"]["options"][0]["value"] == "disk_lock"
     assert keys[1] == "engine_scope:PENDING-SYSTEM"
     assert "rule_engine:4.1" in keys and "semantic_engine:6.1" in keys
+    assert "semantic_engine:4.21" in keys
+    route_item = q[keys.index("semantic_engine:4.21")]
+    assert route_item["system_result"] == "UNCERTAIN"
+    assert route_item["meta"]["route"] == "HUMAN_REQUIRED"
     assert keys.index("rule_engine:4.1") < keys.index("semantic_engine:6.1")
     assert "completeness_review:HF-COMP-001" in keys
     assert keys[-1] == "document_parse:DOC-RISK-PAGES"

@@ -861,7 +861,9 @@ function renderAgentPlanCard() {
   if (!plan || !plan.focus_areas) { el.classList.add('hidden'); return; }
   const focusAreas = plan.focus_areas || [];
   const agentTargets = plan.agent_targets || [];
-  const humanItems = plan.human_confirmations || [];
+  const planHumanItems = plan.human_confirmations || [];
+  const orchestratorHumanItems = orchestratorData?.human_confirmation?.items || [];
+  const humanItems = orchestratorHumanItems.length ? orchestratorHumanItems : planHumanItems;
   const gen = plan.generated_by === 'llm' ? '<span class="tag-agent">LLM 生成</span>' : '<span class="tag-default">本地统计</span>';
   const topFocus = focusAreas.find(f => f.priority === 'HIGH') || focusAreas[0] || {};
   const focusText = topFocus.area ? `优先核查 ${topFocus.area}` : '先完成适用规范和关键参数核查';
@@ -875,10 +877,10 @@ function renderAgentPlanCard() {
   const detailItems = [
     ...focusAreas.map(f => `审查重点：${f.priority || 'MEDIUM'} ${f.area}（${f.reason||''}）`),
     ...agentTargets.map(t => `Agent查证：${t.target}（${t.reason||''}）`),
-    ...humanItems.map(h => `人工确认：${h.fact}（${h.reason||''}）`),
+    ...humanItems.map(h => `人工确认：${h.fact || h.parameter || h.rule_name || h.rule_id || h.type}（${h.reason||''}）`),
   ];
   const targetNames = agentTargets.slice(0, 2).map(t => short(t.target, 18)).join('、');
-  const humanNames = humanItems.slice(0, 2).map(h => short(h.fact, 18)).join('、');
+  const humanNames = humanItems.slice(0, 2).map(h => short(h.fact || h.parameter || h.rule_name || h.rule_id || h.type, 18)).join('、');
   const advice = [
     {
       title: '先抓最高风险',

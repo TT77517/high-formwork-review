@@ -87,11 +87,16 @@ def build_review_results(
                 }
             )
 
-    # 规则引擎/语义引擎 VIOLATED 逐条（按强制等级排序）
+    # 规则引擎/语义引擎需要人工确认的事项逐条入队（按强制等级排序）
     engine_items = []
     for source, payload in (("rule_engine", rule_engine), ("semantic_engine", semantic)):
         for r in (payload or {}).get("results", []):
-            if r.get("status") != "VIOLATED":
+            is_human_route = (
+                source == "semantic_engine"
+                and r.get("route") == "HUMAN_REQUIRED"
+                and r.get("manual_review")
+            )
+            if r.get("status") != "VIOLATED" and not is_human_route:
                 continue
             engine_items.append(
                 {
@@ -99,11 +104,15 @@ def build_review_results(
                     "review_item_id": r.get("rule_id"),
                     "item_key": f"{source}:{r.get('rule_id')}",
                     "title": r.get("rule_name"),
-                    "system_result": "VIOLATED",
+                    "system_result": r.get("status"),
                     "reason": r.get("reason"),
                     "evidence": r.get("evidence", []),
                     "basis": [(r.get("code_ref") or {}).get("standard", "")],
-                    "meta": {"severity": r.get("severity"), "module": r.get("module")},
+                    "meta": {
+                        "severity": r.get("severity"),
+                        "module": r.get("module"),
+                        "route": r.get("route"),
+                    },
                 }
             )
     engine_items.sort(
