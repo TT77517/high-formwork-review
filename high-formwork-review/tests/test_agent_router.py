@@ -12,6 +12,7 @@ from app.services.agent_guardrails import EvidenceRegistry
 from app.services.agent_tools import search_document
 from app.services.agent_router import (
     conflicting_fact_keys,
+    missing_fact_keys,
     route_rule,
     route_rules,
 )
@@ -138,6 +139,24 @@ class TestRouteRule:
         assert decision["route"] == "HUMAN_REQUIRED"
         assert "搭设高度" in decision["reason"]
 
+    def test_missing_fact_routes_human_for_parameter_rule(self, doc):
+        facts = {
+            "head_jack_cantilever_length": {
+                "status": "missing",
+                "value": None,
+                "candidates": [],
+            }
+        }
+        rule = _rule(
+            rule_id="4.12",
+            rule_name="可调托撑悬臂长度",
+            check_content="可调托撑悬臂长度不应超限",
+        )
+        decision = route_rule(rule, doc, facts)
+        assert decision["route"] == "HUMAN_REQUIRED"
+        assert "关键参数未识别" in decision["reason"]
+        assert "可调托撑悬臂" in decision["reason"]
+
     def test_conflicting_fact_without_alias_ignored(self, doc):
         facts = {
             "support_height": {
@@ -146,6 +165,10 @@ class TestRouteRule:
             }
         }
         decision = route_rule(_rule(), doc, facts)  # 规则文本不含"搭设高度"
+        assert decision["route"] == "LLM_READY"
+
+    def test_absent_fact_without_missing_status_ignored(self, doc):
+        decision = route_rule(_rule(), doc, {})
         assert decision["route"] == "LLM_READY"
 
     def test_confirmed_fact_not_conflict(self, doc):
@@ -178,6 +201,19 @@ class TestConflictingFactKeys:
             "a": {"status": "uncertain", "candidates": [{"value": 1}]},
         }
         assert conflicting_fact_keys(facts) == []
+
+
+class TestMissingFactKeys:
+    def test_detects_declared_missing_fact(self):
+        facts = {"support_span": {"status": "missing", "value": None}}
+        assert missing_fact_keys(facts) == ["support_span"]
+
+    def test_absent_fact_is_not_missing(self):
+        assert missing_fact_keys({}) == []
+
+    def test_confirmed_fact_is_not_missing(self):
+        facts = {"support_span": {"status": "confirmed", "value": 18.0}}
+        assert missing_fact_keys(facts) == []
 
 
 class TestRouteRules:

@@ -5,6 +5,7 @@
    AGENT_REQUIRED/HUMAN_REQUIRED），人工可逐规则指定
 2. 本地启发式（route_hint 缺省/AUTO 时）：
    - HUMAN_REQUIRED：规则内容命中存在取值冲突的关键参数（多候选值待人工确认）
+   - HUMAN_REQUIRED：规则内容依赖未识别的关键参数（需人工补值或修正解析后重跑）
    - LLM_READY：关键词召回 >= 2 个 block（证据充分，批式一次判定即可）
    - AGENT_REQUIRED：召回不足（0-1 个 block，需要 Agent 自主深挖）
 
@@ -26,8 +27,18 @@ FACT_NAME_ALIASES: dict[str, list[str]] = {
     "support_height": ["搭设高度", "支模高度", "支架高度"],
     "support_span": ["搭设跨度", "模板跨度", "结构跨度"],
     "step_height": ["步距", "步高"],
+    "standard_step_height": ["标准步距", "步距", "步高"],
     "total_load": ["施工总荷载", "总荷载"],
     "concentrated_line_load": ["线荷载"],
+    "head_jack_cantilever_length": ["顶托悬臂", "可调托撑悬臂", "悬臂长度"],
+    "head_jack_screw_exposed_length": ["丝杆外露", "螺杆外露", "外露长度"],
+    "head_jack_insert_length": ["顶托插入", "托撑插入", "插入长度"],
+    "base_jack_insert_length": ["底座插入", "可调底座插入", "底座伸入"],
+    "sweeper_centerline_height_above_base_plate": ["扫地杆", "扫地杆高度"],
+    "vertical_spacing": ["立杆纵距", "纵距", "纵向间距"],
+    "horizontal_spacing": ["立杆横距", "横距", "横向间距"],
+    "framework_height": ["架体高度", "支撑架高度"],
+    "height_to_width_ratio": ["高宽比", "架体高宽比"],
 }
 
 
@@ -49,6 +60,32 @@ def conflicting_fact_keys(facts: dict[str, Any] | None) -> list[str]:
         if len(values) >= 2:
             conflicting.append(key)
     return conflicting
+
+
+def missing_fact_keys(facts: dict[str, Any] | None) -> list[str]:
+    """识别规则审查需要但当前未提取到的关键参数。"""
+    facts = facts or {}
+    missing: list[str] = []
+    for key, aliases in FACT_NAME_ALIASES.items():
+        if not aliases:
+            continue
+        entry = facts.get(key)
+        if not isinstance(entry, dict):
+            continue
+        status = str(entry.get("status", "")).lower()
+        value = entry.get("value")
+        if status == "missing" or value in (None, ""):
+            missing.append(key)
+    return missing
+
+
+def _first_alias_in_rule(rule: dict[str, Any], keys: list[str]) -> tuple[str, str] | None:
+    text = f"{rule.get('check_content', '')} {rule.get('rule_name', '')}"
+    for key in keys:
+        hit_alias = next((a for a in FACT_NAME_ALIASES.get(key, []) if a in text), None)
+        if hit_alias:
+            return key, hit_alias
+    return None
 
 
 def _keyword_hit_stats(document: MinerUDocument, keywords: list[str]) -> dict[str, int]:
@@ -90,21 +127,25 @@ def route_rule(
             "decided_by": "route_hint",
         }
 
-    # HUMAN_REQUIRED：关键参数冲突
-    conflicting = conflicting_fact_keys(facts)
-    if conflicting:
-        aliases: list[str] = []
-        for key in conflicting:
-            aliases.extend(FACT_NAME_ALIASES.get(key, []))
-        text = f"{rule.get('check_content', '')} {rule.get('rule_name', '')}"
-        hit_alias = next((a for a in aliases if a in text), None)
-        if hit_alias:
-            return {
-                "rule_id": rule_id,
-                "route": "HUMAN_REQUIRED",
-                "reason": f"关键参数取值冲突（{hit_alias}），需人工确认后重跑",
-                "decided_by": "heuristic",
-            }
+    # HUMAN_REQUIRED：关键参数冲突或缺失
+    conflict_hit = _first_alias_in_rule(rule, conflicting_fact_keys(facts))
+    if conflict_hit:
+        _key, hit_alias = conflict_hit
+        return {
+            "rule_id": rule_id,
+            "route": "HUMAN_REQUIRED",
+            "reason": f"关键参数取值冲突（{hit_alias}），需人工确认后重跑",
+            "decided_by": "heuristic",
+        }
+    missing_hit = _first_alias_in_rule(rule, missing_fact_keys(facts))
+    if missing_hit:
+        key, hit_alias = missing_hit
+        return {
+            "rule_id": rule_id,
+            "route": "HUMAN_REQUIRED",
+            "reason": f"关键参数未识别（{hit_alias}/{key}），需人工补值或修正解析后重跑",
+            "decided_by": "heuristic",
+        }
 
     keywords = rule.get("check_logic", {}).get("extraction_keywords") or [
         rule.get("rule_name", "")
