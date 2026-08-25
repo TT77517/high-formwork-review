@@ -32,13 +32,14 @@ FACT_NAME_ALIASES: dict[str, list[str]] = {
 
 
 def conflicting_fact_keys(facts: dict[str, Any] | None) -> list[str]:
-    """识别存在取值冲突的关键参数（status=uncertain 且候选值 >= 2 个不同值）。"""
+    """识别存在取值冲突的关键参数（status=conflict/uncertain 且候选值 >= 2 个不同值）。"""
     facts = facts or {}
     conflicting: list[str] = []
     for key, entry in facts.items():
         if not isinstance(entry, dict):
             continue
-        if str(entry.get("status", "")).lower() != "uncertain":
+        status = str(entry.get("status", "")).lower()
+        if status not in {"uncertain", "conflict"} and not entry.get("has_conflict"):
             continue
         candidates = entry.get("candidates") or []
         values = {

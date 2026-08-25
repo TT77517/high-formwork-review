@@ -6,8 +6,10 @@ from typing import Any
 
 import pytest
 
-from app.models import BoundingBox, MinerUBlock, MinerUDocument, MinerUPage
+from app.models import BoundingBox, MinerUBlock, MinerUDocument, MinerUPage, MinerUSection
 from app.services import semantic_agent
+from app.services.agent_guardrails import EvidenceRegistry
+from app.services.agent_tools import search_document
 from app.services.agent_router import (
     conflicting_fact_keys,
     route_rule,
@@ -125,6 +127,16 @@ class TestConflictingFactKeys:
         }
         assert conflicting_fact_keys(facts) == ["a"]
 
+    def test_detects_explicit_conflict_status(self):
+        facts = {
+            "a": {
+                "status": "conflict",
+                "has_conflict": True,
+                "candidates": [{"value": 1}, {"value": 2}],
+            },
+        }
+        assert conflicting_fact_keys(facts) == ["a"]
+
     def test_single_value_not_conflict(self):
         facts = {
             "a": {"status": "uncertain", "candidates": [{"value": 1}]},
@@ -163,6 +175,43 @@ class TestSeedKeywords:
         first_user = client.calls[0]["messages"][1]
         assert "初始证据" in first_user["content"]
         assert "EV-P1-B0000" in first_user["content"]
+
+    def test_search_demotes_toc_and_prefers_body_section(self):
+        toc_block = _block("p0001-b0000", "目录\n3 计算书", page=1)
+        title = _block("p0002-b0000", "计算书", page=2)
+        title.block_type = "title"
+        body_block = _block("p0002-b0001", "立杆稳定计算：132.5≤205，满足要求", page=2)
+        document = _document([toc_block])
+        document.physical_page_count = 2
+        document.pages[0].warnings.append("目录页")
+        document.pages.append(
+            MinerUPage(
+                physical_page=2, source_page_index=1, width=None, height=None,
+                printed_page=None, page_type="text", parse_status="complete",
+                text="", blocks=[title, body_block],
+            )
+        )
+        document.sections = [
+            MinerUSection(
+                section_id="section-0001",
+                title="计算书",
+                level=1,
+                path=["计算书"],
+                physical_page_start=2,
+                physical_page_end=2,
+            )
+        ]
+
+        text, evidence_ids = search_document(
+            document,
+            EvidenceRegistry(document_id="DOC-ROUTER"),
+            keywords=["计算书", "立杆稳定"],
+            preferred_sections=["计算书"],
+        )
+
+        assert evidence_ids
+        assert text.splitlines()[0].startswith("EV-P2-B0001")
+        assert "目录降权" in text
 
 
 # ---------------------------------------------------------------------------

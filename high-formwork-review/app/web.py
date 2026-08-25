@@ -39,6 +39,7 @@ from .mineru_cache import (
 from .mineru_client import MinerUClient
 from .mineru_parser import parse_mineru
 from .models import MinerUDocument
+from .orchestrator_agent import build_orchestrator_state
 from .project_facts import build_project_facts
 from .project_qualification import build_project_qualification
 from .review_summary import build_review_results
@@ -80,6 +81,7 @@ STAGE_PROGRESS = {
     "uploaded": 10,
     "mineru_parsing": 30,
     "document_parsing": 45,
+    "review_plan": 52,
     "completeness_review": 55,
     # 审查管线各阶段（_run_review_stages 内 _timed 更新）：
     # 审查占总耗时大头，细分避免进度条在 80% 长时间停滞
@@ -127,7 +129,12 @@ def index(request: Request):
     app_js = PROJECT_ROOT / "app" / "static" / "app.js"
     version = str(int(app_js.stat().st_mtime)) if app_js.is_file() else "0"
     return templates.TemplateResponse(
-        request=request, name="index.html", context={"app_js_version": version}
+        request=request,
+        name="index.html",
+        context={
+            "app_js_version": version,
+            "semantic_review_mode": _semantic_mode(),
+        },
     )
 
 
@@ -194,6 +201,7 @@ async def create_job(
         "parse_cache_warning": None,
         "document_parse_message": None,
         "review_mode": review_mode,
+        "semantic_review_mode": _semantic_mode(),
     }
     _atomic_write_json(job_dir / "status.json", status)
     background_tasks.add_task(_process_job, job_id)
@@ -323,6 +331,16 @@ def get_review_plan(job_id: str) -> dict[str, Any]:
     if not path.is_file():
         raise HTTPException(status_code=404, detail="本任务无 Agent 审查计划（非 agent 模式）")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/jobs/{job_id}/orchestrator")
+def get_orchestrator(job_id: str) -> dict[str, Any]:
+    """返回总控 Agent 调度、工具观测、人工确认与重跑上下文。"""
+    job_dir = _completed_job_dir(job_id)
+    path = job_dir / "orchestrator_agent.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="总控 Agent 结果不存在")
+    return _read_json(path, "总控 Agent 结果不存在")
 
 
 @app.get("/api/jobs/{job_id}/calculation")
@@ -691,6 +709,7 @@ def save_decisions(job_id: str, payload: DecisionsPayload) -> dict[str, Any]:
 
     saved = [by_key[key] for key in sorted(by_key)]
     _atomic_write_json(decisions_path, saved)
+    _write_orchestrator_state_if_ready(job_dir)
     return {"job_id": job_id, "saved_count": len(payload.decisions), "decisions": saved}
 
 
@@ -795,27 +814,22 @@ def get_timeline(job_id: str) -> dict[str, Any]:
             "stage": "document_parsing",
             "description": status.get(
                 "document_parse_message",
-                "文档解析 Agent：章节构建与风险标记",
+                "文档解析：构建章节、表格、图像与证据索引",
             ),
         })
 
-        # 4. 完整性审查
-        events.append({
-            "time": _stage_time("completeness_review"),
-            "stage": "completeness_review",
-            "description": "完整性审查 Agent：执行 10 条规则",
-        })
-
-    # 5. 审查阶段组（stage_timings 真实计时；含规范语义审查等此前缺失的阶段）
+    # 4. 总控 Agent 调度链路（按业务顺序展示，真实耗时来自 stage_timings）
     stage_order = [
-        ("project_facts", "关键参数识别"),
+        ("project_facts", None),
         ("project_qualification", None),
+        ("review_plan", None),
+        ("completeness_review", "完整性审查工具"),
         ("rule_engine", None),
         ("semantic_engine", None),
         ("calculation_engine", None),
-        ("substantive_review", None),
         ("consistency_review", None),
         ("drawing_review", None),
+        ("substantive_review", None),
     ]
     for stage_key, _default_desc in stage_order:
         info = stage_timings.get(stage_key)
@@ -824,7 +838,7 @@ def get_timeline(job_id: str) -> dict[str, Any]:
         events.append({
             "time": info.get("started_at", ""),
             "stage": stage_key,
-            "description": f"{info.get('description') or stage_key}（{_fmt_duration(info.get('duration_ms', 0))}）",
+            "description": f"{info.get('description') or _default_desc or stage_key}（{_fmt_duration(info.get('duration_ms', 0))}）",
         })
 
     # 6. Dify 完整性复核：口径以 dify_call_audit.json 为准（selected≠实际调 API，缓存命中不产生 API 调用）
@@ -914,8 +928,30 @@ def get_timeline(job_id: str) -> dict[str, Any]:
         "description": status.get("message", "任务完成"),
     })
 
-    # 按时间排序（stage_timings 阶段可能插在完整性审查与 Dify 之间）
-    events.sort(key=lambda e: e.get("time", ""))
+    # 总控 Agent 页面按业务链路展示；同阶段内再用时间辅助排序。
+    stage_sequence = {
+        "uploaded": 10,
+        "mineru_parsing": 20,
+        "document_parsing": 30,
+        "project_facts": 40,
+        "project_qualification": 50,
+        "review_plan": 60,
+        "completeness_review": 70,
+        "dify_review": 75,
+        "dify_failed": 75,
+        "dify_disabled": 75,
+        "rule_engine": 80,
+        "semantic_engine": 90,
+        "calculation_engine": 100,
+        "consistency_review": 110,
+        "drawing_review": 120,
+        "substantive_review": 130,
+        "human_review": 140,
+        "completed": 150,
+        "completed_with_warning": 150,
+        "failed": 150,
+    }
+    events.sort(key=lambda e: (stage_sequence.get(e.get("stage", ""), 999), e.get("time", "")))
 
     return {"job_id": job_id, "events": events}
 
@@ -950,6 +986,7 @@ def get_output_files(job_id: str) -> dict[str, Any]:
         "dify_error.json": "Dify 错误记录",
         "status.json": "任务状态",
         "stage_timings.json": "各阶段耗时记录",
+        "orchestrator_agent.json": "总控 Agent 调度与闭环记录",
     }
 
     for file_name, desc in file_descriptions.items():
@@ -1020,7 +1057,7 @@ def _process_job(job_id: str) -> None:
                 before_document_parse=lambda: _update_status(
                     job_dir,
                     "document_parsing",
-                    "文档解析 Agent 正在构建章节与标记风险",
+                    "文档解析正在构建章节、表格、图像与证据索引",
                 ),
             )
 
@@ -1044,7 +1081,7 @@ def _process_job(job_id: str) -> None:
         stage = "document_parsing"
 
         stage = "completeness_review"
-        _update_status(job_dir, stage, "完整性审查 Agent 正在执行 10 条规则")
+        _update_status(job_dir, stage, "完整性审查工具正在检查 10 项必备内容")
         rules = load_rules(RULES_PATH)
 
         def _do_completeness():
@@ -1052,7 +1089,7 @@ def _process_job(job_id: str) -> None:
 
         summary, details = _timed_early(
             "completeness_review",
-            "完整性审查（10 条规则）",
+            "完整性审查工具（10 项必备内容）",
             _utc_now(),
             _do_completeness,
         )
@@ -1177,16 +1214,18 @@ def _build_agent_review_plan(
     document: MinerUDocument,
     project_facts: dict,
     project_qualification: dict,
+    *,
+    use_llm: bool,
 ) -> dict | None:
     """Planner：Plan-only 审查计划（LLM 失败降级本地统计）。"""
     try:
-        from .services.review_planner import build_review_plan
+        from .services.review_planner import build_review_plan, build_review_plan_local
 
-        return build_review_plan(
-            project_qualification,
-            (project_facts or {}).get("facts", {}),
-            rule_stats={"physical_page_count": document.physical_page_count},
-        )
+        facts = (project_facts or {}).get("facts", {})
+        stats = {"physical_page_count": document.physical_page_count}
+        if use_llm:
+            return build_review_plan(project_qualification, facts, rule_stats=stats)
+        return build_review_plan_local(project_qualification, facts, rule_stats=stats)
     except Exception:  # noqa: BLE001 - 计划失败不影响审查管线
         return None
 
@@ -1241,36 +1280,40 @@ def _run_review_stages(
     if project_facts is None:
         project_facts = _timed(
             "project_facts",
-            "关键参数识别",
+            "总控 Agent 识别工程特征",
             lambda: build_project_facts(document),
         )
     project_qualification = _timed(
         "project_qualification",
-        "工程基础信息识别",
+        "总控 Agent 匹配审查范围",
         lambda: build_project_qualification(document, project_facts),
     )
-    # Agent 模式：Planner 生成审查计划（LLM 失败降级本地统计，任务不中断）
-    if _semantic_mode() == "agent":
-        review_plan = _timed(
-            "review_plan",
-            "Agent 审查计划生成",
-            lambda: _build_agent_review_plan(document, project_facts, project_qualification),
-        )
-        if review_plan is not None:
-            _atomic_write_json(job_dir / "review_plan.json", review_plan)
+    # Planner 生成审查计划：agent 模式优先 LLM，其他模式使用本地统计计划。
+    review_plan = _timed(
+        "review_plan",
+        "总控 Agent 制定审查计划",
+        lambda: _build_agent_review_plan(
+            document,
+            project_facts,
+            project_qualification,
+            use_llm=_semantic_mode() == "agent",
+        ),
+    )
+    if review_plan is not None:
+        _atomic_write_json(job_dir / "review_plan.json", review_plan)
     rule_engine_result = _timed(
         "rule_engine",
-        "确定性规则引擎（规范条文比对）",
+        "确定性规则工具（规范条文比对）",
         lambda: run_rule_engine_safe(document, project_facts),
     )
     semantic_result = _timed(
         "semantic_engine",
-        "规范语义审查",
+        "规范审查 Agent（规则/Dify/自主查证分流）",
         lambda: _run_semantic_stage(document, project_facts),
     )
     calculation_result = _timed(
         "calculation_engine",
-        "计算校核（公式验算检查）",
+        "计算校核工具（公式验算检查）",
         lambda: run_calculation_engine_safe(document, project_facts),
     )
     substantive_review = _timed(
@@ -1280,12 +1323,12 @@ def _run_review_stages(
     )
     consistency_review = _timed(
         "consistency_review",
-        "参数一致性检查（正文 vs 计算书）",
+        "计算参数一致性工具（正文 vs 计算书）",
         lambda: build_consistency_review(project_facts, document),
     )
     drawing_review = _timed(
         "drawing_review",
-        "图文一致性校验（含图片OCR）",
+        "图文一致性工具（正文 vs 图纸 OCR）",
         lambda: build_drawing_review(document, project_facts, job_dir=job_dir),
     )
     # 合并前段计时（MinerU/完整性），整体重写 stage_timings.json
@@ -1427,6 +1470,7 @@ def _rerun_review_stages(job_id: str, overrides: dict[str, str]) -> None:
                 "requires_human_review": False,
             }
         _atomic_write_json(job_dir / "project_facts.json", project_facts)
+        _merge_document_parse_corrections(job_dir)
         # 重跑场景：前段计时（MinerU/完整性）是历史数据，标记上下文供时间线区分展示
         _run_review_stages(job_dir, document, project_facts)
         timings_path = job_dir / "stage_timings.json"
@@ -1607,6 +1651,70 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
             document_pages=document_pages,
         ),
     )
+    _write_orchestrator_state_if_ready(job_dir)
+
+
+def _write_orchestrator_state_if_ready(job_dir: Path) -> None:
+    required = [
+        "mineru_document.json",
+        "project_facts.json",
+        "project_qualification.json",
+        "completeness_summary.json",
+        "completeness_results.json",
+        "rule_engine_results.json",
+        "semantic_results.json",
+        "calculation_results.json",
+        "substantive_review.json",
+        "consistency_review.json",
+        "drawing_review.json",
+    ]
+    if any(not (job_dir / name).is_file() for name in required):
+        return
+    document = document_from_dict(_read_json(job_dir / "mineru_document.json", ""))
+    decisions_path = job_dir / "decisions.json"
+    overrides_path = job_dir / "human_overrides.json"
+    review_plan_path = job_dir / "review_plan.json"
+    state = build_orchestrator_state(
+        document,
+        project_facts=_read_json(job_dir / "project_facts.json", ""),
+        project_qualification=_read_json(job_dir / "project_qualification.json", ""),
+        completeness_summary=_read_json(job_dir / "completeness_summary.json", ""),
+        completeness_results=_read_json(job_dir / "completeness_results.json", ""),
+        rule_engine=_read_json(job_dir / "rule_engine_results.json", ""),
+        semantic=_read_json(job_dir / "semantic_results.json", ""),
+        calculation=_read_json(job_dir / "calculation_results.json", ""),
+        substantive_review=_read_json(job_dir / "substantive_review.json", ""),
+        consistency_review=_read_json(job_dir / "consistency_review.json", ""),
+        drawing_review=_read_json(job_dir / "drawing_review.json", ""),
+        review_plan=_read_json(review_plan_path, "") if review_plan_path.is_file() else None,
+        decisions=_read_json(decisions_path, "") if decisions_path.is_file() else [],
+        human_overrides=_read_json(overrides_path, "") if overrides_path.is_file() else {},
+    )
+    _atomic_write_json(job_dir / "orchestrator_agent.json", state)
+
+
+def _merge_document_parse_corrections(job_dir: Path) -> None:
+    """把解析详情页人工修正记录并入重跑上下文，供总控 Agent 与报告追溯。"""
+    decisions_path = job_dir / "decisions.json"
+    overrides_path = job_dir / "human_overrides.json"
+    if not decisions_path.is_file() or not overrides_path.is_file():
+        return
+    decisions = _read_json(decisions_path, "") or []
+    corrections = [
+        {
+            "item_key": item.get("item_key"),
+            "decision": item.get("human_decision"),
+            "note": item.get("note"),
+            "decided_at": item.get("decided_at"),
+        }
+        for item in decisions
+        if item.get("source") == "document_parse" and str(item.get("note") or "").strip()
+    ]
+    if not corrections:
+        return
+    payload = _read_json(overrides_path, "") or {}
+    payload["document_parse_corrections"] = corrections
+    _atomic_write_json(overrides_path, payload)
 
 
 def _job_dir(job_id: str) -> Path:

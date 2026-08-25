@@ -69,7 +69,7 @@
         <div class="review-mode-grid" id="reviewModeGrid" role="radiogroup" aria-label="选择审查方式">
           <button class="mode-card selected" type="button" data-mode="smart">
             <div class="mode-card-head"><strong>智能预审</strong><span class="tag-green">推荐</span></div>
-            <p>组合执行工程识别、完整性审查、规范语义审查、图文校验和计算校核。</p>
+            <p>总控 Agent 识别工程特征并调度完整性、规范、计算、图文四类审查工具。</p>
           </button>
           <button class="mode-card" type="button" data-mode="completeness">
             <div class="mode-card-head"><strong>完整性审查</strong><span class="tag-default">10项</span></div>
@@ -111,12 +111,8 @@
 
       <!-- Overview -->
       <section class="panel tab-panel hidden" id="tab-overview">
-        <div class="section-header"><h2>任务概览</h2></div>
-        <div class="stat-card-grid" id="overviewCards"></div>
-        <div id="priorityItems" class="alert-box hidden">
-          <div class="alert-title">⚠ 优先处理事项</div>
-          <ul id="priorityList" class="alert-list"></ul>
-        </div>
+        <div id="orchestratorPanel" aria-label="总控审查 Agent 工作台"></div>
+        <div id="agentPlanCard" class="agent-plan hidden"></div>
       </section>
 
       <!-- Qualification -->
@@ -140,6 +136,7 @@
           <select id="pageFilter" class="select-field"><option value="all">全部</option><option value="unreadable">不可读</option><option value="partial">部分解析</option><option value="human-review">需人工复核</option></select>
           <span class="mode-hint" style="margin-left:12px">点击章节展开小节，点击小节展开页，点击页查看解析详情</span>
         </div>
+        <div id="documentReviewFlow"></div>
         <div class="table-wrap"><table class="data-table">
           <thead><tr><th>章节/小节/页</th><th>页范围</th><th>页数</th><th>文本量</th><th>图/表/公式</th><th>部分解析页</th><th>需复核</th></tr></thead>
           <tbody id="chapterRows"></tbody>
@@ -180,7 +177,7 @@
 
       <!-- Completeness -->
       <section class="panel tab-panel hidden" id="tab-review">
-        <div class="section-header"><h2>完整性审查</h2></div>
+        <div class="section-header"><h2>完整性审查 <span class="tag-default ml-8">Agent 工具</span></h2></div>
         <div class="filter-bar">
           <label>筛选：</label>
           <select id="reviewFilter" class="select-field">
@@ -210,10 +207,10 @@
       <!-- Semantic Review (规范语义审查) -->
       <section class="panel tab-panel hidden" id="tab-semantic">
         <div class="section-header">
-          <h2>规范语义审查 <span class="tag-blue ml-8">v4.0</span></h2>
+          <h2>规范语义审查 <span class="tag-blue ml-8">Agent 核心</span></h2>
         </div>
-        <div id="agentPlanCard" class="agent-plan hidden"></div>
         <div id="semanticStats" class="stat-card-grid"></div>
+        <div id="semanticUncertainPanel"></div>
         <div class="filter-bar">
           <label>模块：</label>
           <select id="semanticModuleFilter" class="select-field sel-fixed"><option value="all">全部</option></select>
@@ -251,7 +248,7 @@
 
       <!-- Drawing Consistency (图文一致性校验) -->
       <section class="panel tab-panel hidden" id="tab-drawing">
-        <div class="section-header"><h2>图文一致性校验</h2></div>
+        <div class="section-header"><h2>图文一致性校验 <span class="tag-default ml-8">Agent 工具</span></h2></div>
         <div id="drawingStats" class="stat-card-grid"></div>
         <div class="table-wrap"><table class="data-table table-compact" id="drawingTable">
           <thead><tr><th>编号</th><th>检查项</th><th>正文值</th><th>图纸值</th><th>状态</th><th>操作</th></tr></thead>
@@ -265,7 +262,7 @@
 
       <!-- Calculation Review (计算校核) -->
       <section class="panel tab-panel hidden" id="tab-calculation">
-        <div class="section-header"><h2>计算校核 <span class="tag-orange ml-8">部分可用</span></h2></div>
+        <div class="section-header"><h2>计算校核 <span class="tag-default ml-8">Agent 工具</span></h2></div>
         <h3 class="sub-head">公式验算</h3>
         <div id="calcStats" class="stat-card-grid"></div>
         <div class="table-wrap"><table class="data-table table-compact" id="calcTable">
@@ -383,6 +380,11 @@
     </div>
   </div>
 </div>
+<script>
+  window.APP_CONFIG = {
+    semanticReviewMode: "{{ semantic_review_mode }}"
+  };
+</script>
 <script src="{{ url_for('static', path='/app.js') }}?v={{ app_js_version }}" defer></script>
 </body>
 </html>

@@ -64,6 +64,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
                     "keywords": {
                         "type": "array", "items": {"type": "string"},
                         "description": "检索关键词（2-4 个，来自规则条文或已见线索）",
+                    },
+                    "preferred_sections": {
+                        "type": "array", "items": {"type": "string"},
+                        "description": "优先召回的章节名片段，可为空；用于章节二次追证",
                     }
                 },
                 "required": ["keywords"],

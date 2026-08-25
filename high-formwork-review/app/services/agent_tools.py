@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from ..completeness_review import _find_terms, _index_blocks
 from ..models import MinerUBlock, MinerUDocument
 from .agent_guardrails import EvidenceRegistry, display_normalize, normalize_for_match
 
@@ -95,34 +96,49 @@ def search_document(
     registry: EvidenceRegistry,
     *,
     keywords: list[str],
+    preferred_sections: list[str] | None = None,
 ) -> tuple[str, list[str]]:
-    """关键词检索：block 级归一化匹配 + 关键词中心窗口 + Evidence 登记。"""
+    """关键词检索：目录降权 + 章节偏好 + 关键词中心窗口 + Evidence 登记。"""
     terms = [normalize_for_match(k) for k in keywords if k and normalize_for_match(k)]
     if not terms:
         return "keywords 为空或归一化后无有效内容", []
-    hits: list[tuple[int, MinerUBlock, str, int, int]] = []
-    for page in document.pages:
-        for block in page.blocks:
-            text = _block_text(block)
-            if not text:
-                continue
-            despaced, offsets = _despaced_with_offsets(text)
-            if not despaced:
-                continue
-            matched_terms = [t for t in terms if t in despaced]
-            if not matched_terms:
-                continue
-            # 取首个命中词的窗口
-            term = matched_terms[0]
-            idx = despaced.find(term)
-            raw_start = offsets[idx]
-            raw_end = offsets[min(idx + len(term) - 1, len(offsets) - 1)] + 1
-            hits.append((len(matched_terms), block, text, raw_start, raw_end))
+    section_terms = [str(s) for s in (preferred_sections or []) if str(s).strip()]
+    hits: list[tuple[float, MinerUBlock, str, int, int, list[str], bool]] = []
+    for _page, block, section_path, is_toc in _index_blocks(document):
+        text = _block_text(block)
+        if not text:
+            continue
+        despaced, offsets = _despaced_with_offsets(text)
+        if not despaced:
+            continue
+        matched_terms = [t for t in terms if t in despaced]
+        if not matched_terms:
+            continue
+        # 取首个命中词的窗口
+        term = matched_terms[0]
+        idx = despaced.find(term)
+        raw_start = offsets[idx]
+        raw_end = offsets[min(idx + len(term) - 1, len(offsets) - 1)] + 1
+        section_text = " / ".join(section_path)
+        section_bonus = 3.0 if _find_terms(section_text, section_terms) else 0.0
+        block_bonus = 1.0 if block.block_type in {"table", "paragraph"} else 0.2
+        toc_penalty = 12.0 if is_toc else 0.0
+        score = len(matched_terms) * 10.0 + section_bonus + block_bonus - toc_penalty
+        hits.append((score, block, text, raw_start, raw_end, section_path, is_toc))
     hits.sort(key=lambda item: item[0], reverse=True)
+    if len([item for item in hits if not item[6]]) < 2:
+        hits.extend(_section_chase_hits(document, terms, section_terms, hits))
+        hits.sort(key=lambda item: item[0], reverse=True)
     lines: list[str] = []
     evidence_ids: list[str] = []
-    for _, block, text, raw_start, raw_end in hits[:SEARCH_MAX_HITS]:
+    seen_blocks: set[str] = set()
+    for _, block, text, raw_start, raw_end, section_path, is_toc in hits:
+        if block.block_id in seen_blocks:
+            continue
+        seen_blocks.add(block.block_id)
         window = _hit_window(text, raw_start, raw_end)
+        prefix = "目录降权 " if is_toc else ""
+        section = f"|{'/'.join(section_path)}" if section_path else ""
         eid = registry.register(
             page=block.physical_page,
             text=window,
@@ -131,10 +147,47 @@ def search_document(
             block_type=block.block_type,
         )
         evidence_ids.append(eid)
-        lines.append(f"{eid} [P{block.physical_page}|{_block_label(block)}] {window}")
+        lines.append(f"{eid} [P{block.physical_page}|{prefix}{_block_label(block)}{section}] {window}")
+        if len(lines) >= SEARCH_MAX_HITS:
+            break
     if not lines:
         return "未找到相关内容，请换关键词或使用 get_page", []
     return "\n".join(lines), evidence_ids
+
+
+def _section_chase_hits(
+    document: MinerUDocument,
+    terms: list[str],
+    section_terms: list[str],
+    existing_hits: list[tuple[float, MinerUBlock, str, int, int, list[str], bool]],
+) -> list[tuple[float, MinerUBlock, str, int, int, list[str], bool]]:
+    """初始召回不足时，对命中章节做二次追证。"""
+    if not section_terms and not existing_hits:
+        return []
+    target_sections = {
+        tuple(hit[5])
+        for hit in existing_hits
+        if hit[5] and not hit[6]
+    }
+    extra: list[tuple[float, MinerUBlock, str, int, int, list[str], bool]] = []
+    for _page, block, section_path, is_toc in _index_blocks(document):
+        if is_toc or not section_path:
+            continue
+        section_match = tuple(section_path) in target_sections
+        if not section_match and not _find_terms(" / ".join(section_path), section_terms):
+            continue
+        text = _block_text(block)
+        if not text:
+            continue
+        despaced, offsets = _despaced_with_offsets(text)
+        matched = [term for term in terms if term in despaced]
+        if not matched:
+            continue
+        idx = despaced.find(matched[0])
+        raw_start = offsets[idx]
+        raw_end = offsets[min(idx + len(matched[0]) - 1, len(offsets) - 1)] + 1
+        extra.append((6.0 + len(matched), block, text, raw_start, raw_end, section_path, is_toc))
+    return extra
 
 
 def get_page(

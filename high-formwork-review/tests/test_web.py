@@ -323,9 +323,25 @@ def test_home_page_shows_modular_review_modes(client: TestClient) -> None:
         assert label in text
     assert "工程识别</button>" not in text
     assert "工程基础信息" in text
+    assert "总控审查 Agent 工作台" in text
+    assert "总控 Agent 识别工程特征并调度完整性、规范、计算、图文四类审查工具" in text
+    assert "semanticReviewMode" in text
     assert "内容符合性" not in text
     assert "规范符合性审查" not in text
-    assert "部分可用" in text
+    assert "Agent 工具" in text
+
+
+def test_static_app_uses_ai_summary_plan_card(client: TestClient) -> None:
+    response = client.get("/static/app.js")
+    assert response.status_code == 200
+    text = response.text
+    assert "AI总结建议" in text
+    assert "plan-summary" in text
+    assert "ai-advice-list" in text
+    assert "展开原始计划明细" in text
+    assert "Agent 自主查证目标：" not in text
+    assert "/orchestrator" in text
+    assert "tool_observations" in text
 
 
 def test_non_pdf_is_rejected(client: TestClient) -> None:
@@ -359,6 +375,7 @@ def test_upload_creates_job(client: TestClient) -> None:
     assert (job_dir / "source.pdf").is_file()
     assert data["status"] == "uploaded"
     assert data["review_mode"] == "smart"
+    assert data["semantic_review_mode"] in {"local", "dify", "agent"}
 
 
 def test_parameter_consistency_review_mode_is_accepted(client: TestClient) -> None:
@@ -607,11 +624,45 @@ def test_10_rules_alignment(client: TestClient) -> None:
 def test_timeline_endpoint(client: TestClient) -> None:
     """验证时间线 API 返回正确事件。"""
     job_id = _completed_job(web.JOBS_ROOT)
+    job_dir = web.JOBS_ROOT / job_id
+    _write_json(
+        job_dir / "stage_timings.json",
+        {
+            "completeness_review": {
+                "description": "完整性审查工具（10 项必备内容）",
+                "started_at": "2026-07-28T00:00:20+00:00",
+                "finished_at": "2026-07-28T00:00:25+00:00",
+                "duration_ms": 5000,
+            },
+            "project_facts": {
+                "description": "总控 Agent 识别工程特征",
+                "started_at": "2026-07-28T00:00:30+00:00",
+                "finished_at": "2026-07-28T00:00:31+00:00",
+                "duration_ms": 1000,
+            },
+            "review_plan": {
+                "description": "总控 Agent 制定审查计划",
+                "started_at": "2026-07-28T00:00:40+00:00",
+                "finished_at": "2026-07-28T00:00:42+00:00",
+                "duration_ms": 2000,
+            },
+            "semantic_engine": {
+                "description": "规范审查 Agent（规则/Dify/自主查证分流）",
+                "started_at": "2026-07-28T00:00:50+00:00",
+                "finished_at": "2026-07-28T00:00:55+00:00",
+                "duration_ms": 5000,
+            },
+        },
+    )
     response = client.get(f"/api/jobs/{job_id}/timeline")
     assert response.status_code == 200
     data = response.json()
     assert "events" in data
     assert len(data["events"]) >= 4  # 至少包含上传、三个阶段和完成
+    stages = [event["stage"] for event in data["events"]]
+    assert stages.index("project_facts") < stages.index("review_plan")
+    assert stages.index("review_plan") < stages.index("completeness_review")
+    assert stages.index("completeness_review") < stages.index("semantic_engine")
 
 
 def test_files_endpoint(client: TestClient) -> None:
@@ -888,7 +939,7 @@ def test_rerun_accepts_mixed_system_and_numeric(
 
 
 def test_review_plan_endpoint_404_without_plan(client: TestClient) -> None:
-    """非 agent 模式任务无 review_plan.json -> 404（前端静默忽略）。"""
+    """任务尚未生成 review_plan.json -> 404（前端静默忽略）。"""
     upload = client.post(
         "/api/jobs",
         data={"review_mode": "smart"},
@@ -913,3 +964,19 @@ def test_review_plan_endpoint_404_without_plan(client: TestClient) -> None:
     response = client.get(f"/api/jobs/{job_id}/review-plan")
     assert response.status_code == 200
     assert response.json()["plan_id"] == "PLAN-1"
+
+
+def test_orchestrator_endpoint_reads_result(client: TestClient) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    job_dir = web.JOBS_ROOT / job_id
+    _write_json(
+        job_dir / "orchestrator_agent.json",
+        {
+            "agent": "orchestrator_agent",
+            "dispatch_plan": [{"stage": "plan"}],
+            "tool_observations": [{"tool_id": "completeness_review"}],
+        },
+    )
+    response = client.get(f"/api/jobs/{job_id}/orchestrator")
+    assert response.status_code == 200
+    assert response.json()["agent"] == "orchestrator_agent"

@@ -33,6 +33,8 @@
 - [x] 人工复核前端重写为统一工作台：按来源分组（识别/审查范围/规则引擎/语义/完整性/实质性/一致性/图文/文档解析）、证据跳转（页抽屉/规则详情/文档筛选）、确认支撑体系+重跑按钮（startPolling 复用）、概览卡改队列口径；浏览器冒烟通过
 - [x] 重跑闭环：POST /api/jobs/{id}/rerun（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
 - [x] 上下文连续性协议（避免上下文过载）：scripts/context_handoff.sh / .ps1 一键生成 .context/handoff.md（分支/最近提交/未提交改动/当前阻塞/待完成未完成项/可选本轮要点+启动提示词）；make handoff 目标；AGENTS.md 增入口协议"续接检查"步与"上下文连续性协议"小节；.context/ 入 .gitignore（support_system 覆盖，422/409 校验），_process_job 抽 _run_review_stages 复用，mineru_cache 公开 document_from_dict；重跑写 human_overrides.json、facts 标 human_override、清理非完整性复核记录、重建 precheck summary 与报告
+- [x] Web 端总控审查 Agent 工作台（2026-08-25）：任务概览改为"上传解析→Agent识别工程特征→Agent制定审查计划→完整性审查工具→规范审查Agent→计算校核工具→图文一致性工具→人工复核→报告生成"；四类审查能力以 Agent 工具卡呈现；规范语义审查默认切到 agent 模式并在页面显示；时间线按业务调度顺序展示；关键测试与浏览器验证通过
+- [x] 后端总控 Agent 统一落盘对象（2026-08-25）：新增 `app/orchestrator_agent.py`，生成 `orchestrator_agent.json`（统一 `dispatch_plan` / `tool_observations` / 参数候选池 / 参数冲突人工确认 / 文档解析修正重跑上下文 / 3-5 条公式复算摘要 / 图文一致性 Agent 追证联动状态）；新增 `GET /api/jobs/{id}/orchestrator`，前端任务概览改读统一总控观测；证据召回补目录降权与章节二次追证；Router 修正 `conflict` 状态参数分流为 HUMAN_REQUIRED
 
 ## 🔲 待完成
 
@@ -312,3 +314,22 @@
 - [2026-08-24 18:04] claude 签到 — 开始处理：Phase 5-7 连续执行：Guardrails收尾（trace落盘/审计/注入防护）→ Planner（Plan-only）→ 前端三区域+E2E
 
 - [2026-08-24 18:23] claude 签退 — 完成了：Phase 5-7 全部完成：⑤Guardrails收尾（agent_trace/route_decisions/agent_call_audit三工件经web落盘job目录+Budget env化AGENT_MAX_*+注入防护测试）+review_planner.py（LLM计划生成+本地统计降级+Mandatory Checks白名单+JSON解析容错，10测试）；⑥前端三区域（agentPlanCard计划卡/规则路径标签ROUTE_CN/抽屉Agent查证轨迹区块）+GET /api/jobs/{id}/review-plan；⑦全量E2E 456.9s真实LLM：Planner LLM生成5项审查重点（高架风险/托撑/剪刀撑/荷载/论证）、9条Agent规则新发现2 VIOLATED（6.18个人防护conf0.78/6.29应急物资conf0.9）、审计35LLM/33工具/54证据；Dify批式通道凭证失效被三级降级兜住（外部问题已记录）；263测试全绿；下一步建议：用户操作：Dify控制台更新通义模型凭证（[Tongyi] Incorrect model credentials）后重跑E2E验证批式通道；然后浏览器验证前端三区域效果；可选：.env改SEMANTIC_REVIEW_MODE=agent让新任务默认走agent模式
+
+- [2026-08-25 10:48] codex 签到 — 开始处理：续接：修复 fact_conflict_detector 空 facts KeyError
+
+- [2026-08-25 13:51] codex 签退 — 完成了：Web端总控审查Agent工作台：总览页流程、四类工具卡、规范Agent启用提示、时间线业务顺序和回归测试；下一步建议：上传样例PDF跑agent模式，验证review_plan/route_decisions/agent_trace落盘并优化详情抽屉演示效果
+
+- [2026-08-25 13:58] codex 补充 — 按用户浏览器批注将规范语义审查页的"总控 Agent 审查计划"从长标签列表改为 AI总结建议格式：一句话建议 + 三条行动建议（先抓最高风险/让Agent深挖证据/人工确认后闭环）+ 统计 + 默认折叠原始计划明细；新增静态资源回归测试，真实任务 `7d3963fc` 浏览器验证通过
+
+- [2026-08-25 14:18] codex 补充 — 修复新上传任务明细空白：文档解析存在"未分类（封面/目录等）"章节时缺少 `_direct` 明细数组，导致前端 `renderDocument` 抛错并中断后续规范/图文/计算渲染；已为章节聚合补齐默认明细数组并给模块渲染加独立保护。真实任务 `fd0e0a44` 验证恢复：文档解析 209 行、规范语义首屏 10 行（总 87）、图文 7 行、计算公式首屏 10 行（总 32）、参数一致性 4 行
+
+- [2026-08-25 14:26] codex 补充 — 按用户浏览器批注收敛任务概览页信息层级：移除面板内重复"任务概览"标题，"总控审查 Agent"说明改为"Agent 调度结果"状态摘要，9 节点流程压缩为 4 阶段（解析取证/识别与计划/工具审查/复核报告），四类工具细节保留在下方卡片；窄屏工具卡改两列展示。浏览器验证任务 `fd0e0a44` 概览区高度 930→697，重复信息减少
+
+- [2026-08-25 14:42] codex 补充 — 处理用户第二轮浏览器批注：①概览页规范/计算卡片改为与下方统计同口径（规范 72/115，计算 14/36），路由与公式/参数拆分降为辅助信息；②工程基础信息改为三等分横排摘要，尽量一行展示；③文档解析页新增"解析复核链路"提示与"只看需复核页/进入人工复核"入口；④规范页新增"无法判定来源"摘要，拆分确定性证据缺失/语义证据不足/LLM批式降级，解释 30+ 无法判定的成因。浏览器验证任务 `fd0e0a44` 数据对齐；前端语法检查与 3 条 Web 测试通过
+
+- [2026-08-25 14:58] codex 补充 — 处理用户第三轮浏览器批注：①任务概览去掉下方重复统计卡和优先事项，只保留总控 Agent 调度结果；②总控 Agent 审查计划从规范语义审查页迁回任务概览页，规范页只保留规范统计/无法判定来源/规则明细；③文档解析复核链路调整为在章节/页详情抽屉内直接记录解析修正说明，并提供关键参数修正后重跑审查入口，复用现有 decisions 与 rerun API。浏览器验证：`agentPlanCard` 父节点为 `tab-overview`，`tab-semantic` 不再包含计划卡，概览重复统计区不存在；前端语法检查与 3 条 Web 测试通过
+
+- [2026-08-25 15:05] codex 补充 — 处理用户第四轮浏览器批注：任务概览视觉顺序调整为先显示"总控 Agent 审查计划"、后显示"Agent 调度结果"；工程基础信息三张摘要卡统一值字号为 18px、固定高度 112px，优先单行展示，减少工程类型/支撑体系高度不一致。前端语法检查与 2 条 Web 测试通过，浏览器验证计划卡已排在调度结果前
+
+- [2026-08-25 15:35] codex 签到 — 开始处理：接续Agent化改造：总控对象、工具调度、证据追证、人工确认与前端闭环
+- [2026-08-25 16:05] codex 签退 — 完成了：后端总控 Agent 统一对象落地（orchestrator_agent.json + /api/jobs/{id}/orchestrator），四类审查工具观测、参数候选池/冲突确认、文档解析修正重跑上下文、公式复算摘要、图文追证联动与前端概览接入；证据召回新增目录降权+章节二次追证，Router 支持 conflict 状态；下一步建议：用真实样例新上传跑 agent 模式，浏览器验证 orchestrator_agent.json 与概览展示，并继续扩展计算公式复算覆盖面
