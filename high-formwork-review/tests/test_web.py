@@ -852,6 +852,73 @@ def test_rerun_rejects_invalid_overrides(client: TestClient) -> None:
     assert bad_val.status_code == 422
 
 
+def test_review_stage_status_updates_before_long_running_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_dir = tmp_path / "jobs" / ("b" * 32)
+    job_dir.mkdir(parents=True)
+    _write_json(
+        job_dir / "status.json",
+        {
+            "job_id": "b" * 32,
+            "file_name": "demo.pdf",
+            "uploaded_at": "2026-08-25T00:00:00+00:00",
+            "updated_at": "2026-08-25T00:00:00+00:00",
+            "status": "completeness_review",
+            "stage": "completeness_review",
+            "progress": web.STAGE_PROGRESS["completeness_review"],
+            "message": "完整性完成",
+            "error_stage": None,
+        },
+    )
+    _write_json(
+        job_dir / "completeness_summary.json",
+        {
+            "total_rules": 0,
+            "pass_count": 0,
+            "missing_count": 0,
+            "uncertain_count": 0,
+            "results": [],
+        },
+    )
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[],
+        sections=[],
+    )
+    facts = {"facts": {}}
+    monkeypatch.setattr(
+        web,
+        "build_project_qualification",
+        lambda *_: {"support_system_label": "盘扣式"},
+    )
+    monkeypatch.setattr(
+        web,
+        "_build_agent_review_plan",
+        lambda *_args, **_kwargs: {"generated_by": "local"},
+    )
+    monkeypatch.setattr(
+        web,
+        "run_rule_engine_safe",
+        lambda *_: {"total_rules": 0, "compliant": 0, "violated": 0, "uncertain": 0},
+    )
+
+    def semantic_stage(*_args):
+        status = json.loads((job_dir / "status.json").read_text(encoding="utf-8"))
+        assert status["stage"] == "semantic_engine"
+        assert status["status"] == "semantic_engine"
+        assert status["message"] == "规范审查 Agent（规则/Dify/自主查证分流）进行中"
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(web, "_run_semantic_stage", semantic_stage)
+
+    with pytest.raises(RuntimeError):
+        web._run_review_stages(job_dir, document, facts)
+
+
 def test_rerun_applies_human_override(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

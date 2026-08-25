@@ -333,3 +333,4 @@
 
 - [2026-08-25 15:35] codex 签到 — 开始处理：接续Agent化改造：总控对象、工具调度、证据追证、人工确认与前端闭环
 - [2026-08-25 16:05] codex 签退 — 完成了：后端总控 Agent 统一对象落地（orchestrator_agent.json + /api/jobs/{id}/orchestrator），四类审查工具观测、参数候选池/冲突确认、文档解析修正重跑上下文、公式复算摘要、图文追证联动与前端概览接入；证据召回新增目录降权+章节二次追证，Router 支持 conflict 状态；下一步建议：用真实样例新上传跑 agent 模式，浏览器验证 orchestrator_agent.json 与概览展示，并继续扩展计算公式复算覆盖面
+- [2026-08-25 17:07] codex 补充 — 验证用户新上传样例：服务进程已启动且新任务 `81e48fcb...` 已创建，实际数据根为 `/Users/admin/high-formwork-data/web/jobs`；任务已生成 `review_plan.json`，但长耗时语义 Agent 阶段开始后状态仍停留在规则引擎完成，导致 Web 端看起来无明细/未推进。本轮修正 `_run_review_stages` 阶段状态：进入每个工具/Agent 阶段即写入进行中状态，完成后再写完成状态，并按当前 `status.stage` 上报失败阶段；下一步建议：重启本地服务后重新上传样例，确认页面显示“规范审查 Agent 进行中”并等待 `orchestrator_agent.json` 完整落盘

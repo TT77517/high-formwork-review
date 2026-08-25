@@ -1185,6 +1185,11 @@ def _process_job(job_id: str) -> None:
         except Exception:
             pass
     except Exception:
+        try:
+            current_status = _read_json(job_dir / "status.json", {}) or {}
+            stage = str(current_status.get("stage") or stage)
+        except Exception:
+            pass
         _update_status(
             job_dir,
             "failed",
@@ -1247,8 +1252,12 @@ def _run_review_stages(
     def _timed(stage_key: str, description: str, fn):
         started = _utc_now()
         t0 = perf_counter()
+        _advance_stage_status(job_dir, stage_key, f"{description}进行中")
+        completed = False
         try:
-            return fn()
+            result = fn()
+            completed = True
+            return result
         finally:
             timings[stage_key] = {
                 "description": description,
@@ -1256,26 +1265,8 @@ def _run_review_stages(
                 "finished_at": _utc_now(),
                 "duration_ms": int((perf_counter() - t0) * 1000),
             }
-            # 阶段完成即推进进度条（STAGE_PROGRESS 按阶段细分，避免 80% 长期停滞）。
-            # status 保持当前顶层阶段（进度推进不改变任务状态机）；
-            # 进度单调不减（rerun 场景基线 90 高于审查阶段档位）
-            if stage_key in STAGE_PROGRESS:
-                try:
-                    current = _read_json(job_dir / "status.json", {}) or {}
-                    current_progress = int(current.get("progress") or 0)
-                    current_stage = str(current.get("stage") or stage_key)
-                    next_progress = max(
-                        STAGE_PROGRESS[stage_key], current_progress
-                    )
-                    _update_status(
-                        job_dir,
-                        stage_key,
-                        f"{description}完成",
-                        progress=next_progress,
-                        status_value=current_stage,
-                    )
-                except Exception:
-                    pass  # 状态更新失败不影响审查流程
+            if completed:
+                _advance_stage_status(job_dir, stage_key, f"{description}完成")
 
     if project_facts is None:
         project_facts = _timed(
@@ -1546,6 +1537,26 @@ def _update_status(
         }
     )
     _atomic_write_json(status_path, status)
+
+
+def _advance_stage_status(job_dir: Path, stage_key: str, message: str) -> None:
+    """推进长耗时审查阶段状态，便于 Web 端展示当前正在执行的 Agent/工具。"""
+    if stage_key not in STAGE_PROGRESS:
+        return
+    try:
+        current = _read_json(job_dir / "status.json", {}) or {}
+        current_progress = int(current.get("progress") or 0)
+        current_status = str(current.get("status") or stage_key)
+        status_value = "rerun_review" if current_status == "rerun_review" else stage_key
+        _update_status(
+            job_dir,
+            stage_key,
+            message,
+            progress=max(STAGE_PROGRESS[stage_key], current_progress),
+            status_value=status_value,
+        )
+    except Exception:
+        pass  # 状态更新失败不影响审查流程
 
 
 def _record_parse_cache_status(job_dir: Path, cache_info: ParseCacheInfo) -> None:
