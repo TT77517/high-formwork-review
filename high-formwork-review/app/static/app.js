@@ -1187,13 +1187,37 @@ function paramOverrideHtml(gridId='paramOverrideGrid', btnId='paramRerunBtn', ms
     <button id="${esc(btnId)}" type="button" class="btn-primary">按修正参数重跑审查</button><span id="${esc(msgId)}" class="ml-16"></span>
   </details>`;
 }
+function _missingParamGroupsFromQueue() {
+  const groups = {};
+  (preData?.human_review_queue || []).forEach(item => {
+    if (item.source !== 'semantic_engine' || item.meta?.route !== 'HUMAN_REQUIRED') return;
+    const text = item.reason || '';
+    const m = text.match(/关键参数未识别（[^/）]+\/([a-zA-Z0-9_]+)）/);
+    const param = m ? m[1] : '';
+    if (!param || !PARAM_OVERRIDE_CN[param]) return;
+    if (!groups[param]) groups[param] = { param, rules: [] };
+    groups[param].rules.push(item.title || item.review_item_id);
+  });
+  return Object.values(groups);
+}
 function paramOverrideFieldsHtml() {
   const kps = (preData?.project_qualification?.key_parameters||[])
     .filter(kp => kp.id && PARAM_OVERRIDE_CN[kp.id]);
-  if (!kps.length) return '<p style="color:var(--text-tertiary)">无可修正的数值参数（本任务未识别到）。</p>';
-  return kps.map(kp => `
-    <div class="field"><label title="当前识别值">${esc(PARAM_OVERRIDE_CN[kp.id])}（${esc(kp.value_text||'未识别')}）</label>
-    <input type="text" class="param-override-input" data-param="${esc(kp.id)}" placeholder="修正值（留空不修改）" style="width:100%"></div>`).join('');
+  const missing = _missingParamGroupsFromQueue();
+  const kpById = Object.fromEntries(kps.map(kp => [kp.id, kp]));
+  const ids = [...new Set([...missing.map(g => g.param), ...kps.map(kp => kp.id)])];
+  if (!ids.length) return '<p style="color:var(--text-tertiary)">无可修正的数值参数（本任务未识别到）。</p>';
+  const hint = missing.length
+    ? `<div class="param-impact-note">需补参数 ${missing.length} 项：${missing.map(g => `${PARAM_OVERRIDE_CN[g.param]}影响 ${g.rules.length} 条规则`).join('；')}。填写后重跑会刷新规范、计算和图文校验结果。</div>`
+    : '';
+  return hint + ids.map(id => {
+    const kp = kpById[id] || {};
+    const miss = missing.find(g => g.param === id);
+    const current = kp.value_text || (miss ? '未识别' : '未识别');
+    const impact = miss ? `<small class="field-help">关联规则：${esc(miss.rules.slice(0, 4).join('、'))}</small>` : '';
+    return `<div class="field"><label title="当前识别值">${esc(PARAM_OVERRIDE_CN[id])}（${esc(current)}）</label>
+    <input type="text" class="param-override-input" data-param="${esc(id)}" placeholder="修正值（留空不修改）" style="width:100%">${impact}</div>`;
+  }).join('');
 }
 function bindParamRerun(gridSelOrId='paramOverrideGrid', btnSelOrId='paramRerunBtn', msgSelOrId='paramRerunMsg') {
   const byId = id => id.startsWith('#') ? $(id) : $(`#${id}`);

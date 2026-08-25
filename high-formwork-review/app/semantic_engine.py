@@ -17,6 +17,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+from .completeness_review import _index_blocks
 from .models import MinerUDocument
 from .rule_engine import (
     MODULE_FILES,
@@ -32,6 +33,9 @@ SEMANTIC_STATUSES = ("COMPLIANT", "VIOLATED", "UNCERTAIN", "NOT_APPLICABLE", "PE
 
 # 每条语义规则发送给 LLM 的方案文本上限（字符）
 SEMANTIC_EVIDENCE_LIMIT = 6000
+SEMANTIC_BLOCK_EVIDENCE_LIMIT = 10
+SEMANTIC_EVIDENCE_WINDOW_BEFORE = 120
+SEMANTIC_EVIDENCE_WINDOW_AFTER = 180
 
 # 语义审查 prompt 模板
 SYSTEM_PROMPT = """你是高支模专项施工方案审查专家。你的任务是对照规范条款，审查方案文本是否满足要求。
@@ -72,6 +76,177 @@ def load_semantic_rules() -> list[dict[str, Any]]:
 
 def _normalize_text(text: str) -> str:
     return unicodedata.normalize("NFKC", text)
+
+
+def _semantic_search_terms(rule: dict[str, Any]) -> list[str]:
+    keywords = rule.get("check_logic", {}).get("extraction_keywords", [])
+    if keywords:
+        return [str(k) for k in keywords if str(k).strip()]
+    rule_name = rule.get("rule_name", "")
+    check_content = rule.get("check_content", "")
+    fallback_terms = [
+        t
+        for t in re.findall(r"[一-鿿]{2,4}", rule_name)
+        if t not in ("限值", "设置", "验算", "要求", "标准", "取值", "计算")
+    ]
+    if not fallback_terms and check_content:
+        fallback_terms = [
+            t
+            for t in re.findall(r"[一-鿿]{2,4}", check_content)
+            if t not in ("限值", "设置", "验算", "要求", "标准", "取值", "计算")
+        ]
+    return fallback_terms[:5]
+
+
+def _despaced(text: str) -> tuple[str, list[int]]:
+    """去空白并保留偏移，避免 PDF 表格中的断行/空格让关键词失配。"""
+    chars: list[str] = []
+    offsets: list[int] = []
+    for index, char in enumerate(_normalize_text(text)):
+        if char.isspace():
+            continue
+        chars.append(char.lower())
+        offsets.append(index)
+    return "".join(chars), offsets
+
+
+def _evidence_window(text: str, start: int, end: int) -> str:
+    s = max(0, start - SEMANTIC_EVIDENCE_WINDOW_BEFORE)
+    e = min(len(text), end + SEMANTIC_EVIDENCE_WINDOW_AFTER)
+    prefix = "…" if s > 0 else ""
+    suffix = "…" if e < len(text) else ""
+    return f"{prefix}{_normalize_text(text[s:e]).strip()}{suffix}"
+
+
+def collect_ranked_semantic_evidence_blocks(
+    document: MinerUDocument,
+    rule: dict[str, Any],
+    *,
+    limit: int = SEMANTIC_BLOCK_EVIDENCE_LIMIT,
+) -> list[dict[str, Any]]:
+    """按证据质量召回 block：正文优先、表格/段落优先、目录降权。"""
+    terms = [_despaced(term)[0] for term in _semantic_search_terms(rule)]
+    terms = [term for term in terms if term]
+    if not terms:
+        return []
+
+    hits: list[tuple[float, int, dict[str, Any]]] = []
+    for order, (_page, block, section_path, is_toc) in enumerate(_index_blocks(document)):
+        text = block.text or ""
+        if not text.strip():
+            continue
+        compact, offsets = _despaced(text)
+        if not compact:
+            continue
+        matched_terms = [term for term in terms if term in compact]
+        if not matched_terms:
+            continue
+        first_term = matched_terms[0]
+        idx = compact.find(first_term)
+        raw_start = offsets[idx]
+        raw_end = offsets[min(idx + len(first_term) - 1, len(offsets) - 1)] + 1
+        block_bonus = {
+            "table": 6.0,
+            "paragraph": 5.0,
+            "text": 4.0,
+            "title": 1.0,
+            "page_number": -8.0,
+        }.get(block.block_type, 2.0)
+        toc_penalty = 40.0 if is_toc else 0.0
+        section_text = " / ".join(section_path)
+        section_bonus = 3.0 if any(term in _despaced(section_text)[0] for term in terms) else 0.0
+        length_bonus = min(len(text) / 500.0, 4.0)
+        score = len(matched_terms) * 20.0 + block_bonus + section_bonus + length_bonus - toc_penalty
+        hits.append(
+            (
+                score,
+                order,
+                {
+                    "block_id": block.block_id,
+                    "block_type": block.block_type,
+                    "physical_page": block.physical_page,
+                    "section_path": section_path,
+                    "is_toc": is_toc,
+                    "matched_terms": matched_terms,
+                    "quote": _evidence_window(text, raw_start, raw_end),
+                    "text": text,
+                },
+            )
+        )
+
+    hits.sort(key=lambda item: (-item[0], item[1]))
+    selected: list[dict[str, Any]] = []
+    seen_blocks: set[str] = set()
+    for _score, _order, item in hits:
+        block_id = str(item.get("block_id") or "")
+        if block_id and block_id in seen_blocks:
+            continue
+        if block_id:
+            seen_blocks.add(block_id)
+        selected.append(item)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def expand_semantic_evidence_context(
+    document: MinerUDocument,
+    evidence_blocks: list[dict[str, Any]],
+    *,
+    max_following_blocks: int = 3,
+) -> list[dict[str, Any]]:
+    """标题命中时补充同小节后续正文/表格，避免只给 LLM 一个目录式标题。"""
+    if not evidence_blocks:
+        return []
+    indexed = list(_index_blocks(document))
+    by_block_id = {
+        block.block_id: index
+        for index, (_page, block, _section_path, _is_toc) in enumerate(indexed)
+        if block.block_id
+    }
+    expanded: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_item(item: dict[str, Any]) -> None:
+        block_id = str(item.get("block_id") or "")
+        if block_id and block_id in seen:
+            return
+        if block_id:
+            seen.add(block_id)
+        expanded.append(item)
+
+    for item in evidence_blocks:
+        add_item(item)
+        if item.get("block_type") != "title" or item.get("is_toc"):
+            continue
+        start = by_block_id.get(str(item.get("block_id") or ""))
+        if start is None:
+            continue
+        added = 0
+        for _page, block, section_path, is_toc in indexed[start + 1 :]:
+            if is_toc:
+                continue
+            if block.block_type == "title":
+                break
+            text = block.text or ""
+            if not text.strip():
+                continue
+            context = {
+                "block_id": block.block_id,
+                "block_type": block.block_type,
+                "physical_page": block.physical_page,
+                "section_path": section_path or item.get("section_path", []),
+                "is_toc": False,
+                "matched_terms": [],
+                "quote": _normalize_text(text).strip()[:600],
+                "text": text,
+                "context_for": item.get("block_id"),
+            }
+            add_item(context)
+            added += 1
+            if added >= max_following_blocks:
+                break
+    return expanded
 
 
 def _find_relevant_sections(
@@ -172,19 +347,24 @@ def build_semantic_evidence(
     rule: dict[str, Any],
 ) -> str:
     """为单条语义规则构建方案文本证据。"""
-    keywords = rule.get("check_logic", {}).get("extraction_keywords", [])
-    # 关键词为空时，用规则名称和检查内容中的核心名词作为搜索词
-    if not keywords:
-        rule_name = rule.get("rule_name", "")
-        check_content = rule.get("check_content", "")
-        # 从规则名称提取核心词（去掉"限值""设置""验算"等后缀）
-        fallback_terms = [t for t in re.findall(r"[一-鿿]{2,4}", rule_name)
-                          if t not in ("限值", "设置", "验算", "要求", "标准", "取值", "计算")]
-        # 从 check_content 提取关键名词短语
-        if not fallback_terms and check_content:
-            fallback_terms = [t for t in re.findall(r"[一-鿿]{2,4}", check_content)
-                              if t not in ("限值", "设置", "验算", "要求", "标准", "取值", "计算")]
-        keywords = fallback_terms[:5]
+    keywords = _semantic_search_terms(rule)
+    ranked_blocks = expand_semantic_evidence_context(
+        document,
+        collect_ranked_semantic_evidence_blocks(document, rule, limit=8),
+    )
+    body_blocks = [item for item in ranked_blocks if not item.get("is_toc")]
+    if body_blocks:
+        evidence = ""
+        for item in body_blocks:
+            section = " / ".join(item.get("section_path") or []) or "未分章节"
+            evidence += (
+                f"【{section}（第{item.get('physical_page')}页，{item.get('block_type')}）】\n"
+                f"{item.get('quote')}\n\n"
+            )
+            if len(evidence) >= SEMANTIC_EVIDENCE_LIMIT:
+                break
+        return evidence[:SEMANTIC_EVIDENCE_LIMIT]
+
     sections = _find_relevant_sections(document, keywords)
     if not sections:
         # 如果没有找到相关章节，用全文前N字符

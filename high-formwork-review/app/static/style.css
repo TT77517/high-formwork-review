@@ -144,6 +144,8 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .doc-page-review p { color: var(--text-secondary); font-size: 13px; margin-bottom: 10px; }
 .param-rerun-box { background: #fff; margin: 12px 0 0; }
 .param-override-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.param-impact-note { grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--warning); background: var(--warning-bg); color: var(--warning); border-radius: var(--radius-sm); font-size: 12px; line-height: 1.6; }
+.field-help { display: block; margin-top: 4px; color: var(--text-tertiary); line-height: 1.5; }
 .semantic-insight { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; margin: -8px 0 14px; border: 1px solid var(--border-secondary); border-radius: var(--radius); background: #fafafa; color: var(--text-secondary); font-size: 13px; }
 .semantic-insight b { color: var(--text); }
 .semantic-insight small { color: var(--text-tertiary); }

@@ -24,9 +24,10 @@ from ..semantic_engine import (
     SEMANTIC_EVIDENCE_LIMIT,
     _build_sem_result,
     _evaluate_semantic_local,
-    _find_relevant_sections,
     _normalize_text,
     build_semantic_evidence,
+    collect_ranked_semantic_evidence_blocks,
+    expand_semantic_evidence_context,
     load_semantic_rules,
 )
 from .dify_client import (
@@ -353,33 +354,25 @@ def _collect_rule_evidence_blocks(
     document: MinerUDocument, rule: dict[str, Any]
 ) -> list[dict[str, Any]]:
     """收集该规则证据召回命中的 block 定位（block_id/页码/文本），供 LLM 引用回填。"""
-    keywords = rule.get("check_logic", {}).get("extraction_keywords", [])
     try:
-        sections = _find_relevant_sections(document, keywords or None)
+        ranked = expand_semantic_evidence_context(
+            document,
+            collect_ranked_semantic_evidence_blocks(document, rule),
+        )
     except Exception:
         return []
     blocks: list[dict[str, Any]] = []
-    for sec in sections:
-        if not sec.get("matched"):
-            continue
-        for block in sec.get("blocks", [])[:5]:
-            blocks.append(
-                {
-                    "block_id": block.get("block_id"),
-                    "block_type": block.get("block_type"),
-                    "physical_page": block.get("physical_page"),
-                    "text": (block.get("text") or "")[:300],
-                }
-            )
-        if not sec.get("blocks"):
-            blocks.append(
-                {
-                    "block_id": None,
-                    "block_type": "section",
-                    "physical_page": sec.get("page"),
-                    "text": (sec.get("text") or "")[:300],
-                }
-            )
+    for item in ranked:
+        blocks.append(
+            {
+                "block_id": item.get("block_id"),
+                "block_type": item.get("block_type"),
+                "physical_page": item.get("physical_page"),
+                "section_path": item.get("section_path", []),
+                "is_toc": item.get("is_toc", False),
+                "text": (item.get("text") or item.get("quote") or "")[:500],
+            }
+        )
     return blocks[:10]
 
 
