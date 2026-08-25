@@ -149,6 +149,7 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .semantic-insight { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; margin: -8px 0 14px; border: 1px solid var(--border-secondary); border-radius: var(--radius); background: #fafafa; color: var(--text-secondary); font-size: 13px; }
 .semantic-insight b { color: var(--text); }
 .semantic-insight small { color: var(--text-tertiary); }
+.uncertain-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; margin-left: 6px; border-radius: var(--radius-sm); background: var(--warning-bg); color: #ad6800; border: 1px solid #ffe58f; font-size: 12px; font-weight: 500; vertical-align: middle; }
 .uncertain-panel { padding: 14px; margin: -8px 0 14px; border: 1px solid var(--border-secondary); border-radius: var(--radius); background: #fafafa; }
 .uncertain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .uncertain-head b { display: block; margin-bottom: 2px; color: var(--text); }
@@ -280,6 +281,8 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 
 /* Timeline */
 .timeline { position: relative; padding-left: 24px; }
+.timeline-fold { margin-bottom: 18px; }
+.timeline-fold .fold-body { padding-top: 12px; }
 .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--border-secondary); }
 .timeline-item { position: relative; padding: 0 0 16px 16px; }
 .timeline-item::before { content: ''; position: absolute; left: -20px; top: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--border); }

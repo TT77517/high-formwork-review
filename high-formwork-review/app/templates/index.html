@@ -361,8 +361,10 @@
           <h2>审查记录</h2>
           <button id="downloadReportBtn" type="button" class="btn-primary">导出审查报告</button>
         </div>
-        <h3>任务处理时间线</h3>
-        <div id="timeline" class="timeline"></div>
+        <details class="fold-section timeline-fold">
+          <summary>任务处理时间线</summary>
+          <div class="fold-body"><div id="timeline" class="timeline"></div></div>
+        </details>
         <h3>输出文件</h3>
         <div id="outputFiles" class="output-files"></div>
       </section>
