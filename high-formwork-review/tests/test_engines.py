@@ -87,8 +87,31 @@ def test_calculation_rechecker_recalculates_slenderness_pass():
     assert result is not None
     assert result["status"] == "PASS"
     assert result["formula_id"] == "slenderness"
+    # Must compute 2250/15.9 ≈ 141.5, not 1.0 (the old bug)
+    assert abs(result["computed_value"] - 141.51) < 0.5, f"Expected ~141.5, got {result['computed_value']}"
     assert result["computed_value"] < result["allowed_value"]
     assert "2250" in result["substituted_expression"]
+    assert "15.9" in result["substituted_expression"]
+
+
+def test_calculation_rechecker_recalculates_slenderness_issue():
+    """λ=l0/i=3600/15.9=226.4 > 150 → ISSUE"""
+    rule = {"rule_id": "3.14", "rule_name": "长细比限值-盘扣式"}
+    segments = [{"text": "λ=l0/i=3600/15.9=226.4≤150", "block_id": "b1", "physical_page": 8}]
+    result = recheck_calculation(rule, segments)
+    assert result is not None
+    assert result["status"] == "ISSUE"
+    assert abs(result["computed_value"] - 226.4) < 0.5
+
+
+def test_calculation_rechecker_slenderness_spaced_operators():
+    """Spaces around operators should not break extraction."""
+    rule = {"rule_id": "3.14", "rule_name": "长细比限值-盘扣式"}
+    segments = [{"text": "长细比验算 λ = l0 / i = 2250 / 15.9 = 141.5 ≤ 150", "block_id": "b1", "physical_page": 8}]
+    result = recheck_calculation(rule, segments)
+    assert result is not None
+    assert result["status"] == "PASS"
+    assert abs(result["computed_value"] - 141.51) < 0.5
 
 
 def test_calculation_rechecker_recalculates_stability_issue():
@@ -103,6 +126,8 @@ def test_calculation_rechecker_recalculates_stability_issue():
 
     assert result is not None
     assert result["status"] == "ISSUE"
+    # 95kN = 95000N, σ = 95000 / (0.45 * 450) = 469.14 N/mm² > 205
+    assert abs(result["computed_value"] - 469.14) < 1.0, f"Expected ~469.14, got {result['computed_value']}"
     assert result["computed_value"] > result["allowed_value"]
     assert "95000" in result["substituted_expression"]
 

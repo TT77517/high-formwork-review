@@ -37,10 +37,14 @@ def _recheck_slenderness(rule: dict[str, Any], segments: list[dict[str, Any]]) -
     if not text:
         return _uncertain(rule, "slenderness", "λ = l0 / i", ["计算书未找到长细比验算片段"], focused)
 
-    explicit_lambda = _find_number_after_labels(text, (r"λ", r"lambda", r"长细比"))
+    # Extraction priority: fraction (λ=l0/i=A/B) → explicit value (=141.5≤) → individual l0/i
+    # Compact formula text for stable regex matching (handles spaced operators)
+    ctext = _compact_formula(text)
+    parsed_fraction = _parse_fraction_after_lambda(ctext)
+    explicit_lambda = _find_explicit_lambda_value(ctext)
     l0 = _find_number_after_labels(text, (r"l0", r"lo", r"计算长度"))
-    i = _find_number_after_labels(text, (r"\bi\b", r"回转半径"))
-    parsed_fraction = _parse_fraction_after_lambda(text)
+    i = _find_number_after_labels(text, (r"回转半径", r"i\s*="))
+
     if parsed_fraction:
         l0, i = parsed_fraction
 
@@ -56,7 +60,14 @@ def _recheck_slenderness(rule: dict[str, Any], segments: list[dict[str, Any]]) -
         inputs = [_input("lambda", explicit_lambda, "", "计算书给出的长细比")]
         substituted = f"lambda = {computed:.2f}"
     else:
-        return _uncertain(rule, "slenderness", "λ = l0 / i", ["缺少 l0/i 或 λ 数值"], focused)
+        missing = []
+        if l0 is None:
+            missing.append("缺少计算长度 l0")
+        if i is None:
+            missing.append("缺少回转半径 i")
+        if not missing:
+            missing.append("缺少 l0/i 或 λ 数值")
+        return _uncertain(rule, "slenderness", "λ = l0 / i", missing, focused)
 
     status = "PASS" if computed <= limit else "ISSUE"
     return _result(
@@ -83,7 +94,7 @@ def _recheck_stability(rule: dict[str, Any], segments: list[dict[str, Any]]) -> 
     if not text:
         return _uncertain(rule, "vertical_stability", "σ = N / (φA) <= f", ["计算书未找到立杆稳定性验算片段"], focused)
 
-    explicit_stress = _find_explicit_stress(text)
+    explicit_stress = _find_explicit_stress(_compact_formula(text))
     limit = _find_strength_limit(text) or 205.0
     if explicit_stress is not None:
         computed = explicit_stress
@@ -138,7 +149,7 @@ def _recheck_jack_capacity(rule: dict[str, Any], segments: list[dict[str, Any]])
 
     n_value = _find_number_after_labels(text, (r"\bN\b", r"轴力", r"受力"))
     limit = _find_number_after_labels(text, (r"Nd", r"承载力设计值", r"允许承载力", r"容许承载力")) or 40.0
-    comparison = _parse_near_comparison(text)
+    comparison = _parse_near_comparison(_compact_formula(text))
     if comparison and n_value is None:
         n_value, limit = comparison
     if n_value is None:
@@ -264,11 +275,16 @@ def _norm(text: str) -> str:
     return text.replace("（", "(").replace("）", ")").replace("＝", "=")
 
 
+def _compact_formula(text: str) -> str:
+    """Collapse spaces around formula operators for stable regex matching."""
+    return re.sub(r"\s*([=≤<≥>/])\s*", r"\1", text)
+
+
 def _find_number_after_labels(text: str, labels: tuple[str, ...]) -> float | None:
     for label in labels:
         patterns = [
             rf"{label}\s*(?:=|:|：|为|取|取值为)?\s*(-?\d+(?:\.\d+)?)",
-            rf"{label}[^\d\-]{{0,12}}(-?\d+(?:\.\d+)?)",
+            rf"{label}[^\d\-]{{0,25}}(-?\d+(?:\.\d+)?)",
         ]
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -278,10 +294,47 @@ def _find_number_after_labels(text: str, labels: tuple[str, ...]) -> float | Non
 
 
 def _parse_fraction_after_lambda(text: str) -> tuple[float, float] | None:
-    match = re.search(r"(?:λ|lambda|长细比)[^=\d]{0,12}(?:=)?[^0-9]{0,8}(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)", text, re.IGNORECASE)
-    if not match:
-        return None
-    return float(match.group(1)), float(match.group(2))
+    """Extract l0/i fraction from text like 'λ=l0/i=2250/15.9' or '长细比=2250/15.9'.
+
+    Must match the pattern even when 'l0/i=' appears between λ and the fraction,
+    or when the fraction follows directly after λ=.
+    """
+    # Pattern: λ (or lambda/长细比) followed by =, optionally 'l0/i=', then number/number
+    patterns = [
+        # λ=l0/i=2250/15.9 or λ l0/i=2250/15.9
+        r"(?:λ|lambda|长细比)\s*(?:=|:|：|\s)\s*(?:l0?/i\s*=\s*)?(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)",
+        # λ=2250/15.9 (no l0/i prefix)
+        r"(?:λ|lambda|长细比)\s*(?:=|：)\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)",
+        # l0/i=2250/15.9 (standalone, no λ prefix)
+        r"l0?/i\s*=\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+    return None
+
+
+def _find_explicit_lambda_value(text: str) -> float | None:
+    """Extract the final computed λ value from patterns like '=141.5≤150' or 'λ=141.5'.
+
+    Looks for the number that appears right before the ≤ operator after a = sign,
+    which is the computed result (not l0 or i individually).
+    """
+    patterns = [
+        # =141.5≤150 or =141.5<=150 (computed value before comparison)
+        r"=\s*(\d+(?:\.\d+)?)\s*(?:≤|<=|<)\s*\d",
+        # λ=141.5 or lambda=141.5 (explicit final value, not a fraction)
+        r"(?:λ|lambda|长细比)\s*=\s*(\d+(?:\.\d+)?)\s*(?:≤|<=|<|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            val = float(match.group(1))
+            # Sanity: λ should be in a reasonable range (1-500), not a tiny fraction like 0
+            if 1.0 <= val <= 500.0:
+                return val
+    return None
 
 
 def _find_explicit_stress(text: str) -> float | None:
