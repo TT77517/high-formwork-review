@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from html.parser import HTMLParser
 from typing import Any
 
 from .completeness_review import _find_terms
 from .evidence_retriever import ParameterEvidence
+from .text_utils import norm as _norm_shared, normalize_symbol_text
 
 
 _VALUE_PATTERN = re.compile(r"(?P<value>\d+(?:\.\d+)?)(?!\s*[～~至到])\s*(?P<unit>kN/m2|kN/m²|kN/㎡|kN/m3|kN/m³|kN/立方米|kN/m|kN/米|kPa|mm|cm|m|毫米|厘米|米)?", re.I)
@@ -54,6 +56,8 @@ def extract_parameter_candidates(
         return _extract_load_item_set(evidence_items, parameter_definition)
     if parameter_definition.get("extraction_mode") == "standard_step_interval":
         return _extract_standard_step_interval(evidence_items, parameter_definition)
+    if parameter_definition.get("extraction_mode") == "symbolic_numeric":
+        return _extract_symbolic_numeric(evidence_items, parameter_definition)
     candidates: list[dict[str, Any]] = []
     for item in evidence_items:
         if item.is_toc:
@@ -154,6 +158,94 @@ def _extract_support_system(
         elif any(term in text for term in _DISK_LOCK_TERMS):
             candidates.append(_candidate(item, parameter_definition, "disk_lock", raw_value="disk_lock", confidence=0.90))
     return _dedupe_candidates(candidates)
+
+
+def _extract_symbolic_numeric(
+    evidence_items: list[ParameterEvidence],
+    parameter_definition: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """抽取带数学符号标签的数值（γc=24、t0=4、β1=1.2、坍落度=180、fa=120）。
+
+    设计要点：
+    * 符号标签可能含希腊字母/LaTeX 残片（γ/β/Φ），通用别名窗口无法稳定匹配
+    * 数值必须满足 plausible_min/plausible_max 范围（防止误抓系数 1.0 或大段位号）
+    * 优先取表/计算书来源（calculation > parameter_table > body）
+    """
+    candidates: list[dict[str, Any]] = []
+    symbol_labels = [str(label) for label in parameter_definition.get("symbol_labels", [])]
+    if not symbol_labels:
+        return candidates
+    plausible_min = parameter_definition.get("plausible_min")
+    plausible_max = parameter_definition.get("plausible_max")
+    canonical_unit = parameter_definition.get("canonical_unit") or ""
+
+    for item in evidence_items:
+        if item.is_toc:
+            continue
+        text = _normalize_symbol_text(item.block.text)
+        if not text:
+            continue
+        if not _symbol_context_allowed(text, parameter_definition):
+            continue
+        for label in symbol_labels:
+            clean_label = label.replace(r"\b", "")
+            value = _find_symbol_value(text, clean_label, canonical_unit)
+            if value is None:
+                continue
+            if plausible_min is not None and value < plausible_min:
+                continue
+            if plausible_max is not None and value > plausible_max:
+                continue
+            candidates.append(
+                _candidate(
+                    item,
+                    parameter_definition,
+                    value,
+                    raw_value=f"{clean_label}={value:g}",
+                    raw_unit=canonical_unit,
+                    confidence=0.92 if item.block.block_type in {"table", "table_continuation"} else 0.84,
+                    scope_hint=_scope_hint(text),
+                )
+            )
+            break  # one candidate per evidence item
+    return _dedupe_candidates(candidates)
+
+
+def _normalize_symbol_text(text: str) -> str:
+    return normalize_symbol_text(text)
+
+
+def _symbol_context_allowed(text: str, parameter_definition: dict[str, Any]) -> bool:
+    for term in parameter_definition.get("exclude_terms", []):
+        if str(term) in text:
+            return False
+    include_terms = [str(term) for term in parameter_definition.get("include_terms", [])]
+    if include_terms and not any(term in text for term in include_terms):
+        return False
+    return True
+
+
+def _find_symbol_value(text: str, label: str, canonical_unit: str) -> float | None:
+    """从 γc=24 / 坍落度=180mm / fa=120kPa 等显式赋值中取数值。
+
+    模式：
+        label 空白? = 空白? 数字 单位?
+    """
+    unit_pattern = ""
+    if canonical_unit:
+        unit_pattern = rf"\s*{re.escape(canonical_unit)}?"
+    patterns = [
+        rf"{re.escape(label)}\s*(?:=|:|＝|：)\s*(-?\d+(?:\.\d+)?)\s*{re.escape(canonical_unit)}?",
+        rf"{re.escape(label)}[^\d\-]{{0,8}}(-?\d+(?:\.\d+)?)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                return float(match.group(1))
+            except (ValueError, IndexError):
+                continue
+    return None
 
 
 def _extract_from_table(
