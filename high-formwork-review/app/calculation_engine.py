@@ -24,6 +24,11 @@ from .rule_engine import (
     RULE_LIBRARY_DIR,
     system_applicability_status,
 )
+from .services.calculation_agent import (
+    calculation_agent_route,
+    should_run_calculation_agent,
+    trace_calculation_evidence,
+)
 
 # 验算公式关键词映射
 FORMULA_KEYWORDS: dict[str, list[str]] = {
@@ -61,6 +66,55 @@ FORMULA_KEYWORDS: dict[str, list[str]] = {
     "2.23": ["荷载组合", "1.3", "1.5", "γ0"],
 }
 
+CALC_SECTION_TITLE_KEYWORDS = (
+    "计算书",
+    "设计计算",
+    "计算说明",
+    "验算书",
+    "计算复核",
+    "模板支架计算",
+    "支撑架计算",
+    "高支模计算",
+    "结构计算",
+    "荷载计算",
+    "立杆稳定性计算",
+)
+
+NON_CALC_SECTION_TITLE_KEYWORDS = (
+    "编制依据",
+    "工程概况",
+    "施工部署",
+    "施工准备",
+    "施工方法",
+    "构造措施",
+    "搭设要求",
+    "检查验收",
+    "安全保证",
+    "应急预案",
+    "监测措施",
+    "文明施工",
+)
+
+FORMULA_SIGNAL_KEYWORDS = (
+    "σ",
+    "τ",
+    "λ",
+    "φ",
+    "≤",
+    ">=",
+    "<=",
+    "kN",
+    "N/mm",
+    "Mmax",
+    "Nmax",
+    "l0",
+    "M/W",
+    "φA",
+    "Mo",
+    "Mr",
+    "γ0",
+)
+
 
 def load_calculation_rules() -> list[dict[str, Any]]:
     """加载全部计算规则。"""
@@ -78,7 +132,12 @@ def load_calculation_rules() -> list[dict[str, Any]]:
 def _extract_calculation_segments(
     document: MinerUDocument,
 ) -> list[dict[str, Any]]:
-    """从文档中按 block 收集计算书相关文本段（带 block 定位，供证据回溯图片/页码）。"""
+    """从文档中按 block 收集计算书相关文本段（带 block 定位，供证据回溯图片/页码）。
+
+    计算关键词会出现在施工方法、构造措施和规范依据中；这些内容只能说明方案提到
+    过某个概念，不能作为计算书验算证据。这里以强计算书标题作为主入口，并在标题
+    切换到明显非计算章节时退出，减少普通正文被误召回为公式证据。
+    """
     calc_keywords = ["计算", "验算", "荷载组合", "长细比", "稳定", "抗弯", "抗剪",
                      "挠度", "侧压力", "轴力", "倾覆", "承载力"]
     segments: list[dict[str, Any]] = []
@@ -92,24 +151,65 @@ def _extract_calculation_segments(
                 continue
             norm = unicodedata.normalize("NFKC", text)
             if block.block_type == "title":
-                in_calc_section = any(kw in norm for kw in calc_keywords)
-            if in_calc_section:
+                if _is_calculation_section_title(norm):
+                    in_calc_section = True
+                elif _is_non_calculation_section_title(norm):
+                    in_calc_section = False
+            score = _calculation_segment_score(norm, block.block_type, in_calc_section)
+            if score > 0:
                 segments.append({
                     "text": text,
                     "block_id": block.block_id,
                     "block_type": block.block_type,
                     "physical_page": page.physical_page,
+                    "calculation_score": score,
+                    "in_calculation_section": in_calc_section,
                 })
         # Also check page-level text
         page_text = page.text or ""
-        if page_text and any(kw in unicodedata.normalize("NFKC", page_text) for kw in calc_keywords):
+        page_norm = unicodedata.normalize("NFKC", page_text)
+        page_score = _calculation_segment_score(page_norm, "page", in_calc_section)
+        if page_text and page_score >= 4 and any(kw in page_norm for kw in calc_keywords):
             segments.append({
                 "text": page_text[:3000],
                 "block_id": None,
                 "block_type": "page",
                 "physical_page": page.physical_page,
+                "calculation_score": page_score,
+                "in_calculation_section": in_calc_section,
             })
     return segments
+
+
+def _is_calculation_section_title(text: str) -> bool:
+    if any(keyword in text for keyword in CALC_SECTION_TITLE_KEYWORDS):
+        return True
+    if "计算" in text and any(keyword in text for keyword in ("模板", "支架", "立杆", "荷载", "验算")):
+        return True
+    return False
+
+
+def _is_non_calculation_section_title(text: str) -> bool:
+    if _is_calculation_section_title(text):
+        return False
+    return any(keyword in text for keyword in NON_CALC_SECTION_TITLE_KEYWORDS)
+
+
+def _calculation_segment_score(text: str, block_type: str, in_calc_section: bool) -> int:
+    score = 0
+    if in_calc_section:
+        score += 4
+    if _is_calculation_section_title(text):
+        score += 4
+    if block_type in {"table", "formula", "equation"}:
+        score += 2
+    formula_hits = sum(1 for keyword in FORMULA_SIGNAL_KEYWORDS if keyword in text)
+    calc_hits = sum(1 for keyword in ("验算", "计算", "荷载组合", "长细比", "稳定", "承载力") if keyword in text)
+    score += min(formula_hits, 3)
+    score += min(calc_hits, 2)
+    if not in_calc_section and score < 4:
+        return 0
+    return score
 
 
 def _quote_around(text: str, keyword: str, before: int = 50, after: int = 100) -> str:
@@ -139,7 +239,7 @@ def run_calculation_engine(
 
     results: list[dict[str, Any]] = []
     for rule in rules:
-        result = _evaluate_calculation(rule, calc_text, system_value, segments)
+        result = _evaluate_calculation(rule, calc_text, system_value, segments, document)
         results.append(result)
 
     compliant = sum(1 for r in results if r["status"] == "COMPLIANT")
@@ -167,6 +267,7 @@ def _evaluate_calculation(
     calc_text: str,
     system_value: str,
     segments: list[dict[str, Any]] | None = None,
+    document: MinerUDocument | None = None,
 ) -> dict[str, Any]:
     """评估单条计算规则——检查验算项目是否存在于计算书中。"""
     rule_id = rule.get("rule_id", "")
@@ -196,14 +297,7 @@ def _evaluate_calculation(
     # 提取证据片段（定位到来源 block，便于回查表格图像与页码）
     evidence: list[dict[str, Any]] = []
     for kw in matched_keywords[:3]:
-        seg = next(
-            (
-                s
-                for s in (segments or [])
-                if kw in unicodedata.normalize("NFKC", s["text"])
-            ),
-            None,
-        )
+        seg = _best_evidence_segment(segments or [], kw)
         if seg is not None:
             evidence.append({
                 "quote": _quote_around(seg["text"], kw),
@@ -211,6 +305,8 @@ def _evaluate_calculation(
                 "keyword": kw,
                 "block_id": seg["block_id"],
                 "block_type": seg["block_type"],
+                "calculation_score": seg.get("calculation_score"),
+                "in_calculation_section": seg.get("in_calculation_section"),
             })
         elif kw in norm_text:
             idx = norm_text.find(kw)
@@ -224,17 +320,39 @@ def _evaluate_calculation(
 
     threshold_match = len(keywords)
     recheck = recheck_calculation(rule, segments or [])
+    route = calculation_agent_route(str(rule_id), recheck)
+    calc_agent: dict[str, Any] | None = None
+    if document is not None and should_run_calculation_agent(str(rule_id)):
+        calc_agent = trace_calculation_evidence(rule, document, segments or [])
+        agent_evidence = _agent_evidence_to_review_evidence(calc_agent)
+        if agent_evidence:
+            evidence = agent_evidence
     if recheck is not None and recheck.get("status") in {"PASS", "ISSUE"}:
         status = "COMPLIANT" if recheck["status"] == "PASS" else "VIOLATED"
         reason = (
             f"已进行公式复算：{recheck.get('substituted_expression')}，"
             f"结果{'满足' if status == 'COMPLIANT' else '不满足'}限值要求"
         )
-        return _build_calc_result(rule, status, reason, evidence, recheck=recheck)
+        return _build_calc_result(
+            rule,
+            status,
+            reason,
+            evidence,
+            recheck=recheck,
+            route=route,
+            calc_agent=calc_agent,
+        )
 
     if matched_count >= max(2, threshold_match // 2):
-        status = "COMPLIANT"
-        reason = f"计算书中找到该验算项目，关键词匹配 {matched_count}/{len(keywords)}：{'、'.join(matched_keywords[:5])}"
+        if calc_agent is not None:
+            status = "UNCERTAIN"
+            reason = (
+                f"计算书中找到该验算项目候选证据，关键词匹配 {matched_count}/{len(keywords)}："
+                f"{'、'.join(matched_keywords[:5])}；该规则已进入 Agent 追证，仍需复算或人工确认。"
+            )
+        else:
+            status = "COMPLIANT"
+            reason = f"计算书中找到该验算项目，关键词匹配 {matched_count}/{len(keywords)}：{'、'.join(matched_keywords[:5])}"
     elif matched_count > 0:
         status = "UNCERTAIN"
         reason = f"计算书中找到部分关键词（{matched_count}/{len(keywords)}），验算内容可能不完整"
@@ -247,7 +365,51 @@ def _evaluate_calculation(
             status = "UNCERTAIN"
             reason = "未识别到计算书内容，无法判定"
 
-    return _build_calc_result(rule, status, reason, evidence, recheck=recheck)
+    return _build_calc_result(
+        rule,
+        status,
+        reason,
+        evidence,
+        recheck=recheck,
+        route=route,
+        calc_agent=calc_agent,
+    )
+
+
+def _agent_evidence_to_review_evidence(agent: dict[str, Any]) -> list[dict[str, Any]]:
+    out = []
+    for item in agent.get("evidence", [])[:5]:
+        out.append({
+            "quote": item.get("quote"),
+            "page": item.get("page"),
+            "keyword": "Agent追证",
+            "block_id": item.get("block_id"),
+            "block_type": item.get("block_type"),
+            "calculation_score": item.get("score"),
+            "in_calculation_section": item.get("in_calculation_section"),
+            "evidence_id": item.get("evidence_id"),
+        })
+    return out
+
+
+def _best_evidence_segment(
+    segments: list[dict[str, Any]],
+    keyword: str,
+) -> dict[str, Any] | None:
+    matches = [
+        seg for seg in segments
+        if keyword in unicodedata.normalize("NFKC", str(seg.get("text") or ""))
+    ]
+    if not matches:
+        return None
+    return max(
+        matches,
+        key=lambda seg: (
+            int(seg.get("calculation_score") or 0),
+            1 if seg.get("block_type") in {"table", "formula", "equation"} else 0,
+            -int(seg.get("physical_page") or 0),
+        ),
+    )
 
 
 def _build_calc_result(
@@ -257,6 +419,8 @@ def _build_calc_result(
     evidence: list[dict[str, Any]],
     *,
     recheck: dict[str, Any] | None = None,
+    route: str = "presence_check",
+    calc_agent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     code_ref = rule.get("code_ref") or {}
     cl = rule.get("check_logic") or {}
@@ -281,11 +445,18 @@ def _build_calc_result(
         "manual_review": rule.get("manual_review", True),
         "evidence": evidence[:5],
         "review_explanation": explanation,
+        "route": route,
     }
+    if route in {"agent_evidence", "human_review"}:
+        result["manual_review"] = True
     if recheck is not None:
         result["calculation_recheck"] = recheck
         if recheck.get("uncertainty_category"):
             result["uncertainty_category"] = recheck.get("uncertainty_category")
+    if calc_agent is not None:
+        result["calculation_agent"] = calc_agent
+        explanation["found"].extend(calc_agent.get("found") or [])
+        explanation["missing"].extend(calc_agent.get("missing") or [])
     return result
 
 

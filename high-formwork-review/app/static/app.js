@@ -1023,6 +1023,14 @@ function calcRecheckTagHtml(rule) {
   if (rc.status === 'ISSUE') return '<span class="tag-orange">复算超限</span>';
   return '<span class="uncertain-tag">缺参复算</span>';
 }
+function calcRouteTagHtml(rule) {
+  const route = rule?.route;
+  if (route === 'deterministic_recheck') return '<span class="tag-green">确定复算</span>';
+  if (route === 'agent_evidence') return '<span class="tag-blue">Agent追证</span>';
+  if (route === 'human_review') return '<span class="tag-orange">人工复核</span>';
+  if (route === 'presence_check') return '<span class="tag-default">存在性预审</span>';
+  return '';
+}
 function calcRecheckHtml(rule) {
   const rc = rule?.calculation_recheck;
   if (!rc) return '';
@@ -1034,6 +1042,21 @@ function calcRecheckHtml(rule) {
     <p><code>${esc(rc.expression||'')}</code></p>
     ${rc.substituted_expression ? `<p><b>代入式：</b><code>${esc(rc.substituted_expression)}</code></p>` : ''}
     ${inputs}${warn}
+  </div>`;
+}
+function calcAgentTraceHtml(rule) {
+  const ag = rule?.calculation_agent;
+  if (!ag) return '';
+  const steps = (ag.steps||[]).length
+    ? `<ol class="trace-steps">${(ag.steps||[]).map(st => `<li data-step="${st.step}"><b>${esc(st.action)}</b>(${esc(JSON.stringify(st.args||{}))})${(st.evidence_ids||[]).length ? ` -> ${(st.evidence_ids||[]).map(e=>`<span class="tag-green">${esc(e)}</span>`).join(' ')}` : ''}</li>`).join('')}</ol>`
+    : '<p style="color:var(--text-tertiary)">暂无追证步骤</p>';
+  const ev = (ag.evidence||[]).length
+    ? `<div class="agent-evidence-list">${(ag.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>${esc(e.evidence_id||'EV')}</b></span><span>页 ${esc(e.page||'—')}</span><span>score ${esc(e.score ?? '—')}</span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('')}</div>`
+    : '<p style="color:var(--text-tertiary)">未登记 Agent 证据</p>';
+  const missing = (ag.missing||[]).length ? `<p class="manual-reason">缺少：${esc((ag.missing||[]).join('；'))}</p>` : '';
+  return `<div class="detail-section"><h4>计算 Agent 追证 ${calcRouteTagHtml(rule)}</h4>
+    <p>${esc(ag.reason||'')}</p>${steps}<div class="trace-meta">工具 ${ag.tool_calls||0} 次 · LLM ${ag.llm_calls||0} 次 · ${((ag.latency_ms||0)/1000).toFixed(1)}s</div>${missing}
+    <h4 style="margin-top:12px">Agent 证据</h4>${ev}
   </div>`;
 }
 function drawingQualityTagHtml(item) {
@@ -1106,7 +1129,7 @@ function renderCalculation() {
   const filteredCalc = calcResults.filter(r => calcFilter==='all' || r.status===calcFilter);
   const shownCalc = slicePage(filteredCalc, calcState);
   $('#calcRows').innerHTML = shownCalc.length ? shownCalc.map(r => {
-    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${calcRecheckTagHtml(r)}</td><td>${esc(MODULE_CN[r.module]||r.module)}</td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
+    return `<tr><td><b>${esc(r.rule_id)}</b></td><td>${esc(r.rule_name)} ${calcRouteTagHtml(r)} ${calcRecheckTagHtml(r)}</td><td>${esc(MODULE_CN[r.module]||r.module)}</td><td><span class="tag-${r.severity==='A-mandatory'?'orange':'default'}">${esc(SEVERITY_CN[r.severity]||r.severity)}</span></td><td><span class="status-chip status-${r.status}">${RE_STATUS_CN[r.status]||r.status}</span></td><td><button class="btn-small btn-detail" data-rule="${esc(r.rule_id)}">详情</button></td></tr>`;
   }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">无符合条件的验算项</td></tr>';
   $('#calcPager').innerHTML = pagerHtml(calcState, filteredCalc.length);
   bindPager('#calcPager', calcState, renderCalculation);
@@ -1133,7 +1156,7 @@ function openCalcDrawer(ruleId) {
   const formulaHtml = rule.formula ? `<p><code>${esc(rule.formula)}</code></p>` : '';
   $('#calcDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
   const explainHtml = reviewExplanationHtml('复算判定理由', rule.review_explanation, rule.reason || '', rule.evidence || []);
-  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span> ${calcRecheckTagHtml(rule)}</p><p>${esc(rule.reason||'')}</p>${formulaHtml}</div>${calcRecheckHtml(rule)}${explainHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</div><div class="detail-section"><h4>证据</h4>${evs}</div>`;
+  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span> ${calcRouteTagHtml(rule)} ${calcRecheckTagHtml(rule)}</p><p>${esc(rule.reason||'')}</p>${formulaHtml}</div>${calcAgentTraceHtml(rule)}${calcRecheckHtml(rule)}${explainHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</div><div class="detail-section"><h4>证据</h4>${evs}</div>`;
   $('#calcDetailPanel').classList.remove('hidden');
   const drawer = $('#calcDetailPanel');
   drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');

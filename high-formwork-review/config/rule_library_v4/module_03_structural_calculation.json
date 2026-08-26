@@ -312,7 +312,7 @@
   },
   {
     "rule_id": "3.9",
-    "rule_name": "立杆稳定性验算-扣件式",
+    "rule_name": "立杆稳定性验算-盘扣式",
     "module": "03_structural_calculation",
     "category": "calculation",
     "check_type": "calculation",
@@ -343,7 +343,7 @@
       },
       "note": "条文号一致(5.3.3)，公式形式一致。但2021版5.3.1为轴力计算公式，5.3.2为计算长度，5.3.3为稳定性验算"
     },
-    "check_content": "扣件式支架立杆稳定性应满足N/(φA)≤f，其中φ为轴心受压构件稳定系数（按长细比λ查表），A为立杆截面面积，f为钢材抗压强度设计值（Q235取205N/mm²）",
+    "check_content": "盘扣式支架立杆稳定性应满足N/(φA)≤f，其中φ为轴心受压构件稳定系数（按长细比λ查表），A为立杆截面面积，f为钢材抗压强度设计值（Q355取300N/mm²）",
     "check_logic": {
       "description": "①不组合风荷载：N/(φA)≤f；②组合风荷载：N/(φA)+Mw/W≤f；③φ按附录C查表(λ=l0/i)",
       "extraction_keywords": [
@@ -357,20 +357,21 @@
         "稳定系数"
       ],
       "operator": "<=",
+      "formula": "N/(φA)≤f 或 N/(φA)+Mw/W≤f",
       "expected_value": 300,
       "unit": "N/mm²",
       "fail_condition": "应力>f或公式错误"
     },
     "threshold": null,
-    "remedy_suggestion": "按规范公式重新验算并补充计算过程：扣件式支架立杆稳定性应满足N/(φA)≤f，其中φ为轴心受压构件稳定系数（按长细比λ查表），A为立杆截面面积，f为钢材抗。标注输入参数、公式、计算结果和判定结论",
-    "typical_violation": "方案缺少立杆稳定性验算-扣件式验算过程，或验算结果不满足规范要求",
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：盘扣式支架立杆稳定性应满足N/(φA)≤f或N/(φA)+Mw/W≤f。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少立杆稳定性验算-盘扣式验算过程，或验算结果不满足规范要求",
     "manual_review": false,
     "notes": "2021版参数：η=1.05, k=0.6, βH(H≤8→1.0/8~16→1.05/16~24→1.10/>24→1.20), γ=0.9(h'=1.0或1.5m时)。Q355钢f=300N/mm²。附录B表B.0.2：Φ48.3×3.2→A=453mm², i=16.0mm",
     "status": "active"
   },
   {
     "rule_id": "3.10",
-    "rule_name": "立杆计算长度-扣件式",
+    "rule_name": "立杆计算长度-盘扣式",
     "module": "03_structural_calculation",
     "category": "calculation",
     "check_type": "calculation",
@@ -408,7 +409,7 @@
       },
       "note": "关键差异：η 1.2→1.05，k 0.7→0.6，新增βH和γ。2010版公式l0=max(ηh, h'+2ka)，2021版增加βH前缀和γ修正"
     },
-    "check_content": "扣件式支架立杆计算长度l0=k·μ·h，其中k=1.155（附加偏心影响系数），μ为立杆计算长度系数（按步距和连接情况查表取值），h为立杆步距",
+    "check_content": "盘扣式支架立杆计算长度取两式较大值：l0=βH·η·h 与 l0=βH·γ·h'+2ka",
     "check_logic": {
       "description": "①l0=max(βH·η·h, βH·γ·h'+2ka)取较大值；②η按步距查表(1.5m→1.05)；③k=0.6；④βH按搭设高度查表(H≤8→1.0)；⑤γ按顶层步距查表(1.0或1.5m→0.9)",
       "extraction_keywords": [
@@ -424,6 +425,7 @@
         "l0"
       ],
       "operator": "equals",
+      "formula": "l0 = max(βH·η·h, βH·γ·h'+2ka)",
       "expected_values": {
         "η(h=1.5m)": 1.05,
         "k": 0.6,
@@ -433,8 +435,8 @@
       "fail_condition": "η或k取值与方案引用规范版本不符"
     },
     "threshold": null,
-    "remedy_suggestion": "按规范公式重新验算并补充计算过程：扣件式支架立杆计算长度l0=k·μ·h，其中k=1.155（附加偏心影响系数），μ为立杆计算长度系数（按步距和连接情况查。标注输入参数、公式、计算结果和判定结论",
-    "typical_violation": "方案缺少立杆计算长度-扣件式验算过程，或验算结果不满足规范要求",
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：盘扣式支架立杆计算长度l0=max(βH·η·h, βH·γ·h'+2ka)。标注输入参数、公式、计算结果和判定结论",
+    "typical_violation": "方案缺少立杆计算长度-盘扣式验算过程，或验算结果不满足规范要求",
     "manual_review": false,
     "notes": "⚠️ 版本敏感：2021版公式增加了βH前缀和γ修正。βH查表5.3.2。方案1(H=13.88m)应取βH=1.05(8<H≤16)。但方案1计算书取βH=1，可能因方案编制时按H≤8m区域",
     "status": "active"
@@ -891,6 +893,7 @@
     "check_content": "B型Nd>40kN或Z型Nd>65kN→顶层步距缩小0.5m",
     "check_logic": {
       "description": "B型Nd>40kN或Z型Nd>65kN→顶层步距缩小0.5m",
+      "formula": "B型 Nd>40kN 或 Z型 Nd>65kN 时，顶层步距 = 标准步距 - 0.5m",
       "extraction_keywords": [
         "单肢立杆荷载",
         "立杆轴力",
@@ -946,6 +949,7 @@
     "check_content": "变形值不超过规范容许值（1/400、1/250、1/1000）",
     "check_logic": {
       "description": "变形值不超过规范容许值（1/400、1/250、1/1000）",
+      "formula": "外露结构ω≤l/400；隐蔽结构ω≤l/250；支架压缩变形或弹性挠度ω≤l/1000",
       "extraction_keywords": [
         "挠度",
         "变形",
@@ -1048,6 +1052,7 @@
     "check_content": "抗倾覆验算应满足γ0·Mo≤Mr；浇筑前倾覆力矩主要由风荷载Q4产生，浇筑时主要由Q3(泵送附加水平荷载)产生",
     "check_logic": {
       "description": "抗倾覆验算应满足γ0·Mo≤Mr；浇筑前倾覆力矩主要由风荷载Q4产生，浇筑时主要由Q3(泵送附加水平荷载)产生",
+      "formula": "γ0·Mo ≤ Mr",
       "extraction_keywords": [
         "抗倾覆",
         "倾覆力矩",
@@ -1066,7 +1071,7 @@
       ]
     },
     "threshold": null,
-    "remedy_suggestion": "按规范公式重新验算并补充计算过程：。标注输入参数、公式、计算结果和判定结论",
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：γ0·Mo≤Mr。标注倾覆力矩、抗倾覆力矩、分项系数、计算结果和判定结论",
     "typical_violation": "方案缺少抗倾覆验算(GB50666版)验算过程，或验算结果不满足规范要求",
     "manual_review": false,
     "notes": "[原三方映射ID: G-08] 与S-08规则关联但公式形式不同。S-08引用JGJ231的Mr/Mo≥1，本规则引用GB50666的γ0Mo≤Mr",

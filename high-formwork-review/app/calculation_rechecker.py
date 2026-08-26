@@ -10,7 +10,10 @@ import unicodedata
 from typing import Any
 
 
-SUPPORTED_RULES = {"3.9", "3.11", "3.12", "3.14", "3.15", "3.17"}
+SUPPORTED_RULES = {
+    "2.12", "2.23", "3.9", "3.11", "3.12", "3.14", "3.15", "3.17",
+    "3.19", "3.20", "3.25",
+}
 
 
 def recheck_calculation(
@@ -23,11 +26,57 @@ def recheck_calculation(
         return None
     if rule_id in {"3.11", "3.14"}:
         return _recheck_slenderness(rule, segments)
+    if rule_id in {"2.12", "2.23"}:
+        return _recheck_load_combination(rule, segments)
     if rule_id in {"3.9", "3.12", "3.15"}:
         return _recheck_stability(rule, segments)
     if rule_id == "3.17":
         return _recheck_jack_capacity(rule, segments)
+    if rule_id == "3.19":
+        return _recheck_foundation_bearing(rule, segments)
+    if rule_id in {"3.20", "3.25"}:
+        return _recheck_overturning(rule, segments)
     return None
+
+
+def _recheck_load_combination(rule: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
+    focused = _focused_segments(segments, ("荷载组合", "承载力", "极限状态", "1.3", "1.5", "SGk", "SQk"))
+    text = _join_text(focused)
+    if not text:
+        return _uncertain(rule, "load_combination", "S = 1.3*SGk + 1.5*SQk", ["计算书未找到荷载组合片段"], focused)
+
+    ctext = _compact_formula(text)
+    has_13 = bool(re.search(r"1\.3\s*[×*·]?\s*(?:S?G|G|永久|恒)", ctext, re.IGNORECASE))
+    has_15 = bool(re.search(r"1\.5\s*[×*·]?\s*(?:S?Q|Q|可变|活|施工)", ctext, re.IGNORECASE))
+    has_expression = bool(re.search(r"(?:S|组合|承载力)[^。；\n]{0,80}1\.3[^。；\n]{0,80}1\.5", ctext, re.IGNORECASE))
+    if not (has_13 and has_15) and not has_expression:
+        return _uncertain(
+            rule,
+            "load_combination",
+            "S = 1.3*SGk + 1.5*SQk",
+            ["未识别到1.3永久荷载与1.5可变荷载组合表达式"],
+            focused,
+        )
+
+    return _result(
+        rule,
+        formula_id="load_combination",
+        formula_name="荷载组合系数复核",
+        expression="S = 1.3*SGk + 1.5*SQk",
+        inputs=[
+            _input("γG", 1.3, "", "计算书承载能力极限状态组合"),
+            _input("γQ", 1.5, "", "计算书承载能力极限状态组合"),
+        ],
+        substituted_expression="S = 1.3*SGk + 1.5*SQk",
+        computed_value=1.0,
+        allowed_value=1.0,
+        operator="formula",
+        status="PASS",
+        segments=focused,
+        found=["识别到承载能力极限状态荷载组合分项系数1.3/1.5"],
+        missing=[],
+        decision="荷载组合分项系数表达式满足当前规则的确定性复核条件。",
+    )
 
 
 def _recheck_slenderness(rule: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
@@ -180,6 +229,127 @@ def _recheck_jack_capacity(rule: dict[str, Any], segments: list[dict[str, Any]])
     )
 
 
+def _recheck_foundation_bearing(rule: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
+    focused = _focused_segments(segments, ("地基", "承载力", "P=", "N/A", "fa", "垫板", "基础"))
+    text = _join_text(focused)
+    if not text:
+        return _uncertain(rule, "foundation_bearing", "P = N / A <= fa", ["计算书未找到地基承载力验算片段"], focused)
+
+    ctext = _compact_formula(text)
+    comparison = _parse_named_comparison(ctext, ("P", "p", "地基承载力", "压应力"), ("fa", "fak", "承载力特征值", "地基承载力设计值"))
+    if comparison:
+        pressure, limit = comparison
+        inputs = [
+            _input("P", pressure, "kPa", "计算书给出的地基压力/压应力"),
+            _input("fa", limit, "kPa", "计算书给出的地基承载力限值"),
+        ]
+        substituted = f"P = {pressure:g} <= fa = {limit:g}"
+    else:
+        n_value = _find_explicit_value(text, (r"\bN\b", r"轴力", r"立杆轴力", r"上部荷载"))
+        area = _find_explicit_value(text, (r"\bA\b", r"底面积", r"垫板面积", r"基础面积"))
+        limit = _find_explicit_value(text, (r"fa", r"fak", r"承载力特征值", r"地基承载力设计值"))
+        missing = []
+        if n_value is None:
+            missing.append("缺少作用力 N")
+        if area is None:
+            missing.append("缺少底面积 A")
+        if limit is None:
+            missing.append("缺少地基承载力限值 fa")
+        if missing:
+            return _uncertain(rule, "foundation_bearing", "P = N / A <= fa", missing, focused)
+        pressure = n_value / area
+        inputs = [
+            _input("N", n_value, "kN", "作用力/轴力"),
+            _input("A", area, "m²", "垫板或基础底面积"),
+            _input("fa", limit, "kPa", "地基承载力限值"),
+        ]
+        substituted = f"P = {n_value:g} / {area:g} = {pressure:.2f} <= {limit:g}"
+
+    status = "PASS" if pressure <= limit else "ISSUE"
+    return _result(
+        rule,
+        formula_id="foundation_bearing",
+        formula_name="地基承载力复算",
+        expression="P = N / A <= fa",
+        inputs=inputs,
+        substituted_expression=substituted,
+        computed_value=pressure,
+        allowed_value=limit,
+        operator="<=",
+        status=status,
+        segments=focused,
+        found=[f"提取到地基压力 {pressure:.2f}kPa", f"限值 {limit:g}kPa"],
+        missing=[],
+        decision=f"复算结果 {pressure:.2f} {'≤' if status == 'PASS' else '>'} {limit:g}",
+    )
+
+
+def _recheck_overturning(rule: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
+    rule_id = str(rule.get("rule_id") or "")
+    focused = _focused_segments(segments, ("抗倾覆", "倾覆力矩", "抗倾覆力矩", "MR", "Mr", "MT", "Mo", "γ0"))
+    text = _join_text(focused)
+    if not text:
+        return _uncertain(rule, "overturning", "MR >= γ0*MT" if rule_id == "3.20" else "γ0*Mo <= Mr", ["计算书未找到抗倾覆验算片段"], focused)
+
+    gamma = _find_explicit_value(text, (r"γ0", r"gamma0", r"结构重要性系数")) or _find_gamma0(text)
+    resisting = _find_explicit_value(text, (r"MR", r"Mr", r"抗倾覆力矩"))
+    overturning = _find_explicit_value(text, (r"MT", r"Mo", r"倾覆力矩"))
+    comparison = _parse_overturning_comparison(_compact_formula(text))
+
+    if gamma is not None and resisting is not None and overturning is not None:
+        demand = gamma * overturning
+        passed = resisting >= demand
+        inputs = [
+            _input("MR/Mr", resisting, "kN·m", "抗倾覆力矩"),
+            _input("MT/Mo", overturning, "kN·m", "倾覆力矩"),
+            _input("γ0", gamma, "", "重要性/安全系数"),
+        ]
+        substituted = f"MR = {resisting:g} >= γ0*MT = {gamma:g} * {overturning:g} = {demand:.2f}"
+    elif comparison is not None:
+        left, right, operator = comparison
+        if operator in {"<=", "≤", "<"}:
+            demand, resisting = left, right
+            passed = demand <= resisting
+            substituted = f"γ0*Mo = {demand:g} <= Mr = {resisting:g}"
+        else:
+            resisting, demand = left, right
+            passed = resisting >= demand
+            substituted = f"MR = {resisting:g} >= γ0*MT = {demand:g}"
+        inputs = [
+            _input("resisting", resisting, "kN·m", "抗倾覆力矩或计算书比较右值"),
+            _input("demand", demand, "kN·m", "倾覆力矩设计值或γ0放大值"),
+        ]
+    else:
+        missing = []
+        if gamma is None:
+            missing.append("缺少γ0")
+        if resisting is None:
+            missing.append("缺少抗倾覆力矩MR/Mr")
+        if overturning is None:
+            missing.append("缺少倾覆力矩MT/Mo")
+        if not missing:
+            missing.append("未识别到可比较的抗倾覆表达式")
+        return _uncertain(rule, "overturning", "MR >= γ0*MT" if rule_id == "3.20" else "γ0*Mo <= Mr", missing, focused)
+
+    status = "PASS" if passed else "ISSUE"
+    return _result(
+        rule,
+        formula_id="overturning",
+        formula_name="抗倾覆复算",
+        expression="MR >= γ0*MT" if rule_id == "3.20" else "γ0*Mo <= Mr",
+        inputs=inputs,
+        substituted_expression=substituted,
+        computed_value=resisting,
+        allowed_value=demand,
+        operator=">=",
+        status=status,
+        segments=focused,
+        found=[f"抗倾覆力矩 {resisting:.2f}", f"倾覆需求 {demand:.2f}"],
+        missing=[],
+        decision=f"复算结果 {resisting:.2f} {'≥' if status == 'PASS' else '<'} {demand:.2f}",
+    )
+
+
 def _result(
     rule: dict[str, Any],
     *,
@@ -233,6 +403,9 @@ def _uncertain(
             "slenderness": "长细比复算",
             "vertical_stability": "立杆稳定性复算",
             "jack_capacity": "可调托撑承载力复算",
+            "foundation_bearing": "地基承载力复算",
+            "load_combination": "荷载组合系数复核",
+            "overturning": "抗倾覆复算",
         }.get(formula_id, "公式复算"),
         "expression": expression,
         "inputs": [],
@@ -406,11 +579,48 @@ def _find_strength_limit(text: str) -> float | None:
     return float(match.group(1)) if match else None
 
 
+def _find_gamma0(text: str) -> float | None:
+    match = re.search(r"γ0[^\d]{0,12}(\d+(?:\.\d+)?)", text, re.IGNORECASE)
+    if match:
+        return float(match.group(1))
+    return None
+
+
 def _parse_near_comparison(text: str) -> tuple[float, float] | None:
     match = re.search(r"(?:N|轴力|受力)?[^\d]{0,12}(\d+(?:\.\d+)?)\s*(?:kN)?\s*(?:≤|<=|<)\s*(?:Nd)?[^\d]{0,8}(\d+(?:\.\d+)?)\s*(?:kN)?", text, re.IGNORECASE)
     if not match:
         return None
     return float(match.group(1)), float(match.group(2))
+
+
+def _parse_overturning_comparison(text: str) -> tuple[float, float, str] | None:
+    patterns = [
+        r"(?:γ0\*?(?:Mo|MT)|Mo|MT)?[^\d]{0,12}(\d+(?:\.\d+)?)\s*(≤|<=|<)\s*(?:Mr|MR)?[^\d]{0,12}(\d+(?:\.\d+)?)",
+        r"(?:Mr|MR)?[^\d]{0,12}(\d+(?:\.\d+)?)\s*(≥|>=|>)\s*(?:γ0\*?(?:Mo|MT)|Mo|MT)?[^\d]{0,12}(\d+(?:\.\d+)?)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1)), float(match.group(3)), match.group(2)
+    return None
+
+
+def _parse_named_comparison(
+    text: str,
+    left_labels: tuple[str, ...],
+    right_labels: tuple[str, ...],
+) -> tuple[float, float] | None:
+    left = "|".join(re.escape(label.replace(r"\b", "")) for label in left_labels)
+    right = "|".join(re.escape(label.replace(r"\b", "")) for label in right_labels)
+    patterns = [
+        rf"(?:{left})?[^\d≤<]{{0,16}}(\d+(?:\.\d+)?)\s*(?:kPa|kN/m2|kN/m²)?\s*(?:≤|<=|<)\s*(?:{right})?[^\d]{{0,12}}(\d+(?:\.\d+)?)",
+        rf"(?:{left})\s*(?:=|:|：)\s*(\d+(?:\.\d+)?)[^≤<]{{0,30}}(?:≤|<=|<)[^\\d]{{0,12}}(?:{right})\s*(?:=|:|：)?\s*(\d+(?:\.\d+)?)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+    return None
 
 
 def _input(symbol: str, value: float, unit: str, source: str) -> dict[str, Any]:
