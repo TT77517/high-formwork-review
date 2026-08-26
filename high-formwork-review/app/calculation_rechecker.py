@@ -37,22 +37,19 @@ def _recheck_slenderness(rule: dict[str, Any], segments: list[dict[str, Any]]) -
     if not text:
         return _uncertain(rule, "slenderness", "λ = l0 / i", ["计算书未找到长细比验算片段"], focused)
 
-    # Extraction priority: fraction (λ=l0/i=A/B) → explicit value (=141.5≤) → individual l0/i
-    # Compact formula text for stable regex matching (handles spaced operators)
+    # Extraction priority: fraction (λ=l0/i=A/B) → explicit value (=141.5≤)
+    # Individual l0/i extraction is too error-prone (η coefficient mistaken for l0,
+    # table values from unrelated rows) — only use when fraction or explicit value found.
     ctext = _compact_formula(text)
     parsed_fraction = _parse_fraction_after_lambda(ctext)
     explicit_lambda = _find_explicit_lambda_value(ctext)
-    l0 = _find_number_after_labels(text, (r"l0", r"lo", r"计算长度"))
-    i = _find_number_after_labels(text, (r"回转半径", r"i\s*="))
 
     if parsed_fraction:
         l0, i = parsed_fraction
-
-    if l0 is not None and i is not None and i != 0:
         computed = l0 / i
         inputs = [
-            _input("l0", l0, "mm", "计算长度"),
-            _input("i", i, "mm", "截面回转半径"),
+            _input("l0", l0, "mm", "计算长度（从 λ=l0/i 分数提取）"),
+            _input("i", i, "mm", "截面回转半径（从 λ=l0/i 分数提取）"),
         ]
         substituted = f"lambda = {l0:g} / {i:g} = {computed:.2f}"
     elif explicit_lambda is not None:
@@ -60,14 +57,13 @@ def _recheck_slenderness(rule: dict[str, Any], segments: list[dict[str, Any]]) -
         inputs = [_input("lambda", explicit_lambda, "", "计算书给出的长细比")]
         substituted = f"lambda = {computed:.2f}"
     else:
-        missing = []
-        if l0 is None:
-            missing.append("缺少计算长度 l0")
-        if i is None:
-            missing.append("缺少回转半径 i")
-        if not missing:
-            missing.append("缺少 l0/i 或 λ 数值")
-        return _uncertain(rule, "slenderness", "λ = l0 / i", missing, focused)
+        return _uncertain(
+            rule,
+            "slenderness",
+            "λ = l0 / i",
+            ["计算书未写出 λ=l0/i 分数或 λ 计算值，无法确定复算输入"],
+            focused,
+        )
 
     status = "PASS" if computed <= limit else "ISSUE"
     return _result(
@@ -101,9 +97,10 @@ def _recheck_stability(rule: dict[str, Any], segments: list[dict[str, Any]]) -> 
         inputs = [_input("sigma", explicit_stress, "N/mm²", "计算书给出的稳定应力")]
         substituted = f"sigma = {computed:.2f} <= {limit:g}"
     else:
-        n_value = _find_number_after_labels(text, (r"\bN\b", r"Nd", r"轴力", r"立杆轴力"))
-        phi = _find_number_after_labels(text, (r"φ", r"Φ", r"phi", r"稳定系数"))
-        area = _find_number_after_labels(text, (r"\bA\b", r"截面面积"))
+        # Only extract from explicit assignments (N=95kN, φ=0.45) not table proximity
+        n_value = _find_explicit_value(text, (r"\bN\b", r"Nd", r"轴力", r"立杆轴力"))
+        phi = _find_explicit_value(text, (r"φ", r"Φ", r"phi", r"稳定系数"))
+        area = _find_explicit_value(text, (r"\bA\b", r"截面面积"))
         missing = []
         if n_value is None:
             missing.append("缺少轴力 N")
@@ -147,8 +144,8 @@ def _recheck_jack_capacity(rule: dict[str, Any], segments: list[dict[str, Any]])
     if not text:
         return _uncertain(rule, "jack_capacity", "N <= Nd", ["计算书未找到可调托撑承载力验算片段"], focused)
 
-    n_value = _find_number_after_labels(text, (r"\bN\b", r"轴力", r"受力"))
-    limit = _find_number_after_labels(text, (r"Nd", r"承载力设计值", r"允许承载力", r"容许承载力")) or 40.0
+    n_value = _find_explicit_value(text, (r"\bN\b", r"轴力", r"受力"))
+    limit = _find_explicit_value(text, (r"Nd", r"承载力设计值", r"允许承载力", r"容许承载力")) or 40.0
     comparison = _parse_near_comparison(_compact_formula(text))
     if comparison and n_value is None:
         n_value, limit = comparison
@@ -278,6 +275,27 @@ def _norm(text: str) -> str:
 def _compact_formula(text: str) -> str:
     """Collapse spaces around formula operators for stable regex matching."""
     return re.sub(r"\s*([=≤<≥>/])\s*", r"\1", text)
+
+
+def _find_explicit_value(text: str, labels: tuple[str, ...]) -> float | None:
+    """Extract number only from explicit assignment (label=value), not table proximity.
+
+    Stricter than _find_number_after_labels: requires = or : between label and number.
+    Prevents picking up η=1.2 as l0 or table row values as formula inputs.
+    Note: uses lookahead to avoid matching 'A' inside '面积A=' (CJK has no \\b boundary).
+    """
+    for label in labels:
+        # Strip \b anchors — CJK characters don't form \w boundaries
+        clean_label = label.replace(r"\b", "")
+        patterns = [
+            rf"(?:^|[^a-zA-Z]){clean_label}\s*(?:=|:|：|＝)\s*(-?\d+(?:\.\d+)?)",
+            rf"{clean_label}\s*(?:=|:|：|＝)\s*(-?\d+(?:\.\d+)?)\s*(?:kN|N|mm|cm|m|mm2|mm²)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return float(match.group(1))
+    return None
 
 
 def _find_number_after_labels(text: str, labels: tuple[str, ...]) -> float | None:
