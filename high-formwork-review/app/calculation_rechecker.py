@@ -257,7 +257,7 @@ def _focused_segments(
     segments: list[dict[str, Any]],
     keywords: tuple[str, ...],
     *,
-    limit: int = 5,
+    limit: int = 15,
 ) -> list[dict[str, Any]]:
     focused = []
     for seg in segments:
