@@ -139,13 +139,19 @@ def _recheck_stability(rule: dict[str, Any], segments: list[dict[str, Any]]) -> 
 
 
 def _recheck_jack_capacity(rule: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
-    focused = _focused_segments(segments, ("托撑", "顶托", "承载力", "Nd", "N≤", "N<="))
+    focused = _focused_segments(segments, ("托撑", "顶托", "承载力", "Nd", "N≤", "N<=", "托座"))
     text = _join_text(focused)
     if not text:
         return _uncertain(rule, "jack_capacity", "N <= Nd", ["计算书未找到可调托撑承载力验算片段"], focused)
 
+    # Try explicit assignment first (N=30kN), then table format (容许值[N](kN) 30),
+    # then near-comparison pattern (30kN≤40kN)
     n_value = _find_explicit_value(text, (r"\bN\b", r"轴力", r"受力"))
-    limit = _find_explicit_value(text, (r"Nd", r"承载力设计值", r"允许承载力", r"容许承载力")) or 40.0
+    limit = (
+        _find_explicit_value(text, (r"Nd", r"承载力设计值", r"允许承载力", r"容许承载力"))
+        or _find_table_value(text, ("承载力容许值", "承载力设计值", "容许承载力"))
+        or 40.0
+    )
     comparison = _parse_near_comparison(_compact_formula(text))
     if comparison and n_value is None:
         n_value, limit = comparison
@@ -269,7 +275,17 @@ def _join_text(segments: list[dict[str, Any]]) -> str:
 
 def _norm(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
-    return text.replace("（", "(").replace("）", ")").replace("＝", "=")
+    text = text.replace("（", "(").replace("）", ")").replace("＝", "=")
+    # Normalize common LaTeX operators to plain symbols for regex matching
+    text = text.replace("\\leq", "≤").replace("\\geq", "≥")
+    text = text.replace("\\le", "≤").replace("\\ge", "≥")
+    text = text.replace("\\quad", " ").replace("\\,", " ").replace("\\;", " ")
+    # Strip LaTeX \max[...] wrapper: N=\max[...]=24.571 → N=24.571
+    text = re.sub(r"=\\max\[[^\]]*\]\s*=", "=", text)
+    text = re.sub(r"=\\max\([^)]*\)\s*=", "=", text)
+    text = re.sub(r"\\max\[[^\]]*\]\s*", "", text)
+    text = re.sub(r"\\max\([^)]*\)\s*", "", text)
+    return text
 
 
 def _compact_formula(text: str) -> str:
@@ -295,6 +311,21 @@ def _find_explicit_value(text: str, labels: tuple[str, ...]) -> float | None:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 return float(match.group(1))
+    return None
+
+
+def _find_table_value(text: str, labels: tuple[str, ...]) -> float | None:
+    """Extract number from table-style format like '承载力容许值[N](kN) 30'.
+
+    Table format: label + optional unit annotation + whitespace + number.
+    Less strict than _find_explicit_value but specific enough for parameter tables.
+    """
+    for label in labels:
+        # Pattern: label, then optional [unit] or (unit) annotations, then the number
+        pattern = rf"{label}(?:\s*\[[^\]]*\])?(?:\s*\([^)]*\))?\s+(\d+(?:\.\d+)?)"
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
     return None
 
 
