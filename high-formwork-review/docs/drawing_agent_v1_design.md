@@ -254,12 +254,25 @@ registry.scope  ─→  DrawingReviewTask.scope  ─→  TextEvidence.scope
 
 明确不做（避免越界）：
 
-1. **不改 MinerU 底层解析**——按项目铁律
+1. **不改 MinerU 底层解析**——按项目铁律（Task 8B.3 的修复是 *artifact persistence* 层，
+   不是 MinerU 解析层；mineru_parser.py / mineru_client.py 0 delta）
 2. **不重构 drawing_review 既有链路**——只在 _v2 旁路
 3. **不动 main.py / web.py 调用点**——避免影响其他模块
 4. **不做 LLM 驱动的内部 Planner**——Task 6 已是 deterministic policy；不引入 LLM 调度（与 V3.1 架构保持一致：确定性内核优先）
 5. **不改 PROJECT_FACTS 写回**——Agent 只读 facts，不写（Task 6 设计已约束）
 6. **不引入新数据库/Redis**——缓存走 job_dir 文件（与 mineru_cache 一致）
+
+### 5.1 改动分类命名约定（2026-08-27 Task 8B.3 引入）
+
+`parse_pdf_with_cache` 的修改属于 *artifact persistence* 层，不是 *control flow*。
+报告 / 验收时区分两类，避免一句话"PIPELINE_CHANGE: NO"误盖到 persistence fix：
+
+```
+PIPELINE_CONTROL_FLOW_CHANGE:    NO  (parse → JSON → review 的步骤不变)
+PIPELINE_ARTIFACT_PERSISTENCE_CHANGE: YES  (新增 _ensure_job_local_raw_assets 在末尾 co-save raw assets)
+```
+
+未来在 Task 7+/8+ 系列报告中沿用此分类。
 7. **不改报告生成器 / Web 详情抽屉主体**——只在卡片底部追加折叠面板
 
 ## 6. 时间表
