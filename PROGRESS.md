@@ -751,3 +751,15 @@
   - Negative controls：page21 insertion/exposed 均 attribution unsafe；top_level target_not_in_image；monitoring value_not_readable。
   - Artifacts（tmp ignored）：`tmp/drawing_grounding_golden_audit_8b7a/{golden_candidate_audit.json,golden_set.json,audit_summary.md}`；NEW_PROVIDER_REQUESTS=0。
   - Tests before/after：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：Task 8B.7b — Drawing Vision Value Extraction Audit for Safe Golden。
+
+- [2026-08-27 23:56] codex 签到 — 开始处理：Task 8B.7b: Drawing Vision Value Extraction Audit for Safe Golden
+
+- [2026-08-28 00:07] codex 签退 — 完成了：Task 8B.7b Drawing Vision Value Extraction Audit for Safe Golden（observe-only，0 production/test/registry/prompt change）：
+  - Hash parity PASS：support_height page22 selected image `01b354...f79b.jpg` sha `f7b746a6acdbc121`。
+  - 真实 production provider 1 次请求：raw safe fields = found=true/value=null/unit=m/evidence_text=`Hs/m`；parser/inspect 均原样保留，adapter 未丢值。
+  - Layer trace：DrawingEvidence 已创建但 value=null；action observation 只记录 found/has_value=false；Comparator 仅支持 scalar/2D，不支持 inequality/range/constraint。
+  - 深审计纠偏：`support_height` fact 是实际支撑架搭设高度/多区域最大值；page22 `H≤8m` 是约束/分类图示，不是 actual scalar drawing value。
+  - SAFE_GOLDEN_RETAINED=NO，TASK8B7B_STATUS=COMPLETED_GOLDEN_DOWNGRADED；把 `H≤8m` 简化为 value=8 不具备语义安全性。
+  - Root cause：PRIMARY=`VALUE_SCHEMA_CANNOT_REPRESENT_CONSTRAINT`，SECONDARY=`VLM_DID_NOT_READ_VALUE`；不建议做普通 Vision extraction prompt fix。
+  - Artifacts（tmp ignored）：`tmp/drawing_value_extraction_audit_8b7b/{support_height_trace.json,value_contract_audit.json,audit_summary.md}`。
+  - Tests before/after：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：No Vision-value implementation；回到真实 evidence acquisition / attribution blocker。
