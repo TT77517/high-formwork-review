@@ -693,3 +693,13 @@
 - [2026-08-27 22:34] codex 签到 — 开始处理：Task 8B.5a: Diff Governance Cleanup
 
 - [2026-08-27 22:35] codex 签退 — 完成了：Task 8B.5a Diff Governance Cleanup（不改变生产行为）：`drawing_vision.py` 合并可用图片 resolver/iteration 单一路径；`test_drawing_agent.py` 将 8B.5 的 no-image/later-valid/multi-image/missing-file/deterministic/page21/statistics 语义压缩为参数化矩阵；移除半途遗留的非本任务 vertical_slice 公共别名测试。Diff 治理结果：production 67/38 + 72/4，净新增 97（<=120）；tests 170/15 + 35/12，净新增 178（<=180）。Focused `32 passed`；Full `398 passed / 1 skipped / 0 failed`（1 LibreSSL warning）。下一步建议：Task 8B.5.1 — Real Regression After Image Gate
+
+- [2026-08-27 22:58] codex 签退 — 完成了：Task 8B.5.1 Real Regression After Image Gate（OBSERVE-ONLY，0 production/test change）：复用真实 job `146dc530dd964a30a2d4f29410738e4d`，asset gate `193/193 resolvable, missing=0`，registry=17，budgets=5/2/1/1。
+  - 真实 17-task：状态分布由 8B.4 `0/0/3/0/1/13` → `0/0/3/0/2/12`（CONSISTENT/CONFLICT/TEXT_ONLY/DRAWING_ONLY/UNCERTAIN/NOT_FOUND）。
+  - Vision routing：INSPECT_IMAGE actions 7→12；vision_tool invocations 7→6；real provider requests corrected 3→6；no-image fake false 4→0；VLM true/false/invalid=1/5/0。
+  - Gate 真实效果：PASS。4 个旧 no-image case 中 3 个跳过无图候选后到达后续 usable image，1 个 `panel_stringer_spacing` 正确结束 `no_usable_image`；跳过 no-image candidates 总数=6。
+  - Page21 grounding：`head_jack_insertion_length` / `head_jack_screw_exposed_length` 仍同图 provider called 且 found=false，符合 8B.5 未改 grounding 的预期。
+  - Evidence：TextEvidence tasks=5；DrawingEvidence tasks=2；Both-side=2；No-evidence=12；sources: legacy_check=1 task/1 ev，vision=1 task/1 ev，ocr=0。
+  - OCR：actions/adapter/real/nonempty=11/11/10/3，OCR text nonempty tasks=3，但 OCR drawing evidence tasks=0；Reverse chase=1 action/1 hit/0 miss。
+  - Comparator：COMPARABLE_PAIR_0=17，decisive=0/17（diagnostic deterministic coverage, not accuracy）；UNCERTAIN reason: scope_unknown=2；finish reasons: check_completed=4, text_evidence_found=1, ocr_no_evidence=5, no_candidate_pages=6, no_usable_image=1。
+  - Artifacts（tmp ignored，不提交）：`tmp/drawing_agent_regression_8b5_1/{agent_result.json,task_audit.json,tool_call_stats.json,regression_comparison.json}`；结束 full suite `398 passed / 1 skipped / 0 failed`。下一步建议：Task 8B.6 — Drawing Candidate Recall / Alias Enhancement
