@@ -126,6 +126,7 @@ def _task_from_registry_entry(
         text_value=fact_value,
         unit=unit,
         source=source,
+        scope=dict(config.get("scope") or {}),  # 显式 scope 可选；缺省仍 {}
     )
 
 
