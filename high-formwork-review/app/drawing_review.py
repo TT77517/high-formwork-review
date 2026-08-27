@@ -170,6 +170,10 @@ DRAWING_CROSS_CHECK_PARAMS = [
 ]
 
 
+# 公开别名：与 DRAWING_CROSS_CHECK_PARAMS 同对象，供外部（Agent / 工具）按新名引用。
+DRAWING_PARAM_REGISTRY = DRAWING_CROSS_CHECK_PARAMS
+
+
 def build_drawing_review(
     parsed_document: MinerUDocument,
     project_facts: dict[str, Any],
@@ -623,6 +627,41 @@ def _is_sparse_drawing_page(page: MinerUPage) -> bool:
     return has_image and text_len < _SPARSE_TEXT_THRESHOLD
 
 
+def _ocr_single_page(
+    page: MinerUPage, engine: Any, *, job_dir: Path | None = None
+) -> str | None:
+    """对单页跑 OCR，返回识别文本或 None（失败/无内容/无图）。
+
+    从 _ocr_sparse_pages 抽取的单页逻辑：图片块解析 → 路径解析 → 引擎调用 →
+    静默降级。任一步失败都返回 None，不抛异常。
+    """
+    if engine is None:
+        return None
+    page_texts: list[str] = []
+    for block in page.blocks:
+        rel = getattr(block, "image_path", None)
+        if not rel or block.block_type not in {"image", "figure", "chart"}:
+            continue
+        img_path = (
+            _resolve_image_path_direct(job_dir, rel)
+            if job_dir is not None
+            else _resolve_image_path(rel)
+        )
+        if img_path is None:
+            continue
+        try:
+            ocr_result, _ = engine(str(img_path))
+        except Exception:
+            continue
+        if not ocr_result:
+            continue
+        for item in ocr_result:
+            # rapidocr 返回 [box, text, score]
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                page_texts.append(str(item[1]))
+    return "\n".join(page_texts) if page_texts else None
+
+
 def _ocr_sparse_pages(
     document: MinerUDocument, engine: Any, *, job_dir: Path | None = None
 ) -> dict[int, str]:
@@ -638,30 +677,9 @@ def _ocr_sparse_pages(
     for page in document.pages:
         if page.parse_status == "unreadable" or not _is_sparse_drawing_page(page):
             continue
-        page_texts: list[str] = []
-        for block in page.blocks:
-            rel = getattr(block, "image_path", None)
-            if not rel or block.block_type not in {"image", "figure", "chart"}:
-                continue
-            img_path = (
-                _resolve_image_path_direct(job_dir, rel)
-                if job_dir is not None
-                else _resolve_image_path(rel)
-            )
-            if img_path is None:
-                continue
-            try:
-                ocr_result, _ = engine(str(img_path))
-            except Exception:
-                continue
-            if not ocr_result:
-                continue
-            for item in ocr_result:
-                # rapidocr 返回 [box, text, score]
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    page_texts.append(str(item[1]))
-        if page_texts:
-            results[page.physical_page] = "\n".join(page_texts)
+        text = _ocr_single_page(page, engine, job_dir=job_dir)
+        if text:
+            results[page.physical_page] = text
     return results
 
 
@@ -844,3 +862,385 @@ def _review_explanation(
         "missing": missing,
         "decision": conclusion if conclusion else f"当前状态：{status}",
     }
+
+
+# ---------------------------------------------------------------------------
+# Public Tool API（Task 1 公开包装）
+#
+# 本区块为 Task 1 引入的 PUBLIC_WRAPPER：
+#   - 均为薄包装（仅别名 + docstring），不复制/不重写内部实现
+#   - 内部业务函数（_ 前缀）保持不变，build_drawing_review 继续走内部调用
+#   - 供后续阶段（Agent / 工具调用）按公共名引用
+# ---------------------------------------------------------------------------
+
+
+def recall_drawing_pages(parsed_document, keywords, limit=8):
+    """按关键词在图纸页/混合页/含图页里召回到多 limit 页。
+
+    返回 page 元信息列表，每条含 physical_page / printed_page / page_type /
+    parse_status / keyword_hits / source。Agent 可作为"按主题召回图纸页"
+    的入口。
+    """
+    return _find_drawing_pages(parsed_document, keywords, limit=limit)
+
+
+def is_spec_clause_quote(quote, keyword):
+    """判断 quote 是否为规范条文式表述（限值/禁止/要求）而非工程图纸标注。
+
+    典型规则：
+      - "步距不得大于1.5m"  → True（条文）
+      - "步距(mm) 1500"     → False（图纸标注）
+    用于过滤被误抓为图纸值的规范引用。
+    """
+    return _is_spec_clause_quote(quote, keyword)
+
+
+def representative_value(drawing_values):
+    """从多组带 (page, value, quote) 的 evidence 中取众数。
+
+    并列时取首次出现位置（规格表最先标注的值优先）。
+    """
+    return _representative_value(drawing_values)
+
+
+def score_evidence_quality(evidence, status):
+    """按 evidence 列表与判定状态返回质量分级 dict。
+
+    返回 {"level": weak|medium|high|conflict, "label": str, "reasons": [str]}。
+    Agent 在 finish 前可用其判断"证据是否够稳"。
+    """
+    return _evidence_quality(evidence, status)
+
+
+def enrich_evidence(parsed_document, evidence):
+    """给 evidence 列表里每条补 image_path（图纸页）或 table_html（参数表页）
+    与 block 定位；返回原 list（原地修改）。"""
+    return _enrich_drawing_evidence(parsed_document, evidence)
+
+
+def cross_check_param(document, facts, config, *, ocr_texts=None, job_dir=None):
+    """单参数图文交叉检查：返回 {status, body_value, drawing_value, evidence, ...}
+    或 None（fact 未识别时静默退出，行为与 _cross_check_param 一致）。
+
+    job_dir 暂未使用，预留给后续阶段按需触发单页 OCR。
+    """
+    # job_dir 当前 _cross_check_param 不消费，预留
+    del job_dir
+    return _cross_check_param(document, facts, config, ocr_texts=ocr_texts)
+
+
+def ocr_drawing_page(page, engine, *, job_dir=None):
+    """对单个候选图纸页执行 OCR；返回识别文本或 None（无图/失败/引擎 None）。
+
+    Task 1 内部 ``_ocr_single_page`` 的 PUBLIC_WRAPPER。
+    Agent 通过依赖注入使用本函数，不直接调用 ``_ocr_single_page``。
+    """
+    return _ocr_single_page(page, engine, job_dir=job_dir)
+
+
+def resolve_drawing_image_path(page, *, job_dir=None):
+    """从 MinerUPage 中提取并解析图纸图片路径。
+
+    复用 Task 1 内部 ``_resolve_image_path`` / ``_resolve_image_path_direct``。
+    - job_dir 提供时优先直接拼路径（O(1)）；否则按 DATA_ROOT 全任务 rglob
+    - 第一个含 image/figure/chart block 且 image_path 存在且文件存在的路径
+    - 全部失败时返回 None（不抛异常）
+
+    Task 5C 真实 Vision Provider Adapter 使用；不引入新耦合。
+    """
+    for block in getattr(page, "blocks", []) or []:
+        if getattr(block, "block_type", "") not in {"image", "figure", "chart"}:
+            continue
+        rel = getattr(block, "image_path", None)
+        if not rel:
+            continue
+        path = (
+            _resolve_image_path_direct(job_dir, rel)
+            if job_dir is not None
+            else _resolve_image_path(rel)
+        )
+        if path is not None:
+            return path
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Task 6: SEARCH_TEXT Tool（Drawing → Text 双向追证）
+# ---------------------------------------------------------------------------
+
+
+_TEXT_SEARCH_SNIPPET_HALF = 120  # alias 前后各取 120 字符，evidence_text 上限 300
+_TEXT_SEARCH_SNIPPET_HARD_CAP = 300
+_TEXT_SEARCH_PAGE_LIMIT = 3  # 同一任务最多 3 条候选
+_TEXT_SEARCH_ALIAS_WINDOW = 150  # alias 周围窗口
+
+
+def search_text_evidence(
+    parsed_document,
+    aliases,
+    *,
+    target_value=None,
+    unit=None,
+    limit=_TEXT_SEARCH_PAGE_LIMIT,
+) -> list[dict]:
+    """正文反向追证 Tool：在 MinerU 解析的 native 文本中找含目标 alias 的候选。
+
+    参数：
+    - parsed_document: MinerUDocument（page 顺序遍历）
+    - aliases: 来自 task.aliases 的字符串列表（不再扩词 / 不重读 registry）
+    - target_value: 可选 int/float/str；非 None 时要求在同一 snippet 中出现
+    - unit: 任务已知单位；候选 snippet 含该单位字符串才记为 unit（非 None）
+    - limit: 最多返回的候选数（默认 3）
+
+    返回每条候选：
+    ```python
+    {
+        "physical_page": int,
+        "printed_page": str | None,
+        "evidence_text": str,         # alias 周围 snippet（≤ 300）
+        "value": object | None,       # target_value 命中才记，否则 None
+        "unit": str | None,           # snippet 中明确出现 unit 字符串才记
+        "matched_alias": str,
+        "matched_value": bool,        # 是否在 snippet 内确认 target_value
+    }
+    ```
+
+    规则：
+    - alias 来自任务，不重新读 registry / LLM 扩词
+    - 复用 ``_page_text`` 与 ``_is_spec_clause_quote``（规范条文过滤）
+    - value 不模糊推断：target_value 不在 snippet 内就不返回 value
+    - target_value=None 时允许 alias-only 候选（value=None, matched_value=False）
+    - 同一页只生成 1 条候选（命中第一个有效 alias 即停止该页继续扫）
+    """
+    if not aliases:
+        return []
+    candidates: list[dict] = []
+    for page in getattr(parsed_document, "pages", []) or []:
+        if getattr(page, "parse_status", "") == "unreadable":
+            continue
+        candidate = _scan_page_for_text_evidence(
+            page, aliases, target_value=target_value, unit=unit
+        )
+        if candidate is not None:
+            candidates.append(candidate)
+            if len(candidates) >= limit:
+                break
+    return candidates
+
+
+def _scan_page_for_text_evidence(page, aliases, *, target_value, unit):
+    """单页扫描：找到首个有效 alias 命中 → 生成 1 条候选。
+
+    Task 6.2 修正：value 绑定以 alias 位置为中心（不是整个 snippet 第一个数字）。
+    unit 绑定到 value 附近（不是 snippet 任何位置出现就拿）。
+    """
+    page_text = _page_text(page)
+    if not page_text:
+        return None
+    norm_text = unicodedata.normalize("NFKC", page_text)
+    for alias in aliases:
+        if not alias:
+            continue
+        idx = norm_text.find(alias)
+        if idx < 0:
+            continue
+        # spec clause 仍用较宽 snippet（marker 集合覆盖广）
+        wide_snippet = _extract_text_snippet(norm_text, idx, len(alias))
+        if _is_spec_clause_quote(wide_snippet, alias):
+            continue
+        # value + unit 绑定：alias-anchored 窗口
+        actual_value, actual_unit = _extract_value_and_unit_near_alias(
+            norm_text, idx, len(alias), target_value, unit
+        )
+        if target_value is None:
+            matched_value = False
+        else:
+            matched_value = _values_match(actual_value, target_value)
+        # evidence_text 仍用宽 snippet 保留上下文
+        evidence_snippet = wide_snippet
+        if len(evidence_snippet) > _TEXT_SEARCH_SNIPPET_HARD_CAP:
+            evidence_snippet = evidence_snippet[:_TEXT_SEARCH_SNIPPET_HARD_CAP]
+        return {
+            "physical_page": getattr(page, "physical_page", None),
+            "printed_page": getattr(page, "printed_page", None),
+            "evidence_text": evidence_snippet,
+            "value": actual_value,
+            "unit": actual_unit,
+            "matched_alias": alias,
+            "matched_value": matched_value,
+        }
+    return None
+
+
+def _extract_text_snippet(text: str, idx: int, alias_len: int) -> str:
+    start = max(0, idx - _TEXT_SEARCH_SNIPPET_HALF)
+    end = min(len(text), idx + alias_len + _TEXT_SEARCH_SNIPPET_HALF)
+    return text[start:end]
+
+
+import re as _re_text_value
+_TEXT_VALUE_SCALAR_RE = _re_text_value.compile(r"\d+(?:\.\d+)?")
+
+# Task 6.2：value window 以 alias 为中心（后 80 + 前 40）
+_TEXT_VALUE_WINDOW_AFTER = 80
+_TEXT_VALUE_WINDOW_BEFORE = 40
+# Task 6.2：unit 必须出现在 value 邻近（前后各 20 字符）
+_TEXT_UNIT_WINDOW = 20
+
+
+def _extract_value_and_unit_near_alias(text, alias_pos, alias_len, target_value, hint_unit):
+    """以 alias 位置为中心，提取最近的 scalar / 2D value + 邻近 unit。
+
+    优先级：after 2D → after scalar → before 2D → before scalar → (None, None)
+    unit 绑定：value 前后各 _TEXT_UNIT_WINDOW 字符内出现 hint_unit 才记录。
+    """
+    after_start = alias_pos + alias_len
+    after_end = min(len(text), after_start + _TEXT_VALUE_WINDOW_AFTER)
+    before_start = max(0, alias_pos - _TEXT_VALUE_WINDOW_BEFORE)
+    before_end = alias_pos
+    after_window = text[after_start:after_end]
+    before_window = text[before_start:before_end]
+
+    found = _find_value_in_windows(target_value, after_window, before_window, after_start, before_start)
+    if found is None:
+        return None, None
+    value, value_pos_in_text, value_len = found
+    unit = _find_unit_near_value(text, value_pos_in_text, value_len, hint_unit)
+    return value, unit
+
+
+def _find_value_in_windows(target_value, after_window, before_window, after_offset, before_offset):
+    """在 after / before 窗口里按优先级找 scalar / 2D value。
+
+    返回 (value, pos_in_text, value_len) 或 None。
+    after_window：alias 在窗口起点 → 取第一个 match（最接近 alias）
+    before_window：alias 在窗口终点 → 取最后一个 match（最接近 alias）
+    """
+    is_scalar = isinstance(target_value, (int, float)) and not isinstance(target_value, bool)
+    is_2d = isinstance(target_value, (list, tuple)) and len(target_value) == 2
+    # 1. after 2D / 2. after scalar
+    if is_2d:
+        hit = _find_2d_in(after_window, target_value, prefer_last=False)
+        if hit is not None:
+            vstart, vlen, v = hit
+            return v, after_offset + vstart, vlen
+    if is_scalar:
+        hit = _find_scalar_in(after_window, prefer_last=False)
+        if hit is not None:
+            vstart, vlen, v = hit
+            return v, after_offset + vstart, vlen
+    # 3. before 2D / 4. before scalar：选最接近 alias 的最后一个 match
+    if is_2d:
+        hit = _find_2d_in(before_window, target_value, prefer_last=True)
+        if hit is not None:
+            vstart, vlen, v = hit
+            return v, before_offset + vstart, vlen
+    if is_scalar:
+        hit = _find_scalar_in(before_window, prefer_last=True)
+        if hit is not None:
+            vstart, vlen, v = hit
+            return v, before_offset + vstart, vlen
+    return None
+
+
+def _find_scalar_in(window, prefer_last=False):
+    """在 window 中找 scalar number。
+
+    prefer_last=False（默认，after-window）：返回第一个 match
+    prefer_last=True（before-window）：返回最后一个 match（最接近 alias）
+    """
+    if not window:
+        return None
+    if prefer_last:
+        matches = list(_TEXT_VALUE_SCALAR_RE.finditer(window))
+        if not matches:
+            return None
+        m = matches[-1]
+    else:
+        m = _TEXT_VALUE_SCALAR_RE.search(window)
+        if not m:
+            return None
+    text = m.group(0)
+    val = float(text) if "." in text else int(text)
+    return m.start(), m.end() - m.start(), val
+
+
+def _find_2d_in(window, target_value, prefer_last=False):
+    """在 window 中找 target 的 2D 形式（a{sep}b）。
+
+    prefer_last=False（after-window）：返回第一个 match
+    prefer_last=True（before-window）：返回最后一个 match（最接近 alias）
+    """
+    if not (isinstance(target_value, (list, tuple)) and len(target_value) == 2) or not window:
+        return None
+    a, b = target_value
+    norm = window.replace(" ", "")
+    matches = []  # list of (idx_in_norm, pattern_len, value)
+    for sep in ("×", "x", "X", "*", "·"):
+        pattern = f"{a}{sep}{b}"
+        start = 0
+        while True:
+            idx = norm.find(pattern, start)
+            if idx < 0:
+                break
+            matches.append((idx, len(pattern), [a, b]))
+            start = idx + 1
+    if not matches:
+        return None
+    pick = matches[-1] if prefer_last else matches[0]
+    return pick
+
+
+def _find_unit_near_value(text, value_pos, value_len, hint_unit):
+    """在 value 前后各 _TEXT_UNIT_WINDOW 字符内找 hint_unit。"""
+    if not isinstance(hint_unit, str) or not hint_unit:
+        return None
+    start = max(0, value_pos - _TEXT_UNIT_WINDOW)
+    end = min(len(text), value_pos + value_len + _TEXT_UNIT_WINDOW)
+    if hint_unit in text[start:end]:
+        return hint_unit
+    return None
+
+
+def _values_match(actual, target_value) -> bool:
+    """比较正文提取值与 target 值：scalar / 2D 最小相等。"""
+    if actual is None or target_value is None:
+        return False
+    if isinstance(actual, (int, float)) and isinstance(target_value, (int, float)):
+        return float(actual) == float(target_value)
+    if isinstance(actual, list) and isinstance(target_value, (list, tuple)):
+        return list(actual) == list(target_value)
+    if isinstance(actual, str) and isinstance(target_value, str):
+        return actual == target_value
+    return False
+
+
+def _value_appears_in_text(snippet: str, target_value) -> bool:
+    """target_value 命中判定：scalar / 2D / 字符串 / "900×900" 归一。
+
+    保留为低层 helper；Task 6.1 后 _scan_page 不再用其作为硬过滤，
+    仅供 spec clause 邻域辅助判断（如未来需要）。
+    """
+    if target_value is None:
+        return False
+    if isinstance(target_value, bool):
+        return False
+    if isinstance(target_value, (int, float)):
+        text_value = f"{target_value}"
+        if text_value in snippet:
+            return True
+        if isinstance(target_value, int) and f"{target_value}.0" in snippet:
+            return True
+        return False
+    if isinstance(target_value, (list, tuple)) and len(target_value) == 2:
+        a, b = target_value
+        norm = snippet.replace(" ", "")
+        forms = [
+            f"{a}×{b}", f"{a}x{b}", f"{a}*{b}",
+            f"{a}X{b}", f"{a}·{b}",
+        ]
+        return any(form in norm for form in forms)
+    if isinstance(target_value, str):
+        return target_value in snippet
+    return False
+

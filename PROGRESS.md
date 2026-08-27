@@ -385,3 +385,75 @@
 - [2026-08-27 11:09] codex 签到 — 开始处理：优化规则库新增规则按钮
 
 - [2026-08-27 11:28] codex 签到 — 开始处理：执行规则库新增优化、参数图文一致性扩充、Agent计划解释增强
+
+- [2026-08-27 11:53] claude 签到 — 开始处理：调查：已扩展参数校验规则+图文规则，但 web 页面无变化
+
+- [2026-08-27 14:30] claude 签到 — 开始处理：图文一致性 Agent 分阶段开发方案 Task 0 基线审计
+
+- [2026-08-27 14:45] claude 签退 — 完成了：图文一致性 Agent 化 Task 0 基线审计（339/339 passed，零代码改动）+ Task 1 公开 Tool wrapper + OCR 单页抽取（DRAWING_PARAM_REGISTRY 同对象别名 + 6 个 PUBLIC_WRAPPER + _ocr_single_page 抽取，净 +84 行，diff 全部归 REGISTRY_ALIAS/PUBLIC_WRAPPER/OCR_HELPER_EXTRACTION 三类，340/340 passed 新增 1 测试）；下一步建议：用户确认 Task 1 验收后进入 Task 2（Task/Evidence/State 数据模型）
+
+- [2026-08-27 15:00] claude 签退 — 完成了：Task 2 数据模型层（app/drawing_agent.py：DrawingReviewTask/Evidence/DrawingAgentState 三个 dataclass 共 72 行 + tests/test_drawing_agent.py 92 行 1 个测试）；不接 Tool / 不接 build_drawing_review / 不实现 Agent；341/341 passed（基线 340 +1）；下一步建议：等用户确认后进入 Task 3（去掉 ProjectFacts 缺失即沉默）
+
+- [2026-08-27 15:24] claude 签到 — 开始处理：Task 3: 候选核验任务生成器
+
+- [2026-08-27 15:40] claude 签退 — 完成了：Task 3 候选核验任务生成器（app/drawing_agent.py +143 行：build_drawing_review_tasks + _task_from_registry_entry；tests/test_drawing_agent.py +1 测试覆盖 6 case；registry 17 项全唯一，missing fact 仍生成 Task source=critical_fact；342/342 passed；test_drawing_cross_check_skips_unidentified_params 旧行为保留 PASS；drawing_agent.py 143 行 超 120 期望 23 行 但在 145 硬上限内）；下一步建议：等用户确认后进入 Task 4（Drawing Agent V1 有限状态循环）
+
+- [2026-08-27 15:32] claude 签到 — 开始处理：Task 4: DrawingConsistencyAgent V1
+
+- [2026-08-27 15:55] claude 签退 — 完成了：Task 4 DrawingConsistencyAgent V1（app/drawing_agent.py +135 行：DrawingConsistencyAgent + MAX_ITERATIONS=3 + 3 Action 常量；tests +3 测试 happy_path/missing_text_value/empty_candidates；真实 Tool 注入兼容；345/345 passed；旧 missing-fact 测试 PASS；drawing_agent.py 278 行超 250 期望 28 行 但在 290 硬上限内）；下一步建议：等用户确认后进入 Task 5（OCR/VLM 分级追证）
+
+- [2026-08-27 15:37] claude 签到 — 开始处理：Task 5A: Evidence 正式化 + OCR_PAGE 按需追证
+
+- [2026-08-27 16:10] claude 签退 — 完成了：Task 5A Evidence 正式化 + OCR_PAGE 按需追证（drawing_review.py +6 行 ocr_drawing_page public wrapper；drawing_agent.py +145 行：OCR_PAGE Action + MAX_OCR_PAGES=2 + ocr_tool 依赖注入 + TextEvidence 自动初始化 + 2 内部 helper _resolve_candidate_page / _extract_ocr_evidence；tests +4 新测试 text_evidence_init/ocr_evidence_found/skips_to_second_page/ocr_unavailable，更新 1 旧 missing 测试断言为 OCR_PAGE 路径；349/349 passed；OCR 回归 4/4；drawing_agent.py 423 行（超 390 期望 33 行 但在 440 硬上限内）；下一步建议：等用户确认后进入 Task 5B（VLM 视觉理解）或 Task 6（双向追证）
+
+- [2026-08-27 15:48] claude 签到 — 开始处理：Task 5B: INSPECT_IMAGE + VLM 结构化证据兜底
+
+- [2026-08-27 16:20] claude 签退 — 完成了：Task 5B INSPECT_IMAGE + VLM 结构化证据兜底（drawing_agent.py +116 行：INSPECT_IMAGE Action + MAX_ITERATIONS=4 + MAX_VLM_CALLS=1 + vision_tool 依赖注入 + OCR 命中后不再自动 FINISH + _ocr_phase_done 判定 + _execute_inspect + _extract_vision_evidence；tests +4 新测试 ocr_evidence_triggers_vlm/ocr_miss_falls_back_to_vlm/vision_unavailable_preserves_ocr_evidence/vision_found_false_no_evidence，更新 2 旧测试 finish_reason 为 vision_unavailable；353/353 passed；OCR 回归 4/4；drawing_agent.py 539 行（超 510 期望 29 行 在 560 硬上限内）；tests 623 行（≤650 期望）；下一步建议：等用户确认后进入 Task 5C（真实 VLM Provider Adapter）或 Task 6（Drawing → Text 双向追证）
+
+- [2026-08-27 16:05] claude 签到 — 开始处理：Task 5C: 真实 Vision Provider Adapter
+
+- [2026-08-27 16:30] claude 签退 — 完成了：Task 5C 真实 Vision Provider Adapter（app/drawing_vision.py 217 行 + tests 199 行：复用项目 LLMChatClient + 引入 VLM_MODEL env 调 Qwen-VL/Aliyun DashScope，inspect_drawing_page → 6 字段 contract；drawing_review.py +19 行 resolve_drawing_image_path public wrapper；drawing_agent.py 0 行修改；6 个测试全过：normalizes_full_contract/drops_extra_fields/found_false_no_fabrication/image_missing_no_client_call/malformed_response_does_not_crash/agent_construction_compat；359/359 passed；agent 13/13 回归 OK）；下一步建议：等用户确认后进入 Task 6（Drawing → Text 双向追证）
+
+- [2026-08-27 16:21] claude 签到 — 开始处理：Task 6: SEARCH_TEXT + Drawing→Text 双向追证
+
+- [2026-08-27 16:40] claude 签退 — 完成了：Task 6 SEARCH_TEXT 双向追证（drawing_review.py +~100 行 search_text_evidence public + 3 内部 helper；drawing_agent.py +97 行：MAX_ITERATIONS=5/MAX_TEXT_SEARCHES=1/SEARCH_TEXT Action/search_text_tool 注入/_after_drawing_phase 决策点/INSPECT_IMAGE 与 OCR 不再自动 _finish 让 SEARCH_TEXT 介入；tests +4 test_drawing_text_search + 3 test_drawing_agent；drawing_vision.py 0 行；所有禁止文件 0 行；PROJECT_FACTS_WRITEBACK NO / TASK_VALUE_MUTATION NO；366/366 passed；drawing_agent.py 636 行（≤710 硬上限）；下一步建议：等用户确认后进入 Task 7
+
+- [2026-08-27 16:39] claude 签到 — 开始处理：Task 6.1: 修正 SEARCH_TEXT value-anchor 语义
+
+- [2026-08-27 16:50] claude 签退 — 完成了：Task 6.1 SEARCH_TEXT value-anchor 修正（drawing_review.py 净 +54 行：_scan_page_for_text_evidence 不再硬过滤 target + 新增 _extract_text_value 按 snippet 实际提取 + _values_match 最小相等比较 + 保留 _value_appears_in_text 作低层 helper；test Case 2 从 [] 改为保留 candidate value=160 matched=False；drawing_agent.py 0 行；drawing_vision.py 0 行；所有禁止文件 0 行；366/366 passed；drawing_review.py 1160 行 ≤70 硬上限）；下一步建议：等用户确认后进入 Task 7
+
+- [2026-08-27 16:45] claude 签到 — 开始处理：Task 6.2: alias-local value binding fix
+
+- [2026-08-27 17:00] claude 签退 — 完成了：Task 6.2 alias-local value binding（drawing_review.py 净 +62 行：_extract_value_and_unit_near_alias 以 alias 位置为中心 + _find_value_in_windows after/before 窗口优先级 + _find_scalar_in + _find_2d_in + _find_unit_near_value unit 绑定到 value 邻近 20 字；test Case 1 覆盖 A "高度5m，托撑插入长度150mm" + B "层高5.4m，立杆间距900×900mm" + value != 5/5.4 关键回归断言；Case 2 覆盖 C "高度5m，托撑插入长度160mm" + value != 5 断言；drawing_agent.py 0 行；drawing_vision.py 0 行；所有禁止文件 0 行；366/366 passed；drawing_review.py 1222 行 ≤70 硬上限）；下一步建议：等用户确认后进入 Task 7
+
+- [2026-08-27 16:54] claude 签到 — 开始处理：Task 6.3: 边界核验 + before-alias fix
+
+- [2026-08-27 17:10] claude 签退 — 完成了：Task 6.3 before-alias selection fix（drawing_review.py 净 +24 行：_find_scalar_in / _find_2d_in 新增 prefer_last 参数；after-window 仍取第一个（最接近 alias 起点），before-window 取最后一个（最接近 alias 终点）；两个 Case 合并进 Case 2 测试：层高5m，150mm为可调托撑插入长度设计值 → value=150 + value != 5；层高5.4m，900×900mm为梁底立杆间距 → value=[900,900] + value != 5.4；drawing_agent.py 0 行；drawing_vision.py 0 行；所有禁止文件 0 行；366/366 passed；test_drawing_text_search.py 仍 4 个 pytest 函数；drawing_review.py 1246 行）；下一步建议：Task 6 正式封版，等用户确认
+
+- [2026-08-27 14:30] claude 签到 — 开始处理：图文一致性 Agent 分阶段开发方案设计
+
+- [2026-08-27 15:24] claude 签到 — 开始处理：Task 3: 候选核验任务生成器
+
+- [2026-08-27 15:32] claude 签到 — 开始处理：Task 4: DrawingConsistencyAgent V1
+
+- [2026-08-27 15:37] claude 签到 — 开始处理：Task 5A: Evidence 正式化 + OCR_PAGE 按需追证
+
+- [2026-08-27 15:48] claude 签到 — 开始处理：Task 5B: INSPECT_IMAGE + VLM 结构化证据兜底
+
+- [2026-08-27 16:05] claude 签到 — 开始处理：Task 5C: 真实 Vision Provider Adapter
+
+- [2026-08-27 16:21] claude 签到 — 开始处理：Task 6: SEARCH_TEXT + Drawing→Text 双向追证
+
+- [2026-08-27 16:39] claude 签到 — 开始处理：Task 6.1: 修正 SEARCH_TEXT value-anchor 语义
+
+- [2026-08-27 16:45] claude 签到 — 开始处理：Task 6.2: alias-local value binding fix
+
+- [2026-08-27 16:54] claude 签到 — 开始处理：Task 6.3: 边界核验 + before-alias fix
+
+- [2026-08-27 17:00] claude 签到 — 开始处理：续接：设计图文一致性 Agent 下一阶段方案（Task 7+）
+
+- [2026-08-27 17:01] claude 签退 — 完成了：完成图文一致性 Agent Task 7+ 设计文档：docs/drawing_agent_v1_design.md 起草完成（9 章 1.5k 字），含 6 个 Task（业务接线/scope/结果聚合/前端展示/缓存/真实样例 benchmark）、2.6 天时间表、5 个决策点；TaskCreate 已落 7 个跟踪项，依赖图已建（7→8→9→{10,11}→12）；等待用户确认 5 个决策点（Task 7 是否立即启动 / scope 优先级 / benchmark 样例 / VLM 模型 / 灰度节奏）；下一步建议：用户确认 5 个决策点后从 Task 7（build_drawing_review_v2 业务接线 + feature flag）启动；如需调整 Task 切分或优先级请指示
+
+- [2026-08-27 17:06] claude 签到 — 开始处理：Task 7A 实施：Evidence Scope 提取 + Scope 对齐（drawing_scope.py + 5 测试 + Agent 最小 enrichment）
+
+- [2026-08-27 17:11] claude 签退 — 完成了：Task 7A 完成（36e9fc9）：drawing_scope.py 175 行（4 函数 + 3 常量）+ test_drawing_scope.py 144 行（5 测试）。Agent 4 处 Evidence scope 改 resolve_evidence_scope（+2 行）；test_drawing_agent.py 改 3 个 fake + 3 行断言（无新 pytest）。drawing_review.py / drawing_vision.py / web.py / main.py / orchestrator_agent.py / report_generator.py / project_facts.py / requirements.txt / rules/* delta=0。371 passed / 1 skipped / 0 failed（+5 tests 全绿）；下一步建议：等用户确认 Task 7A → 进入 Task 7B（value 比较 + 一致性状态 CONSISTENT/CONFLICT/TEXT_ONLY/DRAWING_ONLY/UNCERTAIN/NOT_FOUND）
