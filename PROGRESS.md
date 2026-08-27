@@ -517,3 +517,43 @@
   
   full suite 388/1/0 不变；artifacts 在 tmp/drawing_agent_regression/root_cause_audit.json（.gitignored）。
   不实施推荐任务；不进入 Task 8C；等待用户确认 P0 路径。
+
+- [2026-08-27 19:30] claude 签退 — 完成了：Task 8B.2.2 MinerU Image Asset Provenance & Resolution Audit
+  （OBSERVE-ONLY，0 production delta）：
+  审计 146dc job 的 7 个 Group B 任务 image asset 失败真实根因。
+  
+  关键发现：原 7 task "OCR_RECOGNITION_MISS" 实际是 PARSED_DOCUMENT_LOSS 根因的
+  downstream 表现（image file 完全没在 job_dir）。
+  
+  证据链：
+  1. mineru_document.json 引用 193 个 image_path（相对路径 part-001/raw 或 part-002/raw）
+  2. Resolver 尝试 job_dir/mineru_api/raw/<rel> 和 job_dir/mineru_api/<rel> → 都不存在
+  3. job_dir 0 image files；project data/ 0 真实图（.pytest_tmp 9 个是 test fixture）
+  4. 全项目按 basename rglob → 0 matches
+  5. MinerU cache (data/cache/mineru/) 2 个 keys 用 PDF-hash，不包含此 job
+  6. asset_prefix pattern (mineru_cache.py:313) 显示 image_path 设计为 asset_prefix + block.image_path
+  7. mineru_cache.py:424 有 'shutil.copytree(raw_source_dir, cache_dir/"raw")' 但只走 cache flow
+  8. CLI/web flow (146dc 走的路径) 没有 co-save raw image assets
+  9. Original PDF EXISTS at job_dir/source.pdf (4.7MB, 214 pages) → 提供 PDF page render fallback 路线
+  
+  根因：JOB_ARTIFACT_COPY_LOSS（pipeline 保存 mineru_document.json 但未 co-save raw image assets）
+  
+  REAL_TOOL_INVOCATIONS 重新计数（纠正 Task 8B 错数）：
+  - INSPECT_IMAGE_ACTIONS: 7（Agent action count）
+  - VISION_ADAPTER_INVOCATIONS: 7（function calls）
+  - REAL_PROVIDER_REQUESTS: 0（实际 VLM API call；image missing → short-circuit _empty_contract()）
+  - OCR_PAGE_ACTIONS: 7
+  - OCR_ADAPTER_INVOCATIONS: 7
+  - REAL_OCR_ENGINE_CALLS: 0（同理，image missing → continue）
+  
+  Applicability 降级：之前 4 个 NOT_APPLICABLE 因 image asset 完全 unavailable
+  暂不能证明 drawing image 一定没目标。改为 UNRESOLVED_DUE_TO_IMAGE_ASSETS。
+  仅 base_jack_screw_extension 保持 TARGET_NOT_FOUND_AFTER_AVAILABLE_AUDIT。
+  
+  推荐下一任务：MinerU Job Artifact Persistence Fix
+  修复：CLI/web parse flow 应 co-save raw image assets 到 job_dir/mineru_api/raw/
+  （或保存 image_path 为绝对路径，或 resolver 先查 cache）。
+  Backup: PDF physical-page rendering fallback（PDF 存在 214 页）。
+  
+  full suite 388/1/0 不变。artifacts 在 tmp/drawing_agent_regression/（.gitignored）。
+  不实施推荐任务；不进入 Task 8C；等待用户确认 P0 路径。
