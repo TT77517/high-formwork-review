@@ -581,3 +581,43 @@
   
   full suite 392 passed / 1 skipped / 0 failed（+4 tests，0 回归）。
   不实施 Task 8B.4 / 8C / 8D；等待用户确认。
+
+- [2026-08-27 19:38] claude 签到 — 开始处理：Task 8B.4: re-MinerU 真实方案 + 重建可信 Drawing Agent baseline
+
+- [2026-08-27 20:00] claude 签退 — 完成了：Task 8B.4 OBSERVE-ONLY 重建（0 production delta，0 pytest delta）：
+
+  **A. 基础设施恢复（Cache 命中 1.6s）**
+  - 真实 parse flow `parse_pdf_with_cache` 重跑：cache_hit=True（key `0f1f8b56...`），自动触发 `_ensure_job_local_raw_assets` → `data/web/jobs/146dc.../mineru_api/raw/` 落盘 922 jpg
+  - Asset Gate：143/143 image_path resolvable（0 missing），5 个随机 sample 全部存在（12-78KB），job 自包含（source.pdf/mineru_document.json/mineru_api/raw/project_facts.json 齐全）
+
+  **B. Tool Smoke（VLM 真实能力首次被观察到）**
+  - OCR：RapidOCR onnx 引擎加载，page 21 真实读图，识别 "立杆/水平杆/对接扣件/≥500/0593" 21 字
+  - VLM：qwen-vl-plus 真实 provider request，page 21 找到 value=500mm/evidence "≥500"/confidence 1.0
+  - 旧 8B 的 VLM 0 调用问题根因是 image asset 丢失（Task 8B.2.2 已鉴定的 JOB_ARTIFACT_COPY_LOSS）
+
+  **C. 17-task Agent 真实 baseline（6.41s）**
+  - 状态分布：CONSISTENT=0 / CONFLICT=0 / TEXT_ONLY=3 / DRAWING_ONLY=0 / UNCERTAIN=1 / NOT_FOUND=13
+  - 与旧 8B 完全相同（0/0/3/0/1/13）—— **status counts 没变，但 wire 状态变了**
+  - Tool：SEARCH_DRAWING=17 / CHECK_PARAM=4 / OCR_PAGE=11（3 真返文）/ INSPECT_IMAGE=7（7 真发 provider，0 found）/ SEARCH_TEXT=0
+  - Evidence coverage：TEXT=4/17, DRAWING=1/17, BOTH=1/17, NO=13/17（与旧 8B 相同；唯一的 drawing_evidence 来自 legacy_check horizontal_spacing）
+  - Decision coverage：0/17=0%（deterministic, 非 accuracy）
+
+  **D. 真实新 P0 = OCR/VLM recognition miss（不再 TARGET_NOT_PRESENT）**
+  - 7 NOT_FOUND = ocr_no_evidence（OCR 在候选页上没 re-detect alias text）
+  - 6 NOT_FOUND = no_candidate_pages（base_jack_*/free_end/top_level/main_beam/monitoring 在 214 页都没命中 alias；任务 8B.2 鉴定的 TARGET_NOT_PRESENT 仍存在但降到 P1）
+  - 1 NOT_FOUND = base_jack_screw_extension（alias "外伸"/"底座外伸" 等同义表达在 214 页完全缺失）
+  - 1 UNCERTAIN = horizontal_spacing（scope_unknown，legacy_check 给的 drawing unit=None 是 Task 7C.1 provenance 故意）
+  - VLM smoke 在 page 21 找到了 500mm 但 agent 在同一页调 INSPECT_IMAGE 返回 found=False：提示 prompt 形态差异显著影响 VLM 表现
+
+  **E. Reverse Chase 0 触发**：VLM/OCR 都没拿到 drawing value，SEARCH_TEXT 失去 anchor
+  **F. Production code delta = 0**（新增 tmp/drawing_agent_regression_8b4/run_8b4.py，.gitignored）
+  **G. Tests**：前 392/1/0 → 后 392/1/0（无变化）
+
+  artifacts（均 tmp/.gitignored，不入 git）：
+  `OLD_STATE.json / parse_info.json / asset_audit.json / job_self_contained.json / ocr_smoke.json / vision_smoke.json / agent_result.json / task_audit.json / tool_call_stats.json / legacy_comparison.json / final_report.json`
+
+  推荐下一任务（仅 1 项）：**Drawing OCR Evidence Extraction Enhancement**（VLM smoke 已证明能力可达 page-21 → 500mm；agent 7 次 INSPECT_IMAGE 0 found 表明 prompt 形态需要适配）
+  Backlog P1：Drawing Recall Enhancement（6/13 = no_candidate_pages，alias 召回问题）
+  Backlog P2：Registry Alias Audit（monitoring_point_spacing）
+
+  不实施推荐任务；不进入 Task 8C；不修改 Registry/Agent/Comparator；不补 alias/scope/unit；等待用户确认 P0 路径。
