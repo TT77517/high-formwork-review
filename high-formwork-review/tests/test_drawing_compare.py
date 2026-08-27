@@ -202,3 +202,32 @@ def test_compare_duplicate_collapse_and_ambiguity() -> None:
     r2 = compare_evidence_sets("upright_spacing", t2, d)
     assert r2.status == UNCERTAIN
     assert r2.reason == "multiple_comparable_pairs"
+
+    # ── Task 7B.1 sub-cases ──
+    slab_bot = {"member_type": "slab", "location": "slab_bottom"}
+    # (a) 两个 compatible pair 全部 equal → 仍 UNCERTAIN（不做多数投票）
+    t3a = [
+        _ev("upright_spacing", [900, 900], "mm", 10, scope=beam_bot),
+        _ev("upright_spacing", [1200, 1200], "mm", 11, scope=slab_bot),
+    ]
+    d3a = [
+        _ev("upright_spacing", [900, 900], "mm", 88, scope=beam_bot, source_type="vlm"),
+        _ev("upright_spacing", [1200, 1200], "mm", 89, scope=slab_bot, source_type="vlm"),
+    ]
+    r3a = compare_evidence_sets("upright_spacing", t3a, d3a)
+    assert r3a.status == UNCERTAIN
+    assert r3a.reason == "multiple_comparable_pairs"
+    assert r3a.comparable_pair_count == 2
+    # 不得挑任意一对填入 value 字段
+    assert r3a.text_value is None and r3a.drawing_value is None
+
+    # (b) 两个 compatible pair 全部 differ → 仍 UNCERTAIN（不是 CONFLICT）
+    d3b = [
+        _ev("upright_spacing", [1000, 1000], "mm", 88, scope=beam_bot, source_type="vlm"),
+        _ev("upright_spacing", [1300, 1300], "mm", 89, scope=slab_bot, source_type="vlm"),
+    ]
+    r3b = compare_evidence_sets("upright_spacing", t3a, d3b)
+    assert r3b.status == UNCERTAIN
+    assert r3b.reason == "multiple_comparable_pairs"
+    assert r3b.comparable_pair_count == 2
+    assert r3b.status != CONFLICT

@@ -158,9 +158,8 @@ def _compare_pairs(fact_id: str, t_list: list[object], d_list: list[object]) -> 
             text_evidence_count=len(t_list), drawing_evidence_count=len(d_list),
         )
 
-    verdicts = {_compare(_normalize_value(getattr(t, "value", None)),
-                         _normalize_value(getattr(d, "value", None))) for t, d in pairs}
-    if len(verdicts) > 1 or len(pairs) > 1 and not _all_agree(pairs):
+    # 多个可比 pair 永远 UNCERTAIN——不做多数投票（Section 五十 / 五十一 / 五十二）
+    if len(pairs) > 1:
         return DrawingComparisonResult(
             fact_id=fact_id, status=UNCERTAIN, reason="multiple_comparable_pairs",
             scope_alignment="compatible",
@@ -169,7 +168,9 @@ def _compare_pairs(fact_id: str, t_list: list[object], d_list: list[object]) -> 
         )
 
     t_ev, d_ev = pairs[0]
-    is_equal = next(iter(verdicts)) == "equal"
+    t_norm = _normalize_value(getattr(t_ev, "value", None))
+    d_norm = _normalize_value(getattr(d_ev, "value", None))
+    is_equal = _compare(t_norm, d_norm) == "equal"
     return DrawingComparisonResult(
         fact_id=fact_id, status=CONSISTENT if is_equal else CONFLICT,
         reason="values_equal" if is_equal else "values_differ",
@@ -180,15 +181,6 @@ def _compare_pairs(fact_id: str, t_list: list[object], d_list: list[object]) -> 
         text_evidence_count=len(t_list), drawing_evidence_count=len(d_list),
         comparable_pair_count=len(pairs),
     )
-
-
-def _all_agree(pairs: list[tuple[object, object]]) -> bool:
-    return len({
-        _compare(_normalize_value(getattr(t, "value", None)),
-                 _normalize_value(getattr(d, "value", None)))
-        for t, d in pairs
-    }) == 1
-
 
 # --- Unit gate --------------------------------------------------------------
 
