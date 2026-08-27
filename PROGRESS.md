@@ -723,3 +723,11 @@
   - 6-task deterministic recall smoke：旧 6 个 no_candidate 中 3 个仍无安全 recall_terms；3 个 fallback 得到候选页（top-level 6、main-beam 4、monitoring 2）。
   - 6-task real regression：NEW_NO_CANDIDATE=3，FALLBACK_CANDIDATE=3，NO_USABLE_IMAGE=1，VISION_REACHED=2，DRAWING_EVIDENCE=0；未运行 Task 8C。
   - 下一步建议：Task 8B.7 — Drawing Task Grounding Enhancement
+
+- [2026-08-27 23:30] codex 签到 — 开始处理：Task 8B.6.1: Post-Recall Vision Grounding Audit
+
+- [2026-08-27 23:39] codex 签退 — 完成了：Task 8B.6.1 Post-Recall Vision Grounding Audit（observe-only，0 production/test change）：审计 4 个 selected-image case。
+  - 新 fallback false：`top_level_to_jack_distance` 选中 page21 `db5...jpg`，图中无目标“顶层水平杆至托撑/调节螺杆伸出长度”与目标值，`RECALL_TERM` 只在页面文本中；重归类为 candidate/image issue，不证明 grounding。
+  - 新 fallback false：`monitoring_point_spacing` page41 无 usable image 后进入 page214 `a462...jpg`，selected image 有监测布置视觉元素但无清晰“监测点间距”或目标值，`RECALL_TERM` 来自页面标题/文本；重归类为 image/readability issue，不证明 grounding。
+  - 已证明 golden：`head_jack_insertion_length` / `head_jack_screw_exposed_length` 复用 8B.4.1 parity replay，同 page21 同图同 provider/model：agent task false，smoke-style grounded terminology true，正式保留为 task grounding issue。
+  - Full suite：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：Task 8B.7 — Drawing Task Grounding Enhancement（仅针对已证明 golden terminology gap）。
