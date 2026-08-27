@@ -331,12 +331,29 @@ def test_drawing_agent_v1_empty_candidate_pages_stops() -> None:
     assert recall_counter["n"] == 1
 
 
-def _make_fake_page(physical_page: int):
+def _make_fake_page(physical_page: int, image_path: str | None = None, text: str = ""):
+    class _B:
+        pass
+    b = _B()
+    b.block_type = "image"
+    b.image_path = image_path
+    b.text = text
+    b.block_index = 0
     class _P:
         pass
     p = _P()
     p.physical_page = physical_page
+    p.blocks = [b] if image_path else []
+    p.text = text
     return p
+
+
+def _setup_fake_job_with_image(tmp_path, rel_image: str = "x.jpg", content: bytes = b"x"):
+    """Create tmp job_dir layout so resolver finds rel_image. Returns (job_dir, rel_image)."""
+    raw_dir = tmp_path / "mineru_api" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    (raw_dir / rel_image).write_bytes(content)
+    return tmp_path, rel_image
 
 
 def _make_fake_document(pages):
@@ -516,16 +533,17 @@ def test_drawing_agent_v1_ocr_unavailable() -> None:
     assert ocr_counter["n"] == 0
 
 
-def test_drawing_agent_v1_ocr_evidence_triggers_vlm() -> None:
+def test_drawing_agent_v1_ocr_evidence_triggers_vlm(tmp_path) -> None:
     """Task 5B Case 1: OCR alias 命中 + VLM found=True → OCR + VLM 双 Evidence。"""
     from app.drawing_agent import (
         DrawingConsistencyAgent, DrawingReviewTask,
         INSPECT_IMAGE, OCR_PAGE, SEARCH_DRAWING,
     )
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
     def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
     def _fake_ocr(page, engine, *, job_dir=None): return "梁底节点详图：托撑插入长度150mm"
     # Task 7A Test 58：VLM scope 含中文 + 多余 floor 字段
-    def _fake_vision(page, task): return {"found": True, "value": 150, "unit": "mm", "evidence_text": "梁底插入150", "confidence": 0.94, "scope": {"member_type": "梁", "location": "梁底", "floor": "3F"}}
+    def _fake_vision(page, task, **kwargs): return {"found": True, "value": 150, "unit": "mm", "evidence_text": "梁底插入150", "confidence": 0.94, "scope": {"member_type": "梁", "location": "梁底", "floor": "3F"}}
     agent = DrawingConsistencyAgent(
         recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["托撑插入长度"]}], {"n": 0}),
         check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
@@ -535,8 +553,9 @@ def test_drawing_agent_v1_ocr_evidence_triggers_vlm() -> None:
         aliases=["托撑插入长度"], text_value=None,
     )
     state = agent.run(
-        task=task, document=_make_fake_document([_make_fake_page(88)]), facts={},
+        task=task, document=_make_fake_document([_make_fake_page(88, image_path=rel)]), facts={},
         config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
     )
     assert state.finished is True and state.finish_reason == "text_search_unavailable"
     assert state.iteration == 3 and state.ocr_pages == 1 and state.vlm_calls == 1
@@ -549,15 +568,16 @@ def test_drawing_agent_v1_ocr_evidence_triggers_vlm() -> None:
     assert vlm_ev.scope == {"member_type": "beam", "location": "beam_bottom"}
 
 
-def test_drawing_agent_v1_ocr_miss_falls_back_to_vlm() -> None:
+def test_drawing_agent_v1_ocr_miss_falls_back_to_vlm(tmp_path) -> None:
     """Task 5B Case 2: OCR miss → VLM fallback 仍产生 VLM Evidence。"""
     from app.drawing_agent import (
         DrawingConsistencyAgent, DrawingReviewTask,
         INSPECT_IMAGE, OCR_PAGE, SEARCH_DRAWING,
     )
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
     def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
     def _fake_ocr(page, engine, *, job_dir=None): return "施工平面布置图 安全通道"
-    def _fake_vision(page, task): return {"found": True, "value": 150, "unit": "mm", "evidence_text": "插入长度150", "confidence": 0.9, "scope": {}}
+    def _fake_vision(page, task, **kwargs): return {"found": True, "value": 150, "unit": "mm", "evidence_text": "插入长度150", "confidence": 0.9, "scope": {}}
     agent = DrawingConsistencyAgent(
         recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["托撑插入长度"]}], {"n": 0}),
         check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
@@ -567,8 +587,9 @@ def test_drawing_agent_v1_ocr_miss_falls_back_to_vlm() -> None:
         aliases=["托撑插入长度"], text_value=None,
     )
     state = agent.run(
-        task=task, document=_make_fake_document([_make_fake_page(88)]), facts={},
+        task=task, document=_make_fake_document([_make_fake_page(88, image_path=rel)]), facts={},
         config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
     )
     assert state.finished is True and state.finish_reason == "text_search_unavailable"
     assert state.iteration == 3 and state.vlm_calls == 1
@@ -577,12 +598,13 @@ def test_drawing_agent_v1_ocr_miss_falls_back_to_vlm() -> None:
     assert len(state.drawing_evidence) == 1 and state.drawing_evidence[0].source_type == "vlm"
 
 
-def test_drawing_agent_v1_vision_unavailable_preserves_ocr_evidence() -> None:
+def test_drawing_agent_v1_vision_unavailable_preserves_ocr_evidence(tmp_path) -> None:
     """Task 5B Case 3: vision_tool=None → FINISH(vision_unavailable)，OCR Evidence 保留。"""
     from app.drawing_agent import (
         DrawingConsistencyAgent, DrawingReviewTask,
         OCR_PAGE, SEARCH_DRAWING,
     )
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
     def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
     def _fake_ocr(page, engine, *, job_dir=None): return "节点详图：托撑插入长度150mm"
     agent = DrawingConsistencyAgent(
@@ -594,8 +616,9 @@ def test_drawing_agent_v1_vision_unavailable_preserves_ocr_evidence() -> None:
         aliases=["托撑插入长度"], text_value=None,
     )
     state = agent.run(
-        task=task, document=_make_fake_document([_make_fake_page(88)]), facts={},
+        task=task, document=_make_fake_document([_make_fake_page(88, image_path=rel)]), facts={},
         config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
     )
     assert state.finished is True and state.finish_reason == "text_search_unavailable"
     assert state.iteration == 2 and state.vlm_calls == 0
@@ -606,15 +629,16 @@ def test_drawing_agent_v1_vision_unavailable_preserves_ocr_evidence() -> None:
     assert state.drawing_evidence[0].source_type == "ocr"
 
 
-def test_drawing_agent_v1_vision_found_false_no_evidence() -> None:
+def test_drawing_agent_v1_vision_found_false_no_evidence(tmp_path) -> None:
     """Task 5B Case 4: vision_tool 返回 found=False → FINISH(vision_no_evidence)。"""
     from app.drawing_agent import (
         DrawingConsistencyAgent, DrawingReviewTask,
         INSPECT_IMAGE, OCR_PAGE, SEARCH_DRAWING,
     )
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
     def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
     def _fake_ocr(page, engine, *, job_dir=None): return "无 alias 文本"
-    def _fake_vision(page, task): return {"found": False, "value": None, "unit": None, "evidence_text": None, "confidence": None, "scope": {}}
+    def _fake_vision(page, task, **kwargs): return {"found": False, "value": None, "unit": None, "evidence_text": None, "confidence": None, "scope": {}}
     agent = DrawingConsistencyAgent(
         recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["托撑插入长度"]}], {"n": 0}),
         check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
@@ -624,8 +648,9 @@ def test_drawing_agent_v1_vision_found_false_no_evidence() -> None:
         aliases=["托撑插入长度"], text_value=None,
     )
     state = agent.run(
-        task=task, document=_make_fake_document([_make_fake_page(88)]), facts={},
+        task=task, document=_make_fake_document([_make_fake_page(88, image_path=rel)]), facts={},
         config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
     )
     assert state.finished is True and state.finish_reason == "ocr_no_evidence"  # VLM found=false + drawing_evidence=[] → fallback
     assert state.iteration == 3 and state.ocr_pages == 1 and state.vlm_calls == 1
@@ -633,17 +658,18 @@ def test_drawing_agent_v1_vision_found_false_no_evidence() -> None:
     assert all(ev.source_type != "vlm" for ev in state.drawing_evidence)
 
 
-def test_drawing_agent_v6_vlm_value_triggers_search_text() -> None:
+def test_drawing_agent_v6_vlm_value_triggers_search_text(tmp_path) -> None:
     """Task 6 Case 1: VLM value → SEARCH_TEXT (value anchor) → TextEvidence。"""
     from app.drawing_agent import (
         DrawingConsistencyAgent, DrawingReviewTask,
         INSPECT_IMAGE, OCR_PAGE, SEARCH_DRAWING, SEARCH_TEXT,
     )
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
     search_calls: list[dict] = []
 
     def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
     def _fake_ocr(page, engine, *, job_dir=None): return "节点详图：托撑插入长度150mm"
-    def _fake_vision(page, task): return {"found": True, "value": 150, "unit": "mm", "evidence_text": "150mm", "confidence": 0.94, "scope": {}}
+    def _fake_vision(page, task, **kwargs): return {"found": True, "value": 150, "unit": "mm", "evidence_text": "150mm", "confidence": 0.94, "scope": {}}
     def _fake_search_text(document, aliases, *, target_value=None, unit=None, limit=3):
         search_calls.append({"aliases": aliases, "target_value": target_value, "unit": unit})
         return [{
@@ -653,7 +679,7 @@ def test_drawing_agent_v6_vlm_value_triggers_search_text() -> None:
             "matched_alias": "托撑插入", "matched_value": True,
         }]
 
-    document = _make_fake_document([_make_fake_page(88)])
+    document = _make_fake_document([_make_fake_page(88, image_path=rel)])
     agent = DrawingConsistencyAgent(
         recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["托撑插入长度"]}], {"n": 0}),
         check_tool=_check_never_called,
@@ -667,6 +693,7 @@ def test_drawing_agent_v6_vlm_value_triggers_search_text() -> None:
     state = agent.run(
         task=task, document=document, facts={},
         config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
     )
     assert state.finished is True and state.finish_reason == "text_evidence_found"
     assert state.iteration == 4 and state.ocr_pages == 1 and state.vlm_calls == 1
@@ -936,4 +963,270 @@ def test_check_param_no_drawing_evidence_does_not_crash() -> None:
     assert len(s_b.drawing_evidence) == 1
     assert s_b.drawing_evidence[0].page == 10
     assert s_b.drawing_evidence[0].unit is None  # Task 7C.1 unit provenance 修正
+
+
+# ---------------------------------------------------------------------------
+# Task 8B.5: Vision Applicability Gate — 5 regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_8b5_no_image_candidate_then_image_candidate(tmp_path) -> None:
+    """Regression 1: candidate A 无 image → skip；candidate B 有 image → only B called.
+
+    Verify: vision_tool invocation count == 1 (B), INSPECT_IMAGE 出现 1 次,
+    observation 标记 usable_image=True。
+    """
+    from app.drawing_agent import (
+        DrawingConsistencyAgent, DrawingReviewTask,
+        INSPECT_IMAGE, OCR_PAGE, SEARCH_DRAWING,
+    )
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
+    vision_calls: list[int] = []
+
+    def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
+    def _fake_ocr(page, engine, *, job_dir=None): return "节点详图：托撑插入长度150mm"
+    def _fake_vision(page, task, **kwargs):
+        vision_calls.append(getattr(page, "physical_page", None))
+        return {"found": True, "value": 150, "unit": "mm", "evidence_text": "150mm", "confidence": 0.94, "scope": {}}
+
+    # candidate A: page 7 (no image); candidate B: page 88 (has image)
+    agent = DrawingConsistencyAgent(
+        recall_tool=_make_recall_tool(
+            [{"physical_page": 7, "keyword_hits": ["托撑插入长度"]},
+             {"physical_page": 88, "keyword_hits": ["托撑插入长度"]}],
+            {"n": 0},
+        ),
+        check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
+    )
+    task = DrawingReviewTask(
+        fact_id="head_jack_insertion_length", display_name="可调托撑插入长度",
+        aliases=["托撑插入长度"], text_value=None,
+    )
+    document = _make_fake_document([_make_fake_page(7), _make_fake_page(88, image_path=rel)])
+    state = agent.run(
+        task=task, document=document, facts={},
+        config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
+    )
+    assert vision_calls == [88], f"vision should only call once on page 88; got {vision_calls}"
+    inspect_actions = [a for a in state.actions_taken if a["action"] == INSPECT_IMAGE]
+    # 2 actions: 1 skip (no image on page 7) + 1 real call (page 88 with image)
+    assert len(inspect_actions) == 2
+    assert inspect_actions[0]["observation"]["usable_image"] is False
+    assert inspect_actions[0]["page"] == 7
+    assert inspect_actions[1]["observation"]["usable_image"] is True
+    assert inspect_actions[1]["page"] == 88
+    assert state.vlm_calls == 1  # only incremented on real vision call
+    vlm_evs = [ev for ev in state.drawing_evidence if ev.source_type == "vlm"]
+    assert len(vlm_evs) == 1
+    assert vlm_evs[0].value == 150
+
+
+def test_8b5_all_candidates_no_usable_image(tmp_path) -> None:
+    """Regression 2: 所有 candidate page 都无 usable image → vision_tool 调用 0 次。
+
+    finish_reason == 'no_usable_image'，不调 vision_tool、不增 vlm_calls。
+    """
+    from app.drawing_agent import (
+        DrawingConsistencyAgent, DrawingReviewTask,
+        INSPECT_IMAGE, SEARCH_DRAWING,
+    )
+    def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
+    def _fake_ocr(page, engine, *, job_dir=None): return "无 alias 文本"
+    def _fake_vision_must_not_run(page, task, **kwargs):
+        raise AssertionError("vision_tool must not be called when no candidate has usable image")
+
+    agent = DrawingConsistencyAgent(
+        recall_tool=_make_recall_tool(
+            [{"physical_page": 7, "keyword_hits": ["x"]}, {"physical_page": 9, "keyword_hits": ["x"]}],
+            {"n": 0},
+        ),
+        check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision_must_not_run,
+    )
+    task = DrawingReviewTask(
+        fact_id="head_jack_insertion_length", display_name="可调托撑插入长度",
+        aliases=["托撑插入长度"], text_value=None,
+    )
+    document = _make_fake_document([_make_fake_page(7), _make_fake_page(9)])
+    state = agent.run(
+        task=task, document=document, facts={},
+        config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=tmp_path,
+    )
+    assert state.finished is True
+    assert state.finish_reason == "no_usable_image"
+    assert state.vlm_calls == 0
+    inspect_actions = [a for a in state.actions_taken if a["action"] == INSPECT_IMAGE]
+    assert len(inspect_actions) == 2
+    for a in inspect_actions:
+        assert a["observation"]["usable_image"] is False
+
+
+def test_8b5_multi_image_alias_match_prefers_relevant(tmp_path) -> None:
+    """Regression 3: 单 page 多 image：A 无 alias hit，B 有 alias hit → 选 B，单次调用。
+
+    B 的 block.text 含 task alias「托撑插入长度」，A 的 block.text 无关。
+    vision 收到 image_path 指向 B 文件。
+    """
+    from app.drawing_agent import (
+        DrawingConsistencyAgent, DrawingReviewTask,
+        INSPECT_IMAGE, SEARCH_DRAWING,
+    )
+    job_dir, rel_a = _setup_fake_job_with_image(tmp_path, rel_image="a.jpg")
+    _, rel_b = _setup_fake_job_with_image(tmp_path, rel_image="b.jpg")
+    vision_called_paths: list[str] = []
+
+    def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
+    def _fake_ocr(page, engine, *, job_dir=None): return "无关文本"
+    def _fake_vision(page, task, *, image_path=None, **kwargs):
+        vision_called_paths.append(str(image_path) if image_path else "")
+        return {"found": True, "value": 150, "unit": "mm", "evidence_text": "150mm", "confidence": 0.9, "scope": {}}
+
+    page = _make_fake_page(88, text="(前置文字)")
+    # 在 page 上挂两个 image block：A 无关、B 含 alias
+    b_a = type("B", (), {"block_type": "image", "image_path": rel_a, "text": "(a 无关)", "block_index": 0})()
+    b_b = type("B", (), {"block_type": "image", "image_path": rel_b, "text": "节点详图：托撑插入长度150mm", "block_index": 1})()
+    page.blocks = [b_a, b_b]
+
+    agent = DrawingConsistencyAgent(
+        recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["托撑插入长度"]}], {"n": 0}),
+        check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
+    )
+    task = DrawingReviewTask(
+        fact_id="head_jack_insertion_length", display_name="可调托撑插入长度",
+        aliases=["托撑插入长度"], text_value=None,
+    )
+    state = agent.run(
+        task=task, document=_make_fake_document([page]), facts={},
+        config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
+    )
+    assert len(vision_called_paths) == 1
+    assert vision_called_paths[0].endswith("b.jpg"), f"should call vision on B (alias match), got {vision_called_paths[0]}"
+    assert state.vlm_calls == 1
+    inspect_actions = [a for a in state.actions_taken if a["action"] == INSPECT_IMAGE]
+    assert len(inspect_actions) == 1
+    assert inspect_actions[0]["observation"]["image_path"].endswith("b.jpg")
+
+
+def test_8b5_multi_image_no_alias_match_deterministic_block_order(tmp_path) -> None:
+    """Regression 4: 多 image 都不命中 alias → deterministic fallback（block 顺序小的先）。
+
+    两次运行同输入应一致。
+    """
+    from app.drawing_agent import DrawingConsistencyAgent, DrawingReviewTask
+    job_dir, rel_a = _setup_fake_job_with_image(tmp_path, rel_image="a.jpg")
+    _, rel_b = _setup_fake_job_with_image(tmp_path, rel_image="b.jpg")
+
+    def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
+    def _fake_ocr(page, engine, *, job_dir=None): return "无关文本"
+    def _fake_vision(page, task, *, image_path=None, **kwargs):
+        return {"found": False, "value": None, "unit": None, "evidence_text": None, "confidence": None, "scope": {}}
+
+    def _build():
+        page = _make_fake_page(88, text="(无关)")
+        b_a = type("B", (), {"block_type": "image", "image_path": rel_a, "text": "(a 无关)", "block_index": 0})()
+        b_b = type("B", (), {"block_type": "image", "image_path": rel_b, "text": "(b 无关)", "block_index": 1})()
+        page.blocks = [b_a, b_b]
+        agent = DrawingConsistencyAgent(
+            recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["x"]}], {"n": 0}),
+            check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
+        )
+        task = DrawingReviewTask(
+            fact_id="head_jack_insertion_length", display_name="可调托撑插入长度",
+            aliases=["可调托撑插入长度"], text_value=None,  # alias 不在 block text 里
+        )
+        return agent.run(
+            task=task, document=_make_fake_document([page]), facts={},
+            config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+            job_dir=job_dir,
+        )
+
+    s1 = _build()
+    s2 = _build()
+    # 两次运行都应选 block_index=0 (a.jpg)
+    obs1 = next(a for a in s1.actions_taken if a["action"] == "INSPECT_IMAGE")
+    obs2 = next(a for a in s2.actions_taken if a["action"] == "INSPECT_IMAGE")
+    assert obs1["observation"]["image_path"].endswith("a.jpg")
+    assert obs2["observation"]["image_path"].endswith("a.jpg")
+
+
+def test_8b5_image_path_set_but_file_missing_unusable(tmp_path) -> None:
+    """Regression 5: image_path 字段存在但文件不存在 → unusable，不调 vision_tool。
+
+    仅在 tmp_path 写 a.jpg，不写 b.jpg；让 page 同时引用两者。
+    期望：只 a.jpg 视为 usable，vision 选 a.jpg。
+    """
+    from app.drawing_agent import (
+        DrawingConsistencyAgent, DrawingReviewTask,
+        INSPECT_IMAGE, SEARCH_DRAWING,
+    )
+    job_dir, rel_a = _setup_fake_job_with_image(tmp_path, rel_image="a.jpg")
+    rel_b = "missing_b.jpg"  # 文件不存在
+
+    def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
+    def _fake_ocr(page, engine, *, job_dir=None): return "无关"
+    def _fake_vision(page, task, *, image_path=None, **kwargs):
+        return {"found": True, "value": 150, "unit": "mm", "evidence_text": "150mm", "confidence": 0.9, "scope": {}}
+
+    page = _make_fake_page(88, text="(无关)")
+    b_a = type("B", (), {"block_type": "image", "image_path": rel_a, "text": "(a)", "block_index": 0})()
+    b_b = type("B", (), {"block_type": "image", "image_path": rel_b, "text": "(b missing file)", "block_index": 1})()
+    page.blocks = [b_a, b_b]
+
+    agent = DrawingConsistencyAgent(
+        recall_tool=_make_recall_tool([{"physical_page": 88, "keyword_hits": ["x"]}], {"n": 0}),
+        check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision,
+    )
+    task = DrawingReviewTask(
+        fact_id="head_jack_insertion_length", display_name="可调托撑插入长度",
+        aliases=["托撑插入长度"], text_value=None,
+    )
+    state = agent.run(
+        task=task, document=_make_fake_document([page]), facts={},
+        config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
+    )
+    inspect_actions = [a for a in state.actions_taken if a["action"] == INSPECT_IMAGE]
+    assert len(inspect_actions) == 1
+    assert inspect_actions[0]["observation"]["image_path"].endswith("a.jpg")
+    assert state.vlm_calls == 1
+
+
+# 保护 page 21 grounding 失败 regression：VLM 在同图同 task 上仍 found=False（不靠 alias/prompt 改）
+def test_8b5_page21_grounding_case_preserved(tmp_path) -> None:
+    """Regression: 保留 Task 8B.4.1 的 page 21 grounding 失败 case。
+
+    Agent 的 task aliases「托撑插入」不含「可调托撑」（smoke 用的关键术语），
+    在同一张图上 VLM 仍 found=False。 本 Task 不能通过改 alias/prompt 让它 PASS。
+    """
+    from app.drawing_agent import DrawingConsistencyAgent, DrawingReviewTask
+    job_dir, rel = _setup_fake_job_with_image(tmp_path, rel_image="db5bb6f6a05f32f1b9c06915234606a201ab3115cb48467fa1fbba57f4dc8d2c.jpg")
+
+    def _check_never_called(*a, **k): raise AssertionError("CHECK_PARAM must not run")
+    def _fake_ocr(page, engine, *, job_dir=None): return "立杆 水平杆 对接扣件 ≥500 0593"
+    def _fake_vision_found_false(page, task, **kwargs):
+        # 模拟 parity replay 中 agent task 的 VLM 行为：found=False（不能被本 Task 修复）
+        return {"found": False, "value": None, "unit": None, "evidence_text": None, "confidence": None, "scope": {}}
+
+    page = _make_fake_page(21, image_path=rel)
+    agent = DrawingConsistencyAgent(
+        recall_tool=_make_recall_tool([{"physical_page": 21, "keyword_hits": ["托撑插入"]}], {"n": 0}),
+        check_tool=_check_never_called, ocr_tool=_fake_ocr, vision_tool=_fake_vision_found_false,
+    )
+    task = DrawingReviewTask(
+        fact_id="head_jack_insertion_length", display_name="可调托撑插入长度",
+        aliases=["托撑插入", "顶托插入", "插入立杆长度"],  # 与 8B.4.1 audit 一致
+        text_value=None,
+    )
+    state = agent.run(
+        task=task, document=_make_fake_document([page]), facts={},
+        config={"fact_id": "head_jack_insertion_length"}, ocr_engine=object(),
+        job_dir=job_dir,
+    )
+    # 验证 grounding 失败仍然记录：vlm_calls=1（调用了），drawing_evidence 0
+    assert state.vlm_calls == 1
+    assert state.drawing_evidence == []  # found=False → 不构造 Evidence
+    # finish_reason 应为 ocr_no_evidence（OCR 文本不含「托撑插入」等 aliases）—— 不应被本 Task 改成 PASS
+    assert state.finish_reason in {"ocr_no_evidence", "text_search_unavailable", "vision_no_evidence"}
 

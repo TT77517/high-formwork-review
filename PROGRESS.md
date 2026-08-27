@@ -650,3 +650,5 @@
   full suite 392/1/0 不变；不实施推荐任务；不进入 Task 8C；等待用户确认 P0 路径。
 
 - [2026-08-27 19:55] claude 签到 — 开始处理：Task 8B.4.1: Vision Smoke vs Agent Run Parity Audit (OBSERVE-ONLY)
+
+- [2026-08-27 20:02] claude 签到 — 开始处理：Task 8B.5: Drawing Vision Candidate & Image Selection Enhancement

@@ -27,6 +27,7 @@ from typing import Any
 
 from .dify_config import _load_project_env
 from .drawing_review import resolve_drawing_image_path
+from .drawing_review import _resolve_image_path, _resolve_image_path_direct  # Task 8B.5: usable gate
 
 
 DEFAULT_VLM_MODEL = "qwen-vl-plus"
@@ -50,7 +51,7 @@ _CONTRACT_KEYS = ("found", "value", "unit", "evidence_text", "confidence", "scop
 # ---------------------------------------------------------------------------
 
 
-def inspect_drawing_page(page, task, *, client=None, job_dir=None) -> dict:
+def inspect_drawing_page(page, task, *, client=None, job_dir=None, image_path=None) -> dict:
     """vision_tool 注入实现：识别当前候选页的图纸目标参数。
 
     返回 6 字段 vision contract：
@@ -62,18 +63,98 @@ def inspect_drawing_page(page, task, *, client=None, job_dir=None) -> dict:
     - Provider 抛出非 LLMChatError → 允许向上抛（Task 5B 第三十三节）
     - Provider 返回非 dict / 解析失败 → 安全降级 found=False
     - 任何 Provider 额外字段 → 严格丢弃，只保留 6 字段
-    """
-    image_path = resolve_drawing_image_path(page, job_dir=job_dir)
-    if image_path is None or not image_path.is_file():
-        return _empty_contract()
 
-    image_data_url = _encode_image_as_data_url(image_path)
+    Task 8B.5：``image_path`` 由调用方（Agent）通过 ``select_relevant_drawing_image``
+    预选；不传时回退到 ``resolve_drawing_image_path``（保持 Task 5C 行为）。
+    """
+    chosen = image_path or resolve_drawing_image_path(page, job_dir=job_dir)
+    if chosen is None or not Path(chosen).is_file():
+        return _empty_contract()
+    image_path_resolved = Path(chosen)
+
+    image_data_url = _encode_image_as_data_url(image_path_resolved)
     if image_data_url is None:
         return _empty_contract()
 
     client = client or _build_default_client()
     raw_content = _call_vision(client, task, image_data_url)
     return _parse_vision_response(raw_content)
+
+
+# ---------------------------------------------------------------------------
+# Task 8B.5：usable image gate + 多 image 确定性 ranking
+# ---------------------------------------------------------------------------
+
+
+_USABLE_IMAGE_BLOCK_TYPES = frozenset({"image", "figure", "chart"})
+
+
+def has_usable_drawing_image(page, *, job_dir=None) -> bool:
+    """候选页是否含至少一个可解析的 image block（image_path 存在 + 文件可读）。
+
+    - 机械判定：仅看 image_path 可解析 + 文件存在；不引入 LLM/embedding/CV
+    - Agent 在 INSPECT_IMAGE 前调用，避免无图页面触发空 provider 请求
+    """
+    for block in getattr(page, "blocks", []) or []:
+        if getattr(block, "block_type", "") not in _USABLE_IMAGE_BLOCK_TYPES:
+            continue
+        rel = getattr(block, "image_path", None)
+        if not rel:
+            continue
+        try:
+            resolved = (
+                _resolve_image_path_direct(job_dir, rel)
+                if job_dir is not None
+                else _resolve_image_path(rel)
+            )
+        except (OSError, ValueError):
+            continue
+        if resolved is not None and Path(resolved).is_file():
+            return True
+    return False
+
+
+def select_relevant_drawing_image(page, task, *, job_dir=None) -> tuple | None:
+    """多 image 候选时按确定性规则选出最相关一张。
+
+    Ranking（稳定，相同输入同输出）：
+    1. block.text 或 page.text 命中 task 任一 alias → 排前
+    2. 文件 size 较大 → 排前（弱 tie-break）
+    3. block_index 较小 → 排前（终局 tie-break）
+
+    禁止：
+    - 使用 task.text_value 做答案泄漏式筛选
+    - 使用 LLM/embedding/CV 排序
+    """
+    candidates: list[tuple[int, int, int, Any]] = []  # (alias_hit, size, idx, block)
+    page_text = (getattr(page, "text", "") or "")
+    aliases = list(getattr(task, "aliases", []) or [])
+    for block in getattr(page, "blocks", []) or []:
+        if getattr(block, "block_type", "") not in _USABLE_IMAGE_BLOCK_TYPES:
+            continue
+        rel = getattr(block, "image_path", None)
+        if not rel:
+            continue
+        try:
+            resolved = (
+                _resolve_image_path_direct(job_dir, rel)
+                if job_dir is not None
+                else _resolve_image_path(rel)
+            )
+        except (OSError, ValueError):
+            continue
+        if resolved is None or not Path(resolved).is_file():
+            continue
+        size = Path(resolved).stat().st_size
+        block_text = (getattr(block, "text", "") or "")
+        local = (block_text + "\n" + page_text) if page_text else block_text
+        alias_hit = 1 if any(a and a in local for a in aliases) else 0
+        candidates.append((alias_hit, size, getattr(block, "block_index", 0), (block, Path(resolved))))
+    if not candidates:
+        return None
+    # alias_hit desc, size desc, block_index asc（原始 block 顺序作 tie-break）
+    candidates.sort(key=lambda x: (-x[0], -x[1], x[2]))
+    return candidates[0][3]
 
 
 # ---------------------------------------------------------------------------

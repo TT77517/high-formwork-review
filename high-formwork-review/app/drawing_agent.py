@@ -19,6 +19,10 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from .drawing_scope import resolve_evidence_scope
+from .drawing_vision import (
+    has_usable_drawing_image as _has_usable_image,
+    select_relevant_drawing_image as _select_relevant_image,
+)
 
 
 @dataclass
@@ -467,55 +471,80 @@ class DrawingConsistencyAgent:
         state: DrawingAgentState,
         document: Any,
     ) -> None:
-        """INSPECT_IMAGE 的实际执行：选页（优先 OCR Evidence 页）→ vision_tool → 构造 VLM Evidence。"""
-        # 优先选已存在 OCR Evidence 的页；否则选 candidate_pages[0]
-        target: Mapping[str, Any] | None = None
+        """INSPECT_IMAGE 的实际执行：选页（优先 OCR Evidence 页）→ usable image
+        gate → 选最相关 image → vision_tool → 构造 VLM Evidence。
+
+        Task 8B.5：先对候选做 usable image gate；无图候选不调 vision_tool、
+        不增 vlm_calls；候选穷尽仍无图 → finish_reason='no_usable_image'。
+        """
+        # 构造 target 列表：OCR evidence 页优先（保持 Task 5B 行为），再 candidate_pages
+        targets: list[Mapping[str, Any]] = []
         for ev in state.drawing_evidence:
             if ev.source_type == "ocr" and ev.page is not None:
-                target = {"physical_page": ev.page}
+                targets.append({"physical_page": ev.page})
                 break
-        if target is None and state.candidate_pages:
-            target = state.candidate_pages[0]
-        if target is None:
-            self._finish(state, "vision_no_evidence")
+        for cand in state.candidate_pages:
+            if cand.get("physical_page") is None:
+                continue
+            if any(t.get("physical_page") == cand.get("physical_page") for t in targets):
+                continue
+            targets.append(cand)
+        if not targets:
+            self._finish(state, "no_usable_image")
             return
-        page = self._resolve_candidate_page(document, target)
-        obs: dict[str, Any] = {"page": target.get("physical_page")}
-        if page is None:
-            obs["page_resolved"] = False
+
+        job_dir = getattr(state, "_job_dir", None)
+        for target in targets:
+            page = self._resolve_candidate_page(document, target)
+            page_num = target.get("physical_page")
+            if page is None:
+                continue
+            if not _has_usable_image(page, job_dir=job_dir):
+                # 无可用 image：记录 observation、跳过；不调 vision_tool，不增 vlm_calls
+                state.actions_taken.append(
+                    {
+                        "iteration": state.iteration + 1,
+                        "action": INSPECT_IMAGE,
+                        "page": page_num,
+                        "observation": {"page": page_num, "usable_image": False},
+                    }
+                )
+                continue
+            selection = _select_relevant_image(page, state.task, job_dir=job_dir)
+            chosen_path = selection[1] if selection is not None else None
+            try:
+                result = self.vision_tool(
+                    page, state.task, job_dir=job_dir, image_path=chosen_path
+                )
+            except Exception:
+                # Task 5B 第 33 节：允许异常向上抛
+                raise
+            state.vlm_calls += 1
+            evidence = self._extract_vision_evidence(state.task, page, result)
+            obs: dict[str, Any] = {
+                "page": page_num,
+                "usable_image": True,
+                "image_path": str(chosen_path) if chosen_path is not None else None,
+            }
+            if evidence is not None:
+                state.drawing_evidence.append(evidence)
+                obs["found"] = True
+                obs["has_value"] = evidence.value is not None
+                # Task 6：不自动 _finish，让 decide_next_action 决定是否走 SEARCH_TEXT
+            else:
+                obs["found"] = False
             state.actions_taken.append(
                 {
                     "iteration": state.iteration + 1,
                     "action": INSPECT_IMAGE,
-                    "page": target.get("physical_page"),
+                    "page": page.physical_page,
                     "observation": obs,
                 }
             )
-            state.vlm_calls += 1
-            return
-        try:
-            result = self.vision_tool(page, state.task)
-        except Exception:
-            # Task 5B 第 33 节：允许异常向上抛
-            raise
-        state.vlm_calls += 1
-        evidence = self._extract_vision_evidence(state.task, page, result)
-        if evidence is not None:
-            state.drawing_evidence.append(evidence)
-            obs["found"] = True
-            obs["has_value"] = evidence.value is not None
-            # Task 6：不自动 _finish，让 decide_next_action 决定是否走 SEARCH_TEXT
-        else:
-            obs["found"] = False
-            # Task 6：不自动 _finish（fallback_reason 由 _after_drawing_phase 提供）
-        state.actions_taken.append(
-            {
-                "iteration": state.iteration + 1,
-                "action": INSPECT_IMAGE,
-                "page": page.physical_page,
-                "observation": obs,
-            }
-        )
+            return  # 单次 INSPECT_IMAGE 只处理一个 candidate；下一次迭代由 decide 决定
+
+        # 所有候选均无可用 image
+        self._finish(state, "no_usable_image")
 
     def _extract_vision_evidence(
         self,

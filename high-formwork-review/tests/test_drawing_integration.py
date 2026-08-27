@@ -31,17 +31,30 @@ def _reg(fact_id: str, *, aliases: list[str] | None = None, scope: dict | None =
     }
 
 
-def _doc() -> Any:
-    """Single-page fake drawing document."""
+def _doc(image_path: str | None = None) -> Any:
+    """Single-page fake drawing document with optional image block."""
+    img = image_path
+    class _B:
+        block_type = "image"
+        image_path = img
+        text = ""
+        block_index = 0
     class _P:
         physical_page = 88
         parse_status = "parsed"
         page_type = "drawing"
-        blocks: list = []
+        blocks = [_B()] if img else []
         text = ""
     class _D:
         pages = [_P()]
     return _D()
+
+
+def _setup_job(tmp_path, rel: str = "x.jpg", content: bytes = b"x"):
+    raw_dir = tmp_path / "mineru_api" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    (raw_dir / rel).write_bytes(content)
+    return tmp_path, rel
 
 
 def _recall(document, keywords, limit=8) -> list[dict]:
@@ -64,12 +77,13 @@ def _run(
     ocr_text: str | None = None,
     vision_result: dict | None = None,
     search_results: list[dict] | None = None,
+    job_dir=None,
 ) -> Any:
     """Run build_agent_drawing_review with shared fakes."""
     def _ocr_factory(page, engine, *, job_dir=None):
         return ocr_text
 
-    def _vision_factory(page, task):
+    def _vision_factory(page, task, **kwargs):
         return vision_result if vision_result is not None else {
             "found": False, "value": None, "unit": None,
             "evidence_text": None, "confidence": None, "scope": {},
@@ -83,10 +97,12 @@ def _run(
         return [c for c in search_results if c.get("matched_alias") in alias_set]
 
     return build_agent_drawing_review(
-        document=_doc(), project_facts=facts, registry=registry,
+        document=_doc(job_dir[1] if job_dir else None),
+        project_facts=facts, registry=registry,
         recall_tool=_recall, check_tool=check_tool,
         ocr_tool=_ocr_factory, search_text_tool=_search_factory,
         vision_tool=_vision_factory, ocr_engine=object(),
+        job_dir=job_dir[0] if job_dir else None,
     )
 
 
@@ -131,7 +147,8 @@ def test_check_param_integration_yields_unit_incomplete() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_reverse_chase_consistent_explicit_unit() -> None:
+def test_reverse_chase_consistent_explicit_unit(tmp_path) -> None:
+    job_dir = _setup_job(tmp_path)
     registry = [_reg("insertion", aliases=["托撑插入"])]
     facts = {"facts": {"insertion": {"value": None}}}
     result = _run(
@@ -143,6 +160,7 @@ def test_reverse_chase_consistent_explicit_unit() -> None:
                         "evidence_text": "梁底可调托撑插入立杆长度为150mm",
                         "value": 150, "unit": "mm",
                         "matched_alias": "托撑插入", "matched_value": True}],
+        job_dir=job_dir,
     )
     item = result.items[0]
     assert item.status == "CONSISTENT"
@@ -157,7 +175,8 @@ def test_reverse_chase_consistent_explicit_unit() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_reverse_chase_conflict_explicit_unit() -> None:
+def test_reverse_chase_conflict_explicit_unit(tmp_path) -> None:
+    job_dir = _setup_job(tmp_path)
     registry = [_reg("insertion", aliases=["托撑插入"])]
     facts = {"facts": {"insertion": {"value": None}}}
     result = _run(
@@ -169,6 +188,7 @@ def test_reverse_chase_conflict_explicit_unit() -> None:
                         "evidence_text": "梁底可调托撑插入立杆长度为160mm",
                         "value": 160, "unit": "mm",
                         "matched_alias": "托撑插入", "matched_value": False}],
+        job_dir=job_dir,
     )
     item = result.items[0]
     assert item.status == "CONFLICT"
@@ -181,7 +201,8 @@ def test_reverse_chase_conflict_explicit_unit() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_reverse_chase_scope_incompatible() -> None:
+def test_reverse_chase_scope_incompatible(tmp_path) -> None:
+    job_dir = _setup_job(tmp_path)
     registry = [_reg("spacing", aliases=["立杆纵距"])]
     facts = {"facts": {"spacing": {"value": None}}}
     result = _run(
@@ -193,6 +214,7 @@ def test_reverse_chase_scope_incompatible() -> None:
                         "evidence_text": "板底立杆间距1200×1200mm",
                         "value": [1200, 1200], "unit": "mm",
                         "matched_alias": "立杆纵距", "matched_value": False}],
+        job_dir=job_dir,
     )
     item = result.items[0]
     assert item.status == "UNCERTAIN"
@@ -205,7 +227,8 @@ def test_reverse_chase_scope_incompatible() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_multi_task_order_and_status_counts() -> None:
+def test_multi_task_order_and_status_counts(tmp_path) -> None:
+    job_dir = _setup_job(tmp_path)
     registry = [
         _reg("param_a", aliases=["参数A"], scope=_BEAM_B),
         _reg("param_b", aliases=["参数B"]),
@@ -241,8 +264,7 @@ def test_multi_task_order_and_status_counts() -> None:
     search_results = [{"physical_page": 12, "printed_page": "12",
                        "evidence_text": "梁底参数B 150mm", "value": 150, "unit": "mm",
                        "matched_alias": "参数B", "matched_value": True}]
-    # 复用 _run，但 vision_factory 用 per-task 版本
-    def _vision_factory(page, task):
+    def _vision_factory(page, task, **kwargs):
         return _vision(page, task)
     def _ocr_factory(page, engine, *, job_dir=None):
         return "梁底参数B 150mm 节点详图"
@@ -250,10 +272,11 @@ def test_multi_task_order_and_status_counts() -> None:
         return [c for c in search_results if c["matched_alias"] == aliases[0]] if aliases else []
 
     result = build_agent_drawing_review(
-        document=_doc(), project_facts=facts, registry=registry,
+        document=_doc(job_dir[1]), project_facts=facts, registry=registry,
         recall_tool=_recall, check_tool=_check,
         ocr_tool=_ocr_factory, search_text_tool=_search_factory,
         vision_tool=_vision_factory, ocr_engine=object(),
+        job_dir=job_dir[0],
     )
     assert result.total_tasks == 3
     assert result.reviewed_tasks == 3
