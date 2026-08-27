@@ -89,46 +89,13 @@ def inspect_drawing_page(page, task, *, client=None, job_dir=None, image_path=No
 _USABLE_IMAGE_BLOCK_TYPES = frozenset({"image", "figure", "chart"})
 
 
-def has_usable_drawing_image(page, *, job_dir=None) -> bool:
-    """候选页是否含至少一个可解析的 image block（image_path 存在 + 文件可读）。
+def _iter_resolved_image_blocks(page, job_dir):
+    """yield (block, resolved_path, file_size) for each usable image block on page.
 
-    - 机械判定：仅看 image_path 可解析 + 文件存在；不引入 LLM/embedding/CV
-    - Agent 在 INSPECT_IMAGE 前调用，避免无图页面触发空 provider 请求
+    Mechanical: skips blocks without image_path, unresolvable paths, or missing files.
+    Single source of truth for both ``has_usable_drawing_image`` and
+    ``select_relevant_drawing_image`` to avoid duplicated resolver / iteration code.
     """
-    for block in getattr(page, "blocks", []) or []:
-        if getattr(block, "block_type", "") not in _USABLE_IMAGE_BLOCK_TYPES:
-            continue
-        rel = getattr(block, "image_path", None)
-        if not rel:
-            continue
-        try:
-            resolved = (
-                _resolve_image_path_direct(job_dir, rel)
-                if job_dir is not None
-                else _resolve_image_path(rel)
-            )
-        except (OSError, ValueError):
-            continue
-        if resolved is not None and Path(resolved).is_file():
-            return True
-    return False
-
-
-def select_relevant_drawing_image(page, task, *, job_dir=None) -> tuple | None:
-    """多 image 候选时按确定性规则选出最相关一张。
-
-    Ranking（稳定，相同输入同输出）：
-    1. block.text 或 page.text 命中 task 任一 alias → 排前
-    2. 文件 size 较大 → 排前（弱 tie-break）
-    3. block_index 较小 → 排前（终局 tie-break）
-
-    禁止：
-    - 使用 task.text_value 做答案泄漏式筛选
-    - 使用 LLM/embedding/CV 排序
-    """
-    candidates: list[tuple[int, int, int, Any]] = []  # (alias_hit, size, idx, block)
-    page_text = (getattr(page, "text", "") or "")
-    aliases = list(getattr(task, "aliases", []) or [])
     for block in getattr(page, "blocks", []) or []:
         if getattr(block, "block_type", "") not in _USABLE_IMAGE_BLOCK_TYPES:
             continue
@@ -145,16 +112,36 @@ def select_relevant_drawing_image(page, task, *, job_dir=None) -> tuple | None:
             continue
         if resolved is None or not Path(resolved).is_file():
             continue
-        size = Path(resolved).stat().st_size
-        block_text = (getattr(block, "text", "") or "")
-        local = (block_text + "\n" + page_text) if page_text else block_text
+        yield block, Path(resolved), Path(resolved).stat().st_size
+
+
+def has_usable_drawing_image(page, *, job_dir=None) -> bool:
+    """候选页是否含至少一个可解析的 image block。
+
+    Agent 在 INSPECT_IMAGE 前调用，避免无图页面触发空 provider 请求。
+    """
+    for _ in _iter_resolved_image_blocks(page, job_dir):
+        return True
+    return False
+
+
+def select_relevant_drawing_image(page, task, *, job_dir=None):
+    """多 image 候选时按确定性规则选最相关一张。
+
+    Ranking：alias_hit desc / file_size desc / block_index asc。
+    禁止使用 task.text_value 做答案泄漏式筛选；不引入 LLM/embedding/CV。
+    """
+    page_text = (getattr(page, "text", "") or "")
+    aliases = list(getattr(task, "aliases", []) or [])
+    scored = []
+    for block, resolved, size in _iter_resolved_image_blocks(page, job_dir):
+        local = (getattr(block, "text", "") or "") + ("\n" + page_text if page_text else "")
         alias_hit = 1 if any(a and a in local for a in aliases) else 0
-        candidates.append((alias_hit, size, getattr(block, "block_index", 0), (block, Path(resolved))))
-    if not candidates:
+        scored.append((alias_hit, size, getattr(block, "block_index", 0), block, resolved))
+    if not scored:
         return None
-    # alias_hit desc, size desc, block_index asc（原始 block 顺序作 tie-break）
-    candidates.sort(key=lambda x: (-x[0], -x[1], x[2]))
-    return candidates[0][3]
+    scored.sort(key=lambda x: (-x[0], -x[1], x[2]))
+    return scored[0][3], scored[0][4]
 
 
 # ---------------------------------------------------------------------------

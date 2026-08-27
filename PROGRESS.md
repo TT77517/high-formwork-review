@@ -652,3 +652,44 @@
 - [2026-08-27 19:55] claude 签到 — 开始处理：Task 8B.4.1: Vision Smoke vs Agent Run Parity Audit (OBSERVE-ONLY)
 
 - [2026-08-27 20:02] claude 签到 — 开始处理：Task 8B.5: Drawing Vision Candidate & Image Selection Enhancement
+
+- [2026-08-27 20:45] claude 签退 — 完成了：Task 8B.5 Image Applicability Gate（最小生产改动 + 5+1 regression）：
+
+  **Production 改动**（2 files）：
+  - `app/drawing_vision.py`：新增 `has_usable_drawing_image()` / `select_relevant_drawing_image()`；`inspect_drawing_page` 加 `image_path` kwarg（Agent 预选图）
+  - `app/drawing_agent.py`：`_execute_inspect` 加 usable image gate；候选穷尽无图 → `finish_reason='no_usable_image'`，不调 vision_tool、不增 vlm_calls
+  - 多 image 排序（deterministic）：alias hit desc / file size desc / block_index asc
+
+  **5 regression tests**（tests/test_drawing_agent.py）：
+  1. candidate A no-image / B has image → only B called, vision_calls=[88]
+  2. all no-image → 0 vision calls, finish_reason='no_usable_image'
+  3. multi-image with alias hit → 选 B（alias 命中），单次调用
+  4. multi-image no alias hit → 选 a.jpg (block_index=0)，两次运行一致
+  5. image_path 设但文件缺失 → unusable，vision 跳过该 block
+
+  **1 保护 test**（page 21 grounding）：验证 Task 8B.4.1 鉴定的 grounding 失败 case 仍 found=False（防止本 Task 误用 alias/prompt 改 PASS）
+
+  **Tests**：前 392/1/0 → 后 **398/1/0**（+6 全部新增/更新）
+  **Budgets**：MAX_ITERATIONS/MAX_OCR_PAGES/MAX_VLM_CALLS/MAX_TEXT_SEARCHES 0 delta
+  **PRODUCTION_CODE_CHANGE: YES**（仅 drawing_vision.py + drawing_agent.py）
+  **VISION_PROMPT/ALIAS/REGISTRY/OCR/COMPARATOR/SCOPE/UNIT/BUDGET/WEB/ORCHESTRATOR_CHANGE: NO**
+
+  **已知剩余问题（按 8B.4.1 P1 保留）**：
+  - TASK_GROUNDING_MISMATCH：head_jack_insertion_length / head_jack_screw_exposed_length 在 page 21 同图 VLM 仍 found=False（smoke-style aliases 含「可调托撑」可达 500mm；本 Task 不改 prompt/alias）
+
+  **生产 diff 略超 100 行**（drawing_vision +89 + drawing_agent +67 = ~156，跨 2 文件自然超出；但 2 files 限制内）
+  **测试 diff 略超 150 行**（test_drawing_agent +323 / test_drawing_integration +47；既有测试 fake page 无 image block，新增 production 行为后必须给测试 page 补 image，helper 改动是必然开销）
+  推荐下一任务：Task 8B.5.1（真实回归验证 7 Vision cases 在新 gate 下行为变化）
+  不实施推荐任务；不进入 Task 8C；等待用户确认。
+
+- [2026-08-27 20:46] claude 签退 — Task 8B.5 Image Applicability Gate 已 commit。
+
+- [2026-08-27 20:15] claude 签到 — 开始处理：Task 8B.5a: Diff Governance Cleanup (no behavior change)
+
+- [2026-08-27 22:25] codex 签到 — 开始处理：读取最近的更改
+
+- [2026-08-27 22:26] codex 签退 — 完成了：读取最近提交与未提交 diff，整理变更摘要；下一步建议：如需继续，可审查未提交的 drawing_vision 重构与 Tool 别名测试后再决定是否提交
+
+- [2026-08-27 22:34] codex 签到 — 开始处理：Task 8B.5a: Diff Governance Cleanup
+
+- [2026-08-27 22:35] codex 签退 — 完成了：Task 8B.5a Diff Governance Cleanup（不改变生产行为）：`drawing_vision.py` 合并可用图片 resolver/iteration 单一路径；`test_drawing_agent.py` 将 8B.5 的 no-image/later-valid/multi-image/missing-file/deterministic/page21/statistics 语义压缩为参数化矩阵；移除半途遗留的非本任务 vertical_slice 公共别名测试。Diff 治理结果：production 67/38 + 72/4，净新增 97（<=120）；tests 170/15 + 35/12，净新增 178（<=180）。Focused `32 passed`；Full `398 passed / 1 skipped / 0 failed`（1 LibreSSL warning）。下一步建议：Task 8B.5.1 — Real Regression After Image Gate
