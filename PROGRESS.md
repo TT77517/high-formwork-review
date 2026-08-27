@@ -471,3 +471,24 @@
   passthrough 数据通道补全说明，不属于业务行为变更）。下一步建议：等用户确认 → 进入
   Task 8B（真实方案全量 Agent 回归）；registry scope passthrough 已在 Task 8 体系门禁
   之前就绪，Task 8 实施时无需重做这部分数据通道。
+
+- [2026-08-27 18:30] claude 签退 — 完成了：Task 8B 真实方案 Agent 全量回归（OBSERVE-ONLY，production 0 delta）：用项目既有 job `146dc530dd964a30a2d4f29410738e4d`（214 页高支模方案 PDF，30 个 ProjectFacts，17 个 registry task，5 个 legacy drawing_review 项）跑完整 `build_agent_drawing_review`，回归脚本写到 `tmp/drawing_agent_regression/`（3 个 artifact：agent_result.json / task_audit.json / legacy_comparison.json，不进 git）。总耗时 4.7s，full suite 388/1/0 不变。
+
+  真实结果（不修代码，只记录）：
+  - 状态分布：CONSISTENT=0, CONFLICT=0, TEXT_ONLY=3, DRAWING_ONLY=0, UNCERTAIN=1, NOT_FOUND=13
+  - DECISIVE=0/17=0% （非 accuracy，是 deterministic decision coverage）
+  - 工具调用：SEARCH_DRAWING=17, CHECK_PARAM=4, OCR_PAGE=11, INSPECT_IMAGE=7, SEARCH_TEXT=0
+  - OCR/VLM 实际跑了 7 task；VLM 配置了 credential，但 Agent 实际触发了 7 次 INSPECT_IMAGE
+  - NOT_FOUND 13 中：5 task `no_candidate_pages`（6/13 实际），8 task `ocr_no_evidence`；TEXT_ONLY 3 是因为 legacy `_cross_check_param` 找不到图纸标注
+  - UNCERTAIN 1（horizontal_spacing scope_unknown）：drawing Evidence 来自 CHECK_PARAM legacy，text+drawing scope 都空 → 走 scope_unknown 分支（注意：CHECK_PARAM 路径 drawing unit=None 是 Task 7C.1 provenance 故意设的，unit_incomplete 没在本次 17 task 触发因为 scope 不 compatible）
+  - legacy vs agent：4 个有 legacy 数据的 fact 中 3 个 legacy 状态/agent 状态完全错位（legacy 看到 ISSUE/PASS 但 drawing 来自 `_cross_check_param` 后真实 RepositoryFacts 与图纸标注差 1-2 个数量级，看起来 legacy cross_check 用了 body_value=m 误抓 4.0=4000mm 当 drawing；agent CHECK_PARAM 路径上 unit=mm 收不到 unit 但 alias-local 推断没找到证据 → TEXT_ONLY）
+
+  P0 阻断（13/17 tasks = 76%）：Drawing Recall 缺陷——critical_fact 任务在 214 页方案里 6 个连候选页都没有（base_jack_*/free_end/top_level/main_beam/monitoring），另 7 个 OCR 触发后找不到 alias 命中。
+  P1（4/17）：Unit Provenance（Task 7C.1 故意设 unit=None）。
+  P2（1/17）：Scope Inference（horizontal_spacing）。
+
+  推荐下一任务（仅一项）：Drawing Recall Enhancement——让 OCR/VLM 在 alias hit 之前先做 raw page scanning，提升 recall。
+  不要为 unit_incomplete 妥协 comparator 规则；不要把 task.unit 填回 DrawingEvidence。
+
+  design doc 不需要新版本：已用 Section 1.3 已完成清单记录当前封版基线。
+  下一步建议：等用户确认 P0 路径；不进入 Task 8C。
