@@ -340,6 +340,10 @@ def get_orchestrator(job_id: str) -> dict[str, Any]:
     path = job_dir / "orchestrator_agent.json"
     if not path.is_file():
         raise HTTPException(status_code=404, detail="总控 Agent 结果不存在")
+    current = _read_json(path, "总控 Agent 结果不存在")
+    plan_scope = (current.get("plan_explanation") or {}).get("recognized_scope") or {}
+    if "plan_explanation" not in current or plan_scope.get("risk_classification") == "over_scale_dangerous":
+        _write_orchestrator_state_if_ready(job_dir)
     return _read_json(path, "总控 Agent 结果不存在")
 
 
@@ -512,6 +516,10 @@ class RuleCreateInput(BaseModel):
     status: str = Field(default="active", max_length=32)
 
 
+class RuleBatchCreateInput(BaseModel):
+    rules: list[RuleCreateInput] = Field(min_length=1, max_length=200)
+
+
 _MODULE_FILE_MAP = {
     "01_procedure_compliance": "module_01_procedure_compliance.json",
     "02_load_values": "module_02_load_values.json",
@@ -525,18 +533,52 @@ _MODULE_FILE_MAP = {
 @app.post("/api/rules", status_code=201)
 def create_rule(payload: RuleCreateInput) -> dict[str, Any]:
     """新增规则到指定模块 JSON。"""
+    return _create_rules([payload])["results"][0] | {"created": True}
+
+
+@app.post("/api/rules/batch", status_code=201)
+def create_rules_batch(payload: RuleBatchCreateInput) -> dict[str, Any]:
+    """批量新增规则到对应模块 JSON。"""
+    return _create_rules(payload.rules)
+
+
+def _create_rules(payloads: list[RuleCreateInput]) -> dict[str, Any]:
+    incoming_ids = [item.rule_id for item in payloads]
+    if len(incoming_ids) != len(set(incoming_ids)):
+        raise HTTPException(status_code=409, detail="导入内容存在重复规则编号")
+    existing_ids = {str(rule.get("rule_id")) for rule in load_rule_library()}
+    duplicated = sorted(set(incoming_ids) & existing_ids)
+    if duplicated:
+        raise HTTPException(status_code=409, detail=f"规则已存在：{', '.join(duplicated[:10])}")
+
+    files: dict[str, tuple[Path, list[dict[str, Any]]]] = {}
+    new_rules: list[dict[str, Any]] = []
+    for payload in payloads:
+        module = payload.module
+        filename = _MODULE_FILE_MAP.get(module)
+        if not filename:
+            raise HTTPException(status_code=422, detail=f"模块 {module} 不存在")
+        path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
+        if not path.is_file():
+            raise HTTPException(status_code=500, detail=f"规则文件不存在：{filename}")
+        if filename not in files:
+            files[filename] = (path, json.loads(path.read_text(encoding="utf-8")))
+        new_rules.append(_rule_from_payload(payload))
+
+    for rule in new_rules:
+        filename = _MODULE_FILE_MAP[str(rule["module"])]
+        files[filename][1].append(rule)
+    for path, rules in files.values():
+        path.write_text(json.dumps(rules, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {
+        "created_count": len(new_rules),
+        "results": [{"rule_id": rule["rule_id"], "created": True} for rule in new_rules],
+    }
+
+
+def _rule_from_payload(payload: RuleCreateInput) -> dict[str, Any]:
     module = payload.module
-    filename = _MODULE_FILE_MAP.get(module)
-    if not filename:
-        raise HTTPException(status_code=422, detail=f"模块 {module} 不存在")
-    path = PROJECT_ROOT / "config" / "rule_library_v4" / filename
-    if not path.is_file():
-        raise HTTPException(status_code=500, detail="规则文件不存在")
-    rules = json.loads(path.read_text(encoding="utf-8"))
-    for existing in rules:
-        if existing.get("rule_id") == payload.rule_id:
-            raise HTTPException(status_code=409, detail=f"规则 {payload.rule_id} 已存在")
-    rule = {
+    return {
         "rule_id": payload.rule_id,
         "rule_name": payload.rule_name,
         "module": module,
@@ -557,9 +599,6 @@ def create_rule(payload: RuleCreateInput) -> dict[str, Any]:
         "notes": payload.notes,
         "status": payload.status,
     }
-    rules.append(rule)
-    path.write_text(json.dumps(rules, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return {"rule_id": payload.rule_id, "created": True}
 
 
 @app.delete("/api/rules/{rule_id}")
@@ -589,7 +628,7 @@ def update_rule(rule_id: str, payload: RuleUpdateInput) -> dict[str, Any]:
     修改直接写回 config/rule_library_v4/ 对应模块 JSON。
     """
     editable_fields = {
-        "rule_name", "module", "category", "check_type", "severity", "risk_level",
+        "rule_name", "category", "check_type", "severity", "risk_level",
         "applicable_types", "applicability_conditions", "code_ref", "check_logic",
         "threshold", "remedy_suggestion", "typical_violation", "manual_review",
         "notes", "check_content", "status",

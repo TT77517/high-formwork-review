@@ -108,6 +108,65 @@ DRAWING_CROSS_CHECK_PARAMS = [
         "keywords": ["扫地杆", "最底层水平杆"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
     },
+    {
+        "fact_id": "head_jack_insertion_length",
+        "name": "可调托撑插入长度",
+        "keywords": ["托撑插入", "顶托插入", "插入立杆长度"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+        "exclude_terms": ["底座", "外露", "悬臂"],
+    },
+    {
+        "fact_id": "base_jack_insertion_length",
+        "name": "可调底座插入长度",
+        "keywords": ["底座插入", "可调底座插入", "底座丝杆插入"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+        "exclude_terms": ["顶托", "托撑", "外露"],
+    },
+    {
+        "fact_id": "free_end_length",
+        "name": "自由端长度",
+        "keywords": ["自由端", "自由端长度", "顶层水平杆以上"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+        "exclude_terms": ["计算长度"],
+    },
+    {
+        "fact_id": "base_jack_screw_extension",
+        "name": "底座螺杆外伸长度",
+        "keywords": ["底座外伸", "底座外露", "可调底座外伸", "底座螺杆伸出"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+        "exclude_terms": ["顶托", "托撑", "悬臂"],
+    },
+    {
+        "fact_id": "top_level_to_jack_distance",
+        "name": "顶层水平杆至托撑顶面距离",
+        "keywords": ["顶层水平杆至托撑", "顶层水平杆到顶面", "调节螺杆伸出长度"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+    },
+    {
+        "fact_id": "panel_thickness",
+        "name": "面板厚度",
+        "keywords": ["面板厚度", "模板厚度", "胶合板厚度"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+        "exclude_terms": ["钢板"],
+    },
+    {
+        "fact_id": "panel_stringer_spacing",
+        "name": "次楞间距",
+        "keywords": ["次楞间距", "次龙骨间距", "小楞间距"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+    },
+    {
+        "fact_id": "main_beam_spacing",
+        "name": "主楞间距",
+        "keywords": ["主楞间距", "主龙骨间距", "大楞间距"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
+    },
+    {
+        "fact_id": "monitoring_point_spacing",
+        "name": "监测点间距",
+        "keywords": ["监测点间距", "观测点间距", "监测点布置间距"],
+        "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|m|毫米|厘米|米)?",
+    },
 ]
 
 
@@ -142,10 +201,21 @@ def build_drawing_review(
             "核对步距、可调托撑悬臂、立杆布置等正文/计算参数是否在图纸中有对应表达。",
             _merge_fact_evidence(
                 facts,
-                ("standard_step_height", "head_jack_cantilever_length", "support_system"),
+                (
+                    "standard_step_height",
+                    "head_jack_cantilever_length",
+                    "head_jack_screw_exposed_length",
+                    "vertical_spacing",
+                    "horizontal_spacing",
+                    "support_height",
+                    "panel_thickness",
+                    "panel_stringer_spacing",
+                    "main_beam_spacing",
+                    "support_system",
+                ),
             ),
             parsed_document,
-            ("支撑架", "立杆", "水平杆", "可调托撑", "节点", "剖面", "立面"),
+            ("支撑架", "立杆", "水平杆", "可调托撑", "主楞", "次楞", "节点", "剖面", "立面"),
         )
     )
 

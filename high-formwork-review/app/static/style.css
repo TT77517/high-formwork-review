@@ -290,6 +290,7 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .rule-check-group label, .rule-inline-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
 .rule-check-group input, .rule-inline-check input { width: auto; }
 .rule-inline-check { margin-top: 4px; }
+.code-input { min-height: 360px; font-family: "SFMono-Regular", Consolas, monospace; line-height: 1.5; }
 .action-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 
 /* Timeline */
@@ -406,6 +407,9 @@ button.ev-thumb-table:hover { border-color: var(--primary); color: var(--primary
 .agent-step:not(:last-child)::after { content: '›'; position: absolute; right: -8px; color: var(--text-quaternary); }
 .agent-step-done { background: var(--success-bg); border-color: #b7eb8f; color: var(--text); }
 .agent-step-warn { background: var(--warning-bg); border-color: #ffe58f; color: var(--text); }
+.agent-logic { margin: 10px 0 14px; padding: 12px; border: 1px solid var(--border-secondary); border-radius: var(--radius-sm); background: #fafafa; }
+.agent-logic ol { margin: 6px 0 0 18px; padding: 0; }
+.agent-logic li { margin: 4px 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 .tool-grid { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; }
 .tool-card { border: 1px solid var(--border-secondary); border-radius: var(--radius); padding: 12px; background: #fff; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px; min-height: 108px; }
 .tool-card:hover { border-color: var(--primary-hover); box-shadow: var(--shadow-card); }

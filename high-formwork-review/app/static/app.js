@@ -240,6 +240,10 @@ function renderOrchestratorPanel() {
   const conflictCount = orchestratorData?.parameter_conflicts?.length || 0;
   const formulaRecalcCount = orchestratorData?.formula_recalculations?.length || 0;
   const docCorrectionCount = orchestratorData?.rerun_context?.document_parse_corrections?.length || 0;
+  const planExplanation = orchestratorData?.plan_explanation || {};
+  const planLogicHtml = (planExplanation.bullets || []).length
+    ? `<div class="agent-logic"><div class="flow-label">Agent 审查逻辑</div><ol>${planExplanation.bullets.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>`
+    : '';
   const flow = ORCH_FLOW.map(([stage, label]) => `<div class="agent-step agent-step-${_flowState(stage)}"><span>${esc(label)}</span></div>`).join('');
   const planBadge = reviewPlanData
     ? (reviewPlanData.generated_by === 'llm' ? '<span class="tag-agent">计划：LLM</span>' : '<span class="tag-default">计划：本地</span>')
@@ -255,9 +259,12 @@ function renderOrchestratorPanel() {
       </div>
       <div class="flow-label">执行链路</div>
       <div class="agent-flow">${flow}</div>
+      ${planLogicHtml}
       <div class="plan-strip">
         <span class="mini-chip">dispatch_plan ${dispatchPlan.length || 0} 步</span>
         <span class="mini-chip">tool_observations ${observations.length || 0} 类</span>
+        <span class="mini-chip">审查重点 ${planExplanation.focus_count || 0}</span>
+        <span class="mini-chip">人工关口 ${planExplanation.human_gate_count || 0}</span>
         <span class="mini-chip">候选参数 ${candidateCount}</span>
         <span class="${conflictCount ? 'tag-orange' : 'tag-green'}">参数冲突 ${conflictCount}</span>
         <span class="mini-chip">公式复算 ${formulaRecalcCount}</span>
@@ -1654,6 +1661,7 @@ window.editRule = function(rid) {
   $('#ruleEditTitle').textContent = `编辑规则 ${rid}`;
   fetch(`/api/rules/${encodeURIComponent(rid)}`).then(r => r.json()).then(rule => {
     $('#ruleEditBody').innerHTML = renderRuleEditForm(rule);
+    bindRuleFormBehavior();
     modal.classList.remove('hidden');
   });
 };
@@ -1733,6 +1741,22 @@ function firstThreshold(rule) {
 function ruleInput(key) {
   return $(`#ef_${key}`);
 }
+function bindRuleFormBehavior() {
+  const checkType = ruleInput('check_type');
+  const moduleSelect = ruleInput('module');
+  const categoryInput = ruleInput('category');
+  const applyVisibility = () => {
+    const type = checkType?.value || 'deterministic';
+    $$('.rule-threshold-fields').forEach(el => el.classList.toggle('hidden', type === 'semantic'));
+    $$('.rule-formula-fields').forEach(el => el.classList.toggle('hidden', type !== 'calculation'));
+    $$('.rule-keyword-fields').forEach(el => el.classList.toggle('hidden', type === 'calculation'));
+  };
+  checkType?.addEventListener('change', applyVisibility);
+  moduleSelect?.addEventListener('change', () => {
+    if (categoryInput) categoryInput.value = RULE_CATEGORY_BY_MODULE[moduleSelect.value] || '';
+  });
+  applyVisibility();
+}
 
 function renderRuleEditForm(rule) {
   const isExisting = !!rule.rule_id;
@@ -1779,17 +1803,18 @@ function renderRuleEditForm(rule) {
     <div class="detail-section">
       <h4>判定逻辑</h4>
       <div class="manual-body"><div class="field full-width"><label>审查内容</label><textarea id="ef_check_content" class="manual-note" maxlength="2000" placeholder="说明这条规则检查什么">${esc(rule.check_content || '')}</textarea></div></div>
-      <div class="manual-body"><div class="field full-width"><label>提取关键词</label><textarea id="ef_extraction_keywords" class="manual-note" maxlength="1000" placeholder="每行一个关键词，支持参数、构造名称、章节词">${esc(keywords)}</textarea></div></div>
-      <div class="manual-body">
+      <div class="manual-body rule-keyword-fields"><div class="field full-width"><label>提取关键词</label><textarea id="ef_extraction_keywords" class="manual-note" maxlength="1000" placeholder="每行一个关键词，支持参数、构造名称、章节词">${esc(keywords)}</textarea></div></div>
+      <div class="manual-body rule-threshold-fields">
         <div class="field"><label>参数名称</label><input id="ef_threshold_param" class="manual-note" value="${esc(threshold.param || logic.param || '')}" placeholder="如 立杆纵距"></div>
         <div class="field"><label>比较方式</label><select id="ef_operator">${optionHtml([['', '不设置'], ['<=', '小于等于'], ['<', '小于'], ['>=', '大于等于'], ['>', '大于'], ['=', '等于'], ['contains', '包含'], ['exists', '应出现']], threshold.operator || logic.operator || '')}</select></div>
       </div>
-      <div class="manual-body">
+      <div class="manual-body rule-threshold-fields">
         <div class="field"><label>限值/目标值</label><input id="ef_threshold_value" class="manual-note" value="${esc(threshold.value ?? logic.value ?? '')}" placeholder="如 1.5"></div>
         <div class="field"><label>单位</label><input id="ef_threshold_unit" class="manual-note" value="${esc(threshold.unit || logic.unit || '')}" placeholder="m / mm / kN/m²"></div>
       </div>
       <div class="manual-body"><div class="field full-width"><label>适用条件</label><textarea id="ef_applicability_conditions" class="manual-note" maxlength="1000" placeholder="每行一条，如：支架类型：扣件式">${esc(conditions)}</textarea></div></div>
-      <div class="manual-body"><div class="field full-width"><label>公式/补充逻辑</label><textarea id="ef_logic_description" class="manual-note" maxlength="2000" placeholder="计算类可填公式；语义类可填判定口径">${esc(logic.description || logic.formula || '')}</textarea></div></div>
+      <div class="manual-body rule-formula-fields"><div class="field full-width"><label>公式/复算逻辑</label><textarea id="ef_logic_description" class="manual-note" maxlength="2000" placeholder="计算类可填公式、公式编号或复算口径">${esc(logic.description || logic.formula || '')}</textarea></div></div>
+      <div class="manual-body rule-keyword-fields"><div class="field full-width"><label>语义判定口径</label><textarea id="ef_semantic_description" class="manual-note" maxlength="2000" placeholder="语义类可填 Agent 查证时的中文判定口径">${esc(logic.description || '')}</textarea></div></div>
     </div>
     <div class="detail-section">
       <h4>输出文案</h4>
@@ -1802,7 +1827,14 @@ function renderRuleEditForm(rule) {
 $('#addRuleBtn')?.addEventListener('click', () => {
   $('#ruleEditTitle').textContent = '新增规则';
   $('#ruleEditBody').innerHTML = renderRuleEditForm({ rule_id:'', rule_name:'', module:'04_construction_requirements', category:'construction', check_type:'deterministic', severity:'B-required', risk_level:'medium', applicable_types:['universal'], check_content:'', remedy_suggestion:'', typical_violation:'', notes:'', status:'active' });
+  bindRuleFormBehavior();
   $('#ruleEditModal').classList.remove('hidden');
+});
+
+$('#batchRuleBtn')?.addEventListener('click', () => {
+  $('#ruleBatchInput').value = '';
+  $('#ruleBatchMessage').textContent = '一次最多导入 200 条；建议按模块分批导入，便于校验。';
+  $('#ruleBatchModal').classList.remove('hidden');
 });
 
 // 规范版本校验
@@ -1843,6 +1875,7 @@ $('#versionValidationBtn')?.addEventListener('click', async () => {
 });
 $('#versionValidationClose')?.addEventListener('click', () => $('#versionValidationModal').classList.add('hidden'));
 $('#ruleEditCancel')?.addEventListener('click', () => $('#ruleEditModal').classList.add('hidden'));
+$('#ruleBatchCancel')?.addEventListener('click', () => $('#ruleBatchModal').classList.add('hidden'));
 $('#ruleEditSave')?.addEventListener('click', async () => {
   const module = ruleInput('module')?.value || '04_construction_requirements';
   const operator = ruleInput('operator')?.value || '';
@@ -1850,7 +1883,9 @@ $('#ruleEditSave')?.addEventListener('click', async () => {
   const thresholdValueRaw = ruleInput('threshold_value')?.value.trim() || '';
   const thresholdUnit = ruleInput('threshold_unit')?.value.trim() || '';
   const keywords = splitRuleList(ruleInput('extraction_keywords')?.value || '');
-  const logicDescription = ruleInput('logic_description')?.value.trim() || '';
+  const logicDescription = ruleInput('logic_description')?.value.trim()
+    || ruleInput('semantic_description')?.value.trim()
+    || '';
   const applicableTypes = $$('input[name="ef_applicable_types"]:checked').map(el => el.value);
   const thresholdValue = thresholdValueRaw !== '' && !Number.isNaN(Number(thresholdValueRaw))
     ? Number(thresholdValueRaw)
@@ -1913,6 +1948,38 @@ $('#ruleEditSave')?.addEventListener('click', async () => {
   } catch(e) { alert('保存失败: '+e.message); }
 });
 
+$('#ruleBatchSave')?.addEventListener('click', async () => {
+  const msg = $('#ruleBatchMessage');
+  let parsed;
+  try {
+    parsed = JSON.parse($('#ruleBatchInput').value || '[]');
+  } catch(e) {
+    msg.textContent = `JSON 格式错误：${e.message}`;
+    return;
+  }
+  const rules = Array.isArray(parsed) ? parsed : parsed.rules;
+  if (!Array.isArray(rules) || !rules.length) {
+    msg.textContent = '请粘贴规则 JSON 数组，或包含 rules 数组的对象。';
+    return;
+  }
+  $('#ruleBatchSave').disabled = true;
+  try {
+    const r = await fetch('/api/rules/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '导入失败');
+    msg.textContent = `已导入 ${d.created_count || rules.length} 条规则。`;
+    $('#ruleBatchModal').classList.add('hidden');
+    await loadRuleLibrary($('#rlModuleFilter').value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, rlStd());
+  } catch(e) {
+    msg.textContent = `导入失败：${e.message}`;
+  }
+  $('#ruleBatchSave').disabled = false;
+});
+
 // Rule library filters
 function rlStd() { return $('#rlStandardFilter').value; }
 $('#rlModuleFilter').addEventListener('change', function() { loadRuleLibrary(this.value, $('#rlTypeFilter').value, $('#rlSeverityFilter').value, $('#rlSearch').value, rlStd()); });
@@ -1926,6 +1993,9 @@ rlDrawer.addEventListener('click', e => { if (e.target === rlDrawer) rlDrawer.cl
 const ruleEditModal = $('#ruleEditModal');
 ruleEditModal.querySelector('.drawer-close').addEventListener('click', () => ruleEditModal.classList.add('hidden'));
 ruleEditModal.addEventListener('click', e => { if (e.target === ruleEditModal) ruleEditModal.classList.add('hidden'); });
+const ruleBatchModal = $('#ruleBatchModal');
+ruleBatchModal.querySelector('.drawer-close').addEventListener('click', () => ruleBatchModal.classList.add('hidden'));
+ruleBatchModal.addEventListener('click', e => { if (e.target === ruleBatchModal) ruleBatchModal.classList.add('hidden'); });
 
 const versionValidationModal = $('#versionValidationModal');
 if (versionValidationModal) {

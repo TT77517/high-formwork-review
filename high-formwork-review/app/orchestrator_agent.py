@@ -103,6 +103,15 @@ def build_orchestrator_state(
         "agent": "orchestrator_agent",
         "flow": ["plan", "dispatch", "evidence_chase", "human_confirmation", "rerun"],
         "dispatch_plan": dispatch_plan,
+        "plan_explanation": _plan_explanation(
+            document=document,
+            project_qualification=project_qualification,
+            review_plan=review_plan,
+            conflicts=conflicts,
+            semantic_confirmations=semantic_confirmations,
+            consistency_review=consistency_review,
+            drawing_review=drawing_review,
+        ),
         "tool_observations": observations,
         "parameter_candidate_pool": parameter_pool,
         "parameter_to_rules": parameter_to_rules,
@@ -181,6 +190,79 @@ def _dispatch_plan(
             "inputs": ["support_system", "numeric_parameters", "document_parse_corrections"],
         },
     ]
+
+
+def _plan_explanation(
+    *,
+    document: MinerUDocument,
+    project_qualification: dict[str, Any],
+    review_plan: dict[str, Any] | None,
+    conflicts: list[dict[str, Any]],
+    semantic_confirmations: list[dict[str, Any]],
+    consistency_review: list[dict[str, Any]],
+    drawing_review: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """生成面向审查员的计划解释，不暴露内部函数名。"""
+    support_system = project_qualification.get("support_system_label") or "支撑体系待确认"
+    risk_class = (
+        project_qualification.get("risk_classification_label")
+        or _risk_label(project_qualification.get("risk_classification"))
+        or "风险属性待确认"
+    )
+    focus = (review_plan or {}).get("focus_areas") or []
+    agent_targets = (review_plan or {}).get("agent_targets") or []
+    consistency_review_count = sum(1 for item in consistency_review if item.get("status") == "REVIEW")
+    consistency_issue_count = sum(1 for item in consistency_review if item.get("status") == "ISSUE")
+    drawing_review_count = sum(1 for item in drawing_review if item.get("status") == "REVIEW")
+    drawing_issue_count = sum(1 for item in drawing_review if item.get("status") == "ISSUE")
+    bullets = [
+        f"先按 {document.physical_page_count} 页方案识别工程特征，当前审查范围为：{support_system}，风险属性为：{risk_class}。",
+        "再把规则分配给完整性、规范语义、计算校核和图文一致性四类工具，分别完成章节、条文、公式和图纸证据检查。",
+    ]
+    if focus:
+        names = "、".join(_human_text(item.get("area"), "关键风险") for item in focus[:3])
+        bullets.append(f"本轮优先审查 {names}，因为这些内容直接影响规则适用范围和后续复核顺序。")
+    if agent_targets:
+        bullets.append(f"对 {len(agent_targets)} 项证据不足或需要深度比对的内容安排 Agent 追证，补齐条文、方案原文和页码证据。")
+    if conflicts or semantic_confirmations or consistency_issue_count or drawing_issue_count:
+        bullets.append(
+            "发现参数冲突、证据不足或审查结论分歧时，不直接给最终结论，转入人工确认后再重跑相关规则。"
+        )
+    return {
+        "recognized_scope": {
+            "support_system": support_system,
+            "risk_classification": risk_class,
+            "page_count": document.physical_page_count,
+        },
+        "selected_tools": [
+            "完整性审查工具",
+            "规范审查 Agent",
+            "计算校核工具",
+            "图文一致性工具",
+        ],
+        "focus_count": len(focus),
+        "agent_target_count": len(agent_targets),
+        "human_gate_count": len(conflicts) + len(semantic_confirmations) + consistency_review_count + drawing_review_count,
+        "issue_count": consistency_issue_count + drawing_issue_count,
+        "bullets": bullets,
+    }
+
+
+def _human_text(value: Any, fallback: str) -> str:
+    text = str(value or "").strip()
+    if not text or re.search(r"[a-zA-Z_]{3,}", text):
+        return fallback
+    return text[:20]
+
+
+def _risk_label(value: Any) -> str:
+    mapping = {
+        "over_scale_dangerous": "超规模危大工程",
+        "dangerous": "危大工程",
+        "general": "一般工程",
+        "unknown": "待确认",
+    }
+    return mapping.get(str(value or ""), str(value or ""))
 
 
 def _tool_observation(

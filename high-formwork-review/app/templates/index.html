@@ -308,6 +308,7 @@
           <h2>规则库管理 <span class="tag-blue ml-8">v4.0 · 164条</span></h2>
           <div class="header-actions">
             <button id="addRuleBtn" type="button" class="btn-primary">新增规则</button>
+            <button id="batchRuleBtn" type="button" class="btn-default ml-8">批量导入</button>
             <button id="versionValidationBtn" type="button" class="btn-default ml-8">规范版本校验</button>
           </div>
         </div>
@@ -346,6 +347,18 @@
           <div class="drawer" style="width:600px"><div class="drawer-head"><h3 id="ruleEditTitle">新增规则</h3><button class="drawer-close" data-drawer="rule-edit">✕</button></div>
           <div class="drawer-body" id="ruleEditBody"></div>
           <div class="action-row" style="padding:0 24px 24px"><button id="ruleEditSave" type="button" class="btn-primary">保存</button><button id="ruleEditCancel" type="button" class="btn-default">取消</button></div>
+          </div>
+        </div>
+        <div id="ruleBatchModal" class="drawer-overlay hidden">
+          <div class="drawer" style="width:720px"><div class="drawer-head"><h3>批量导入规则</h3><button class="drawer-close" data-drawer="rule-batch">✕</button></div>
+          <div class="drawer-body">
+            <div class="detail-section"><h4>导入内容</h4><p>粘贴规则 JSON 数组；字段沿用单条规则结构，适合按 4 个模块分批导入。</p>
+              <textarea id="ruleBatchInput" class="manual-note code-input" maxlength="80000" placeholder='[{"rule_id":"4.37","rule_name":"示例规则","module":"04_construction_requirements","check_type":"semantic","severity":"B-required","risk_level":"medium","applicable_types":["universal"],"code_ref":{"standard":"GB 55023-2022 第4.4.3条","clause":"4.4.3","original_text":"..."},"check_content":"...","check_logic":{"description":"...","extraction_keywords":["立杆","间距"]},"manual_review":true}]'></textarea>
+              <div id="ruleBatchMessage" class="field-help"></div>
+            </div>
+          </div>
+          <div class="action-row" style="padding:0 24px 24px"><button id="ruleBatchSave" type="button" class="btn-primary">导入</button><button id="ruleBatchCancel" type="button" class="btn-default">取消</button></div>
+          </div>
         </div>
       </section>
 
