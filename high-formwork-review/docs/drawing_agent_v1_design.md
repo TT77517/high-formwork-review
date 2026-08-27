@@ -26,14 +26,36 @@
 | 6.3 | before-alias 边界修正 | +24 | 0（复用） |
 | **合计** | **636 行核心 + 217 行 vision + 13 测试** | | **13** |
 
-### 1.2 未完成事项
+### 1.2 未完成事项（截至 2026-08-27）
 
-1. **未接入业务流**——`build_drawing_review`（`drawing_review.py:177`）仍跑老 `_cross_check_param` 链路；Agent 模块孤岛
-2. **无 scope 字段**——`DrawingReviewTask.scope` 硬写 `{}`，未与支撑体系（koujian/pankou/wankou）联动
-3. **无结果聚合**——Agent 多状态输出与 drawing_review 结果 schema 未对齐
-4. **无前端可视化**——`actions_taken`/`finish_reason` 落不进详情抽屉
-5. **无 OCR/VLM 缓存**——同任务重跑 27s 重复开销
-6. **无端到端 benchmark**——仅 13 个单测覆盖，未跑真实任务验证恢复率
+1. ✅ **已接入业务流**——`build_agent_drawing_review`（Task 8A, commit `57551f9`）作为独立 preview 路径，与 legacy `build_drawing_review` 并存
+2. 🟡 **scope 字段部分补全**——`registry.scope → DrawingReviewTask.scope` passthrough 已落地（Task 8A.1, commit `4797f3a`），但支撑体系门禁（applies_to_systems 预过滤）仍是 Task 8 主体
+3. ❌ **未做"老 drawing_review schema 适配"**——Task 9 在 preview 阶段可以延后
+4. ❌ **无前端可视化**——Task 10
+5. ❌ **无 OCR/VLM 缓存**——Task 11
+6. ❌ **无端到端 benchmark**——Task 12（真实方案回归）
+
+### 1.3 已完成（Agent 化基线 2026-08-27）
+
+- ✅ **Task 0**：基线审计（339 → 340 passed）
+- ✅ **Task 1**：公开 Tool wrapper（`drawing_review.py` 6 个 PUBLIC_WRAPPER）
+- ✅ **Task 2**：数据模型（`DrawingReviewTask` / `Evidence` / `DrawingAgentState`）
+- ✅ **Task 3**：候选核验任务生成器（`build_drawing_review_tasks` + 17 registry entry）
+- ✅ **Task 4**：`DrawingConsistencyAgent` V1 有限状态循环（MAX_ITERATIONS=5, 6 Action）
+- ✅ **Task 5A**：OCR_PAGE 按需追证
+- ✅ **Task 5B**：INSPECT_IMAGE + VLM 兜底（MAX_OCR_PAGES=2, MAX_VLM_CALLS=1, MAX_TEXT_SEARCHES=1）
+- ✅ **Task 5C**：真实 Vision Provider Adapter（Qwen-VL，`drawing_vision.py`）
+- ✅ **Task 6**：SEARCH_TEXT 双向追证
+- ✅ **Task 6.1/6.2/6.3**：value-anchor 语义 / alias-local value binding / before-alias 边界
+- ✅ **Task 7A**：Scope Engine（`drawing_scope.py`，4 函数 + 3 常量；member_type/location）
+- ✅ **Task 7B**：Deterministic Comparator（`drawing_compare.py`，6 状态）
+- ✅ **Task 7B.1**：多可比 pair 聚合修正（`len(pairs) > 1` 一律 UNCERTAIN）
+- ✅ **Task 7C**：CHECK_PARAM legacy result → 结构化 DrawingEvidence（`_check_result_to_drawing_evidence`）
+- ✅ **Task 7C.1**：CHECK_PARAM provenance 安全（multi-match 唯一性 + unit=None 显式）
+- ✅ **Task 8A**：Integration Preview（`build_agent_drawing_review`，Agent + Comparator 编排，5 个端到端测试）
+- ✅ **Task 8A.1**：Integration Tests 收敛（277 行）+ **registry scope passthrough**（1 行数据通道补全）
+
+**当前测试基线**：388 passed / 1 skipped / 0 failed
 
 ## 2. 目标
 
@@ -94,6 +116,46 @@
 - 加 helper `scope_matches(task, support_system)` 单测覆盖
 
 **行数预算**：~40 行（`drawing_agent.py` +25 / `tests` +15）
+
+**数据模型补全说明（2026-08-27 Task 8A.1）**：
+
+`DrawingReviewTask`（Task 2）已声明 `scope: dict[str, object] = {}` 字段，
+但 `_task_from_registry_entry`（Task 3）没有把 registry 配置中的
+`scope` 字段透传到该字段。这导致"已经存在的数据通道被中途截断"：
+
+```
+registry entry {"fact_id": ..., "scope": {"member_type": "beam", "location": "beam_bottom"}}
+        ✕  (passthrough missing)
+DrawingReviewTask.scope = {}        # 实际默认
+        ↓
+TextEvidence.scope = resolve_evidence_scope({}, None, aliases) = {}
+        ↓
+align_scopes({}, {beam_bottom}) = "unknown"   # Comparator 走 scope_unknown 分支
+```
+
+`_task_from_registry_entry` 末尾补 1 行：
+
+```python
+scope=dict(config.get("scope") or {}),
+```
+
+修复后：
+
+```
+registry.scope  ─→  DrawingReviewTask.scope  ─→  TextEvidence.scope
+                                                DrawingEvidence.scope（仍可由 quote 推断）
+                                                        ↓
+                                                  Scope Gate
+```
+
+这 1 行不是为测试加的 scope，而是把已存在但中途断的数据通道补全。
+它不改变 Agent Policy / Action / Budget / Comparator / Scope Engine 任何行为。
+所有已有 Task 2/3/4/5A/5B/6/7A/7B/7C 测试 0 回归即证明。
+
+**适用范围**：
+- `scope` 字段为可选；不声明时仍退化为 `{}`（与历史行为完全一致）
+- `applies_to_systems` 按 support_system 预过滤是 Task 8 主体，本节只补 passthrough
+- 体系门禁（koujian/pankou/wankou）仍按 Task 8 计划，不在本节范围
 
 ### 3.3 Task 9：结果聚合（Agent → drawing_review，0.5 天）
 

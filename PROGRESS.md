@@ -457,3 +457,17 @@
 - [2026-08-27 17:06] claude 签到 — 开始处理：Task 7A 实施：Evidence Scope 提取 + Scope 对齐（drawing_scope.py + 5 测试 + Agent 最小 enrichment）
 
 - [2026-08-27 17:11] claude 签退 — 完成了：Task 7A 完成（36e9fc9）：drawing_scope.py 175 行（4 函数 + 3 常量）+ test_drawing_scope.py 144 行（5 测试）。Agent 4 处 Evidence scope 改 resolve_evidence_scope（+2 行）；test_drawing_agent.py 改 3 个 fake + 3 行断言（无新 pytest）。drawing_review.py / drawing_vision.py / web.py / main.py / orchestrator_agent.py / report_generator.py / project_facts.py / requirements.txt / rules/* delta=0。371 passed / 1 skipped / 0 failed（+5 tests 全绿）；下一步建议：等用户确认 Task 7A → 进入 Task 7B（value 比较 + 一致性状态 CONSISTENT/CONFLICT/TEXT_ONLY/DRAWING_ONLY/UNCERTAIN/NOT_FOUND）
+
+- [2026-08-27 17:30] claude 签到 — 开始处理：Task 7B/7B.1/7C/7C.1/8A/8A.1 串行实施
+
+- [2026-08-27 18:00] claude 签退 — 完成了：Task 7B→8A.1 全套封版（6 commits，388 passed/1 skipped/0 failed）：
+  - f74aaa7  Task 7B  drawing_compare.py 271 行 + 8 个测试
+  - 95aacd2  Task 7B.1  multi-pair 聚合修正（len(pairs)>1 一律 UNCERTAIN）
+  - 4086989  Task 7C  _check_result_to_drawing_evidence（CHECK_PARAM → 结构化 Evidence）
+  - d40e7dd  Task 7C.1  CHECK_PARAM provenance（multi-match 唯一性 + unit=None）
+  - 57551f9  Task 8A  build_agent_drawing_review（Integration Preview，5 个端到端测试）
+  - 4797f3a  Task 8A.1  test 收敛（390→277 行）+ **registry scope passthrough** 1 行补全
+  设计文档 docs/drawing_agent_v1_design.md 更新"已完成"清单 1.3 节（含 registry scope
+  passthrough 数据通道补全说明，不属于业务行为变更）。下一步建议：等用户确认 → 进入
+  Task 8B（真实方案全量 Agent 回归）；registry scope passthrough 已在 Task 8 体系门禁
+  之前就绪，Task 8 实施时无需重做这部分数据通道。
