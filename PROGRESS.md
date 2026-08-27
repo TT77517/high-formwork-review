@@ -703,3 +703,12 @@
   - OCR：actions/adapter/real/nonempty=11/11/10/3，OCR text nonempty tasks=3，但 OCR drawing evidence tasks=0；Reverse chase=1 action/1 hit/0 miss。
   - Comparator：COMPARABLE_PAIR_0=17，decisive=0/17（diagnostic deterministic coverage, not accuracy）；UNCERTAIN reason: scope_unknown=2；finish reasons: check_completed=4, text_evidence_found=1, ocr_no_evidence=5, no_candidate_pages=6, no_usable_image=1。
   - Artifacts（tmp ignored，不提交）：`tmp/drawing_agent_regression_8b5_1/{agent_result.json,task_audit.json,tool_call_stats.json,regression_comparison.json}`；结束 full suite `398 passed / 1 skipped / 0 failed`。下一步建议：Task 8B.6 — Drawing Candidate Recall / Alias Enhancement
+
+- [2026-08-27 23:09] codex 签到 — 开始处理：Task 8B.5.2: CHECK_PARAM Registry Config Wiring Fix
+
+- [2026-08-27 23:10] codex 签退 — 完成了：Task 8B.5.2 CHECK_PARAM Registry Config Wiring Fix：修复 `build_agent_drawing_review` integration boundary 的 fact_id-only config gap，用传入 registry 建局部 `fact_id -> registry entry` 绑定并在 injected check_tool 前 copy-merge（runtime 覆盖 registry；missing lookup fallback 原 config；不 mutation；无 global state）。
+  - 变更范围：production 仅 `app/drawing_integration.py`（24/2，净 +22）；test 仅 `tests/test_drawing_integration.py`（94/0，新增 4 regression）。`drawing_agent.py` / `cross_check_param` / `DrawingReviewTask` / Registry 内容 0 delta。
+  - 新测覆盖：完整 registry config + custom_marker 透传、registry 不被修改、DI contract 与 DrawingEvidence conversion 保留、direct path 与旧 workaround path parity。
+  - Focused `tests/test_drawing_integration.py`: 9 passed；Full suite: 402 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
+  - 真实 4-task CHECK_PARAM smoke（job `146dc530dd964a30a2d4f29410738e4d`）：direct production path + `cross_check_param`，无 instrumentation wrapper，CHECK_PARAM actions=4，INSPECT_IMAGE/VLM=0，vs 8B.5.1 workaround baseline parity PASS。
+  - 保留问题未修：6 no_candidate_pages、`panel_stringer_spacing` no_usable_image、page21 grounding mismatch、scope_unknown x2。下一步建议：Task 8B.6 — Drawing Candidate Recall / Alias Enhancement

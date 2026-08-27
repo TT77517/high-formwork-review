@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Callable
 
 from app.drawing_integration import build_agent_drawing_review
@@ -67,6 +68,18 @@ def _ocr(page, engine, *, job_dir=None) -> str | None:
 
 def _check_must_not_run(*a, **k):
     raise AssertionError("CHECK_PARAM must not run")
+
+
+def _check_payload(value=900) -> dict:
+    return {
+        "review_item_id": "DR-99", "category": ".", "title": ".",
+        "review_method": "text_drawing_cross_check", "status": "PASS",
+        "conclusion": ".", "body_value": value, "drawing_value": value,
+        "text_evidence": [],
+        "drawing_evidence": [{"value": value, "page": 88, "quote": f"梁底参数{value}mm"}],
+        "evidence_quality": "high", "review_explanation": {},
+        "automation_level": ".", "requires_human_review": False, "boundary": ".",
+    }
 
 
 def _run(
@@ -298,3 +311,84 @@ def test_multi_task_order_and_status_counts(tmp_path) -> None:
     assert item_a.finish_reason != item_a.reason
     assert item_b.status == "CONSISTENT"
     assert item_c.status == "NOT_FOUND"
+
+
+def test_integration_check_tool_receives_full_registry_config() -> None:
+    captured = {}
+    registry = [{
+        "fact_id": "demo_fact", "name": "Demo", "keywords": ["别名A", "别名B"],
+        "aliases": ["别名A", "别名B"], "unit": "mm",
+        "unit_pattern": r"(\d+)", "scope": {"member_type": "beam"},
+        "custom_marker": "REGISTRY_SENTINEL",
+    }]
+
+    def _check(document, facts, config, *, ocr_texts=None, job_dir=None):
+        captured.update(config)
+        return _check_payload()
+
+    _run(registry, {"facts": {"demo_fact": {"value": 900, "unit": "mm"}}}, check_tool=_check)
+    assert captured["fact_id"] == "demo_fact"
+    assert captured["aliases"] == ["别名A", "别名B"]
+    assert captured["keywords"] == ["别名A", "别名B"]
+    assert captured["unit"] == "mm"
+    assert captured["scope"] == {"member_type": "beam"}
+    assert captured["custom_marker"] == "REGISTRY_SENTINEL"
+
+
+def test_integration_registry_config_binding_does_not_mutate_registry() -> None:
+    registry = [_reg("demo_fact", aliases=["参数A"], scope=_BEAM_B)]
+    registry[0]["custom_marker"] = "REGISTRY_SENTINEL"
+    before = deepcopy(registry)
+
+    def _check(document, facts, config, *, ocr_texts=None, job_dir=None):
+        config["custom_marker"] = "MUTATED_RUNTIME_COPY"
+        return _check_payload()
+
+    _run(registry, {"facts": {"demo_fact": {"value": 900, "unit": "mm"}}}, check_tool=_check)
+    assert registry == before
+
+
+def test_integration_injected_check_tool_contract_preserved() -> None:
+    calls = []
+
+    def _check(document, facts, config, *, ocr_texts=None, job_dir=None):
+        calls.append(config["custom_marker"])
+        return _check_payload()
+
+    registry = [_reg("demo_fact", aliases=["参数A"], scope=_BEAM_B)]
+    registry[0]["custom_marker"] = "REGISTRY_SENTINEL"
+    result = _run(
+        registry, {"facts": {"demo_fact": {"value": 900, "unit": "mm"}}},
+        check_tool=_check,
+    )
+    assert calls == ["REGISTRY_SENTINEL"]
+    item = result.items[0]
+    assert item.finish_reason == "check_completed"
+    assert item.text_evidence_count == 1
+    assert item.drawing_evidence_count == 1
+
+
+def test_integration_direct_check_path_matches_workaround_path() -> None:
+    registry = [_reg("demo_fact", aliases=["参数A"], scope=_BEAM_B)]
+    registry[0]["custom_marker"] = "REGISTRY_SENTINEL"
+    facts = {"facts": {"demo_fact": {"value": 900, "unit": "mm"}}}
+
+    def _core_check(document, facts, config, *, ocr_texts=None, job_dir=None):
+        assert config["custom_marker"] == "REGISTRY_SENTINEL"
+        return _check_payload()
+
+    def _old_workaround(document, facts, config, *, ocr_texts=None, job_dir=None):
+        return _core_check(
+            document, facts, {**registry[0], **config},
+            ocr_texts=ocr_texts, job_dir=job_dir,
+        )
+
+    old = _run(registry, facts, check_tool=_old_workaround).items[0]
+    new = _run(registry, facts, check_tool=_core_check).items[0]
+    assert (
+        old.fact_id, old.status, old.reason, old.text_evidence_count,
+        old.drawing_evidence_count, old.finish_reason,
+    ) == (
+        new.fact_id, new.status, new.reason, new.text_evidence_count,
+        new.drawing_evidence_count, new.finish_reason,
+    )

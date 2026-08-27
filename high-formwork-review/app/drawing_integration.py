@@ -81,13 +81,35 @@ def build_agent_drawing_review(
     job_dir: Any = None,
 ) -> AgentDrawingReviewResult:
     """对每个 registry entry 跑 Agent + Comparator，输出稳定摘要。"""
+    registry_entries = list(registry)
+    registry_by_fact_id = {
+        config["fact_id"]: dict(config)
+        for config in registry_entries
+        if isinstance(config, Mapping) and config.get("fact_id") is not None
+    }
+
+    def bound_check_tool(document_arg, facts_arg, config, *, ocr_texts=None, job_dir=None):
+        if not isinstance(config, Mapping):
+            return check_tool(
+                document_arg, facts_arg, config, ocr_texts=ocr_texts, job_dir=job_dir
+            )
+        registry_config = registry_by_fact_id.get(config.get("fact_id"))
+        merged_config = (
+            {**registry_config, **dict(config)}
+            if registry_config is not None
+            else dict(config)
+        )
+        return check_tool(
+            document_arg, facts_arg, merged_config, ocr_texts=ocr_texts, job_dir=job_dir
+        )
+
     tasks = build_drawing_review_tasks(
         project_facts.get("facts", {}) if isinstance(project_facts, Mapping) else {},
-        list(registry),
+        registry_entries,
     )
     agent = DrawingConsistencyAgent(
         recall_tool=recall_tool,
-        check_tool=check_tool,
+        check_tool=bound_check_tool,
         ocr_tool=ocr_tool,
         vision_tool=vision_tool,
         search_text_tool=search_text_tool,
