@@ -557,3 +557,27 @@
   
   full suite 388/1/0 不变。artifacts 在 tmp/drawing_agent_regression/（.gitignored）。
   不实施推荐任务；不进入 Task 8C；等待用户确认 P0 路径。
+
+- [2026-08-27 20:00] claude 签退 — 完成了：Task 8B.3 MinerU Job Artifact Persistence Fix
+  （修复 Task 8B.2.2 鉴定的 JOB_ARTIFACT_COPY_LOSS 真实根因）：
+  
+  app/mineru_cache.py 新增 _ensure_job_local_raw_assets helper（59 行）：
+  - parse_pdf_with_cache 末尾在 cache-hit 和 non-cache 两条路径都调用
+  - 优先从 cross-job cache_dir/raw/ copytree
+  - 退路：MinerU natural output raw_output_dir/<part>/raw/ 重组到
+    raw_output_dir/raw/<part>/raw/（保持现有 resolver 第一个查找路径命中）
+  - 任何 OSError 静默 swallow；返回 image count
+  - 不抛、不修改 drawing_review.py 现有 resolver
+  
+  tests/test_mineru_cache.py +4 个 pytest 函数：
+  - test_ensure_job_local_raw_assets_copies_from_cache
+  - test_ensure_job_local_raw_assets_noop_when_already_present
+  - test_ensure_job_local_raw_assets_falls_back_to_mineru_output
+  - test_ensure_job_local_raw_assets_returns_zero_when_nothing_available
+  
+  修复影响范围：未来新 job 走此 pipeline 时 raw image assets 自动 co-save。
+  146dc 历史 job 因为 cache 也是空、原始 raw output 也已丢失，需要在 Task 8B.4
+  重新 re-MinerU 解析才能恢复。
+  
+  full suite 392 passed / 1 skipped / 0 failed（+4 tests，0 回归）。
+  不实施 Task 8B.4 / 8C / 8D；等待用户确认。
