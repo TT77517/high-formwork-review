@@ -740,3 +740,14 @@
   - `head_jack_screw_exposed_length`：visible value=≥500，但图中无外露长度语义，且 page text 对丝杆外露约束为 400mm；APPLICABLE=NO，禁止通过 vision_terms 强行转 true。
   - 因两条 proven case 均未达到 APPLICABLE=YES，本 Task 未新增 `vision_terms`、未改 prompt、未跑新 provider smoke，避免 false-positive grounding。
   - Full suite：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：Task 8B.7a — Correct Golden Grounding Set / Image Attribution Audit。
+
+- [2026-08-27 23:44] codex 签到 — 开始处理：Task 8B.7a: Correct Golden Grounding Set / Image Attribution Audit
+
+- [2026-08-27 23:56] codex 签退 — 完成了：Task 8B.7a Correct Golden Grounding Set / Image Attribution Audit（observe-only，0 production/test/registry/prompt change）：
+  - 历史术语纠偏：page21 两 case 从 `PROVEN_TASK_GROUNDING` 改称 `RECOGNITION_PARITY_WITH_UNPROVEN_ATTRIBUTION`；page21 role 固定为 `RECOGNITION_REFERENCE_ONLY`。
+  - 审计 8 个候选：`support_height`、`height_to_width_ratio`、`sweeper_centerline_height_above_base_plate`、`head_jack_insertion_length`、`head_jack_screw_exposed_length`、`top_level_to_jack_distance`、`panel_thickness`、`monitoring_point_spacing`。
+  - SAFE_GOLDEN_COUNT=1：`support_height` page22 图中 `H≤8m` 可安全归属于搭设/支架高度；但当前 agent found=true/value=null，属于 value extraction miss，不是 grounding found=false。
+  - GROUNDING_CANDIDATE_COUNT=0：没有满足 candidate+selected image correct+parameter/value visible+attribution safe+provider called+found=false 的 case。
+  - Negative controls：page21 insertion/exposed 均 attribution unsafe；top_level target_not_in_image；monitoring value_not_readable。
+  - Artifacts（tmp ignored）：`tmp/drawing_grounding_golden_audit_8b7a/{golden_candidate_audit.json,golden_set.json,audit_summary.md}`；NEW_PROVIDER_REQUESTS=0。
+  - Tests before/after：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：Task 8B.7b — Drawing Vision Value Extraction Audit for Safe Golden。
