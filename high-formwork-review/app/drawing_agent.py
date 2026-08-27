@@ -40,6 +40,7 @@ class DrawingReviewTask:
     priority: str = "medium"
     source: str = "project_fact"
     scope: dict[str, object] = field(default_factory=dict)
+    recall_terms: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -131,6 +132,7 @@ def _task_from_registry_entry(
         unit=unit,
         source=source,
         scope=dict(config.get("scope") or {}),  # 显式 scope 可选；缺省仍 {}
+        recall_terms=list(config.get("recall_terms") or []),
     )
 
 
@@ -416,12 +418,25 @@ class DrawingConsistencyAgent:
     ) -> None:
         if action == SEARCH_DRAWING:
             result = self.recall_tool(document, state.task.aliases, limit=8)
+            primary_count = len(result or [])
+            fallback_count = 0
+            recall_mode = "aliases" if primary_count > 0 else "none"
+            if primary_count == 0 and state.task.recall_terms:
+                result = self.recall_tool(document, state.task.recall_terms, limit=8)
+                fallback_count = len(result or [])
+                if fallback_count > 0:
+                    recall_mode = "recall_terms"
             state.candidate_pages = list(result or [])
             state.actions_taken.append(
                 {
                     "iteration": state.iteration + 1,
                     "action": SEARCH_DRAWING,
-                    "observation": {"candidate_count": len(state.candidate_pages)},
+                    "observation": {
+                        "candidate_count": len(state.candidate_pages),
+                        "recall_mode": recall_mode,
+                        "primary_candidate_count": primary_count,
+                        "fallback_candidate_count": fallback_count,
+                    },
                 }
             )
             return
@@ -753,4 +768,3 @@ class DrawingConsistencyAgent:
     def _finish(self, state: DrawingAgentState, reason: str) -> None:
         state.finished = True
         state.finish_reason = reason
-

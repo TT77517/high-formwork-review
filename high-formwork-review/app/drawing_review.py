@@ -140,6 +140,7 @@ DRAWING_CROSS_CHECK_PARAMS = [
         "fact_id": "top_level_to_jack_distance",
         "name": "顶层水平杆至托撑顶面距离",
         "keywords": ["顶层水平杆至托撑", "顶层水平杆到顶面", "调节螺杆伸出长度"],
+        "recall_terms": ["顶层水平杆"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
     },
     {
@@ -159,12 +160,14 @@ DRAWING_CROSS_CHECK_PARAMS = [
         "fact_id": "main_beam_spacing",
         "name": "主楞间距",
         "keywords": ["主楞间距", "主龙骨间距", "大楞间距"],
+        "recall_terms": ["主梁间距"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|毫米|厘米)?",
     },
     {
         "fact_id": "monitoring_point_spacing",
         "name": "监测点间距",
         "keywords": ["监测点间距", "观测点间距", "监测点布置间距"],
+        "recall_terms": ["监测点"],
         "unit_pattern": r"(\d+\.?\d*)\s*(?:mm|cm|m|毫米|厘米|米)?",
     },
 ]
@@ -1243,4 +1246,3 @@ def _value_appears_in_text(snippet: str, target_value) -> bool:
     if isinstance(target_value, str):
         return target_value in snippet
     return False
-

@@ -31,6 +31,7 @@ def test_drawing_agent_data_models() -> None:
     assert task.priority == "medium"
     assert task.source == "project_fact"
     assert task.scope == {}
+    assert task.recall_terms == []
 
     # Case 2: text_value=None 合法（仅证明数据模型允许）
     missing_task = DrawingReviewTask(
@@ -153,6 +154,22 @@ def test_build_drawing_review_tasks_keeps_missing_project_facts() -> None:
     assert t0.aliases is not c0["keywords"]
 
 
+def test_build_drawing_review_tasks_copies_recall_terms() -> None:
+    from app.drawing_agent import build_drawing_review_tasks
+
+    registry = [{
+        "fact_id": "x", "name": "X", "keywords": ["A"],
+        "unit_pattern": r"(\d+)", "recall_terms": ["B", "C"],
+    }]
+    before = [dict(registry[0], recall_terms=list(registry[0]["recall_terms"]))]
+    task = build_drawing_review_tasks({}, registry)[0]
+
+    assert task.aliases == ["A"]
+    assert task.recall_terms == ["B", "C"]
+    task.recall_terms.append("MUTATED")
+    assert registry == before
+
+
 def _make_recall_tool(pages, counter):
     def _recall(document, aliases, limit=8):
         counter["n"] += 1
@@ -165,6 +182,105 @@ def _make_check_tool(payload, counter):
         counter["n"] += 1
         return payload
     return _check
+
+
+def _run_recall_case(*, recall_terms, recall_results, text_value=None):
+    from app.drawing_agent import DrawingConsistencyAgent, DrawingReviewTask
+
+    calls = []
+
+    def _recall(document, terms, limit=8):
+        calls.append(list(terms))
+        return recall_results.get(tuple(terms), [])
+
+    agent = DrawingConsistencyAgent(
+        recall_tool=_recall,
+        check_tool=_make_check_tool({"status": "PASS"}, {"n": 0}),
+        ocr_tool=lambda *a, **k: None,
+    )
+    task = DrawingReviewTask(
+        fact_id="x", display_name="X", aliases=["A"],
+        text_value=text_value, recall_terms=recall_terms,
+    )
+    return agent.run(task=task, document=None, facts={}, config={"fact_id": "x"}), calls
+
+
+@pytest.mark.parametrize(
+    "recall_terms,recall_results,expected_calls,expected_mode,expected_candidates",
+    [
+        (["B"], {("A",): [{"physical_page": 1}]}, [["A"]], "aliases", 1),
+        (["B"], {("A",): [], ("B",): [{"physical_page": 2}]}, [["A"], ["B"]], "recall_terms", 1),
+        (["B"], {("A",): [], ("B",): []}, [["A"], ["B"]], "none", 0),
+        ([], {("A",): []}, [["A"]], "none", 0),
+    ],
+)
+def test_search_drawing_uses_bounded_recall_terms_fallback(
+    recall_terms, recall_results, expected_calls, expected_mode, expected_candidates,
+) -> None:
+    state, calls = _run_recall_case(
+        recall_terms=recall_terms,
+        recall_results=recall_results,
+        text_value=900 if expected_candidates else None,
+    )
+    search_actions = [a for a in state.actions_taken if a["action"] == "SEARCH_DRAWING"]
+    obs = search_actions[0]["observation"]
+
+    assert calls == expected_calls
+    assert len(search_actions) == 1
+    assert obs["recall_mode"] == expected_mode
+    assert obs["primary_candidate_count"] == len(recall_results.get(("A",), []))
+    assert obs["fallback_candidate_count"] == (
+        len(recall_results.get(tuple(recall_terms), []))
+        if recall_terms and not recall_results.get(("A",), [])
+        else 0
+    )
+    assert len(state.candidate_pages) == expected_candidates
+    assert state.iteration == (2 if expected_candidates else 1)
+
+
+def test_recall_terms_do_not_leak_into_ocr_vision_or_search_text(tmp_path) -> None:
+    from app.drawing_agent import DrawingConsistencyAgent, DrawingReviewTask
+
+    job_dir, rel = _setup_fake_job_with_image(tmp_path)
+    seen = {"vision_aliases": None, "search_aliases": None}
+
+    def _recall(document, terms, limit=8):
+        return [{"physical_page": 88}] if terms == ["宽召回词"] else []
+
+    def _ocr(page, engine, *, job_dir=None):
+        return "这里只出现宽召回词"
+
+    def _vision(page, task, **kwargs):
+        seen["vision_aliases"] = list(task.aliases)
+        return {
+            "found": True, "value": 150, "unit": "mm",
+            "evidence_text": "严格参数名150", "confidence": 0.9, "scope": {},
+        }
+
+    def _search_text(document, aliases, *, target_value=None, unit=None, limit=3):
+        seen["search_aliases"] = list(aliases)
+        return []
+
+    agent = DrawingConsistencyAgent(
+        recall_tool=_recall,
+        check_tool=lambda *a, **k: None,
+        ocr_tool=_ocr,
+        vision_tool=_vision,
+        search_text_tool=_search_text,
+    )
+    task = DrawingReviewTask(
+        fact_id="x", display_name="X", aliases=["严格参数名"],
+        text_value=None, recall_terms=["宽召回词"],
+    )
+    state = agent.run(
+        task=task,
+        document=_make_fake_document([_make_fake_page(88, image_path=rel)]),
+        facts={}, config={"fact_id": "x"}, ocr_engine=object(), job_dir=job_dir,
+    )
+
+    assert seen == {"vision_aliases": ["严格参数名"], "search_aliases": ["严格参数名"]}
+    assert "宽召回词" not in seen["vision_aliases"]
+    assert all(ev.source_type != "ocr" for ev in state.drawing_evidence)
 
 
 def test_drawing_agent_v1_happy_path() -> None:

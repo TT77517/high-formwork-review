@@ -712,3 +712,14 @@
   - Focused `tests/test_drawing_integration.py`: 9 passed；Full suite: 402 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
   - 真实 4-task CHECK_PARAM smoke（job `146dc530dd964a30a2d4f29410738e4d`）：direct production path + `cross_check_param`，无 instrumentation wrapper，CHECK_PARAM actions=4，INSPECT_IMAGE/VLM=0，vs 8B.5.1 workaround baseline parity PASS。
   - 保留问题未修：6 no_candidate_pages、`panel_stringer_spacing` no_usable_image、page21 grounding mismatch、scope_unknown x2。下一步建议：Task 8B.6 — Drawing Candidate Recall / Alias Enhancement
+
+- [2026-08-27 23:19] codex 签到 — 开始处理：Task 8B.6: Drawing Candidate Recall Fallback Enhancement
+
+- [2026-08-27 23:31] codex 签退 — 完成了：Task 8B.6 Drawing Candidate Recall Fallback Enhancement：
+  - Production：`DrawingReviewTask` 新增 `recall_terms` 默认空列表；registry task builder copy metadata；`SEARCH_DRAWING` 改为 aliases primary miss 后才用 recall_terms fallback，同一个 action/iteration 内记录 `recall_mode`、`primary_candidate_count`、`fallback_candidate_count`，保留 `candidate_count`。
+  - Registry：仅新增 3 个 recall_terms：`top_level_to_jack_distance=["顶层水平杆"]`、`main_beam_spacing=["主梁间距"]`、`monitoring_point_spacing=["监测点"]`；未改 aliases/fact_id/unit/scope。
+  - Tests：新增 bounded fallback、primary-hit 不 fallback、empty recall terms 不 fallback、observation 字段、recall_terms 不进入 OCR/Vision/search_text aliases、builder copy 覆盖；focused `tests/test_drawing_agent.py` = 33 passed。
+  - Full suite：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
+  - 6-task deterministic recall smoke：旧 6 个 no_candidate 中 3 个仍无安全 recall_terms；3 个 fallback 得到候选页（top-level 6、main-beam 4、monitoring 2）。
+  - 6-task real regression：NEW_NO_CANDIDATE=3，FALLBACK_CANDIDATE=3，NO_USABLE_IMAGE=1，VISION_REACHED=2，DRAWING_EVIDENCE=0；未运行 Task 8C。
+  - 下一步建议：Task 8B.7 — Drawing Task Grounding Enhancement
