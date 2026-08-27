@@ -10,6 +10,16 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "存在梁、板、墙、柱等模板面板受弯计算",
+        "expected": "按面板材料和计算跨度验算σ=M/W≤f"
+      },
+      {
+        "condition": "不同模板部位分别建模",
+        "expected": "梁底板、梁侧板、楼板、墙柱模板应分别给出面板抗弯验算或说明最不利代表工况"
+      }
+    ],
     "code_ref": {
       "standard": "JGJ 162-2016 第5.2节 / GB 50666-2011 第5.1节",
       "clause": "",
@@ -44,6 +54,16 @@
     "risk_level": "high",
     "applicable_types": [
       "universal"
+    ],
+    "applicability_conditions": [
+      {
+        "condition": "存在模板面板剪力控制工况",
+        "expected": "按面板材料截面参数验算τ=VS/(I·tw)≤fv"
+      },
+      {
+        "condition": "采用软件计算并省略手算过程",
+        "expected": "应能追溯面板剪力设计值、截面参数和抗剪强度设计值"
+      }
     ],
     "code_ref": {
       "standard": "JGJ 162-2016 第5.2节",
@@ -80,6 +100,20 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "混凝土结构表面外露",
+        "expected": "模板面板挠度限值取l/400"
+      },
+      {
+        "condition": "混凝土结构表面隐蔽",
+        "expected": "模板面板挠度限值取l/250"
+      },
+      {
+        "condition": "模板支撑受弯杆件按GB55023复核",
+        "expected": "挠度限值取l/400"
+      }
+    ],
     "code_ref": {
       "standard": "GB 55023-2022 表4.3.5(强制) / JGJ 162-2016 第4.4.1条",
       "clause": "",
@@ -115,6 +149,16 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "存在次楞/次龙骨受弯计算",
+        "expected": "按次楞材料和截面模量验算σ=M/W≤f"
+      },
+      {
+        "condition": "梁底、梁侧、板底次楞布置不同",
+        "expected": "分别验算或说明采用最不利代表工况"
+      }
+    ],
     "code_ref": {
       "standard": "JGJ 162-2016 第5.3节",
       "clause": "",
@@ -148,6 +192,20 @@
     "risk_level": "medium",
     "applicable_types": [
       "universal"
+    ],
+    "applicability_conditions": [
+      {
+        "condition": "结构表面外露对应次楞挠度控制",
+        "expected": "按外露限值复核，不应误用隐蔽限值"
+      },
+      {
+        "condition": "结构表面隐蔽对应次楞挠度控制",
+        "expected": "可按隐蔽限值复核"
+      },
+      {
+        "condition": "次楞作为模板支撑受弯杆件按GB55023复核",
+        "expected": "按l/400限值复核"
+      }
     ],
     "code_ref": {
       "standard": "JGJ 162-2016 第5.3节",
@@ -183,6 +241,16 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "存在主楞/主龙骨受弯计算",
+        "expected": "按主楞材料和截面模量验算σ=M/W≤f"
+      },
+      {
+        "condition": "梁、板、墙柱主楞受力模型不同",
+        "expected": "分别验算或说明采用最不利代表工况"
+      }
+    ],
     "code_ref": {
       "standard": "JGJ 162-2016 第5.3节",
       "clause": "",
@@ -217,6 +285,20 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "结构表面外露对应主楞挠度控制",
+        "expected": "按外露限值复核，不应误用隐蔽限值"
+      },
+      {
+        "condition": "结构表面隐蔽对应主楞挠度控制",
+        "expected": "可按隐蔽限值复核"
+      },
+      {
+        "condition": "主楞作为模板支撑受弯杆件按GB55023复核",
+        "expected": "按l/400限值复核"
+      }
+    ],
     "code_ref": {
       "standard": "JGJ 162-2016 第5.3节",
       "clause": "",
@@ -249,30 +331,30 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
-      "standard": "GB 55001-2021 第3.1.13条(强制) / JGJ 130-2011 第5.4.4条(公式框架)",
+      "standard": "JGJ 130-2011 第5.1.2条、第5.2.7条 / JGJ 162-2008 第5.2.5条",
       "clause": "",
-      "original_text": "扣件式支架立杆轴向力设计值N=1.3ΣNGk+1.5ΣNQk（不组合风载时）；组合风载时N=1.3ΣNGk+0.9×1.5(ΣNQk+Mw/W)A"
+      "original_text": "扣件式支架立杆轴向力设计值：不组合风荷载时N=1.2(ΣNG1k+ΣNG2k)+1.4ΣNQk；组合风荷载时N=1.2(ΣNG1k+ΣNG2k)+0.9×1.4ΣNQk"
     },
     "legacy_code_ref": null,
-    "check_content": "扣件式支架立杆轴向力设计值N=1.3ΣNGk+1.5ΣNQk（不组合风载时）；组合风载时N=1.3ΣNGk+0.9×1.5(ΣNQk+Mw/W)A",
+    "check_content": "扣件式支架立杆轴向力设计值：不组合风荷载时N=1.2(ΣNG1k+ΣNG2k)+1.4ΣNQk；组合风荷载时N=1.2(ΣNG1k+ΣNG2k)+0.9×1.4ΣNQk",
     "check_logic": {
-      "description": "扣件式支架立杆轴向力设计值N=1.3ΣNGk+1.5ΣNQk（不组合风载时）；组合风载时N=1.3ΣNGk+0.9×1.5(ΣNQk+Mw/W)A",
+      "description": "扣件式支架立杆轴向力设计值：不组合风荷载时N=1.2(ΣNG1k+ΣNG2k)+1.4ΣNQk；组合风荷载时N=1.2(ΣNG1k+ΣNG2k)+0.9×1.4ΣNQk",
       "extraction_keywords": [
         "立杆",
         "轴力",
         "设计值",
         "扣件式"
       ],
-      "formula": "N = 1.3·ΣNGk + 1.5·ΣNQk（无风）; N = 1.3·ΣNGk + 0.9·1.5·(ΣNQk + Mw/W)·A（有风）"
+      "formula": "N = 1.2·(ΣNG1k+ΣNG2k) + 1.4·ΣNQk（无风）; N = 1.2·(ΣNG1k+ΣNG2k) + 0.9×1.4·ΣNQk（有风）"
     },
     "threshold": null,
-    "remedy_suggestion": "按规范公式重新验算并补充计算过程：N = 1.3·ΣNGk + 1.5·ΣNQk（无风）; N = 1.3·ΣNGk + 0.9·1.5·(ΣNQk + Mw/W)·A（有风）。标注输入参数、公式、计算结果和判定结论",
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：N = 1.2·(ΣNG1k+ΣNG2k) + 1.4·ΣNQk（无风）; N = 1.2·(ΣNG1k+ΣNG2k) + 0.9×1.4·ΣNQk（有风）。标注输入参数、公式、计算结果和判定结论",
     "typical_violation": "方案缺少立杆轴力设计值计算-扣件式验算过程，或验算结果不满足规范要求",
     "manual_review": false,
-    "notes": "旧版JGJ130系数1.2/1.4已被GB55001取代为1.3/1.5。可变作用组合系数0.9",
+    "notes": "按已抽取到的JGJ130-2011/JGJ162-2008扣件式公式落库；GB55001/GB55023上位规范系数覆盖需完成OCR后单独建版本/上位规范规则。",
     "status": "active"
   },
   {
@@ -284,7 +366,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
     ],
     "code_ref": {
       "standard": "JGJ/T231-2021 第5.3.1条(式5.3.1-1/5.3.1-2) / 第4.3.1条(分项系数表)",
@@ -450,7 +532,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第5.6.2条",
@@ -485,7 +567,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
     ],
     "code_ref": {
       "standard": "JGJ/T231-2021 第5.3.3条(式5.3.3-1/5.3.3-2)",
@@ -520,7 +602,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
     ],
     "code_ref": {
       "standard": "JGJ/T231-2021 第5.3.2条(式5.3.2-1/5.3.2-2)",
@@ -554,7 +636,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
     ],
     "code_ref": {
       "standard": "JGJ/T231-2021 第5.1.6条",
@@ -589,7 +671,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "wankou"
     ],
     "code_ref": {
       "standard": "JGJ 166-2016 第5.5条",
@@ -624,7 +706,7 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第5.6.3条 / JGJ 162-2016 第5.4节",
@@ -651,14 +733,14 @@
   },
   {
     "rule_id": "3.17",
-    "rule_name": "可调托撑承载力验算",
+    "rule_name": "可调托撑承载力验算-扣件式",
     "module": "03_structural_calculation",
     "category": "calculation",
     "check_type": "calculation",
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第5.6.4条 / JGJ 162-2016 第5.4节",
@@ -678,9 +760,47 @@
     },
     "threshold": null,
     "remedy_suggestion": "按规范公式重新验算并补充计算过程：N ≤ Nd = 40kN。标注输入参数、公式、计算结果和判定结论",
-    "typical_violation": "方案缺少可调托撑承载力验算验算过程，或验算结果不满足规范要求",
+    "typical_violation": "方案缺少可调托撑承载力验算-扣件式验算过程，或验算结果不满足规范要求",
     "manual_review": false,
-    "notes": "",
+    "notes": "扣件式/JGJ162常用托撑承载力按40kN复核；盘扣式应走3.17p，按标准型100kN、重型140kN复核。",
+    "status": "active"
+  },
+  {
+    "rule_id": "3.17p",
+    "rule_name": "可调托撑承载力验算-盘扣式",
+    "module": "03_structural_calculation",
+    "category": "calculation",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "pankou"
+    ],
+    "code_ref": {
+      "standard": "JGJ/T 231-2021",
+      "clause": "第5.1.9条 表5.1.9",
+      "original_text": "脚手架可调底座和可调托撑的承载力设计值：标准型(B型)可调托撑100kN；重型(Z型)可调托撑140kN"
+    },
+    "legacy_code_ref": null,
+    "check_content": "盘扣式脚手架可调托撑承载力设计值应按支撑架型号取值：标准型(B型)100kN，重型(Z型)140kN，并应满足N≤Nd",
+    "check_logic": {
+      "description": "盘扣式可调托撑承载力验算：N≤Nd；标准型(B型)Nd=100kN，重型(Z型)Nd=140kN",
+      "extraction_keywords": [
+        "盘扣式",
+        "可调托撑",
+        "承载力",
+        "标准型",
+        "重型",
+        "100",
+        "140"
+      ],
+      "formula": "N ≤ Nd = 100kN(B型) / 140kN(Z型)"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：N≤Nd。标注支撑架型号、托撑轴力N和承载力设计值Nd；标准型(B型)取100kN，重型(Z型)取140kN",
+    "typical_violation": "方案缺少可调托撑承载力验算-盘扣式验算过程，或托撑承载力取值与支撑架型号不一致",
+    "manual_review": false,
+    "notes": "盘扣式专属规则，不适用于扣件式40kN托撑规则。",
     "status": "active"
   },
   {
@@ -692,7 +812,7 @@
     "severity": "B-required",
     "risk_level": "medium",
     "applicable_types": [
-      "universal"
+      "koujian"
     ],
     "code_ref": {
       "standard": "JGJ 130-2011 第5.6.5条",
@@ -759,7 +879,21 @@
     "severity": "A-mandatory",
     "risk_level": "high",
     "applicable_types": [
-      "universal"
+      "pankou"
+    ],
+    "applicability_conditions": [
+      {
+        "condition": "混凝土浇筑前工况",
+        "expected": "考虑风荷载等水平作用，进行整体抗倾覆验算MR≥γ0·MT"
+      },
+      {
+        "condition": "混凝土浇筑时工况",
+        "expected": "考虑泵送或不均匀堆载产生的附加水平荷载Q3，进行整体抗倾覆验算MR≥γ0·MT"
+      },
+      {
+        "condition": "计算书引用GB50666抗倾覆条文",
+        "expected": "应使用3.25的γ0·Mo≤Mr表达式复核，不与本盘扣表达式混判"
+      }
     ],
     "code_ref": {
       "standard": "JGJ/T 231-2021",
@@ -868,6 +1002,20 @@
     "risk_level": "medium",
     "applicable_types": [
       "pankou"
+    ],
+    "applicability_conditions": [
+      {
+        "condition": "标准型(B型)单肢立杆荷载设计值>40kN",
+        "expected": "顶层步距应比标准步距缩小0.5m"
+      },
+      {
+        "condition": "重型(Z型)单肢立杆荷载设计值>65kN",
+        "expected": "顶层步距应比标准步距缩小0.5m"
+      },
+      {
+        "condition": "单肢立杆荷载未超过对应阈值",
+        "expected": "本条件不触发，但仍应满足常规步距和稳定性验算"
+      }
     ],
     "code_ref": {
       "standard": "JGJ/T 231-2021",
@@ -1075,6 +1223,80 @@
     "typical_violation": "方案缺少抗倾覆验算(GB50666版)验算过程，或验算结果不满足规范要求",
     "manual_review": false,
     "notes": "[原三方映射ID: G-08] 与S-08规则关联但公式形式不同。S-08引用JGJ231的Mr/Mo≥1，本规则引用GB50666的γ0Mo≤Mr",
+    "status": "active"
+  },
+  {
+    "rule_id": "3.26",
+    "rule_name": "立杆计算长度-扣件式",
+    "module": "03_structural_calculation",
+    "category": "calculation",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "koujian"
+    ],
+    "code_ref": {
+      "standard": "JGJ 130-2011 第5.2.8条 / JGJ 162-2008 第5.2.5条",
+      "clause": "",
+      "original_text": "扣件式支架立杆计算长度应按l0=k·μ·h确定；稳定验算时k取1.155，长细比验算时k取1.0，μ按支架立杆计算长度系数表取值"
+    },
+    "legacy_code_ref": null,
+    "check_content": "扣件式支架立杆计算长度应按l0=k·μ·h确定；稳定验算时k取1.155，长细比验算时k取1.0，μ按支架立杆计算长度系数表取值",
+    "check_logic": {
+      "description": "扣件式立杆计算长度l0=k·μ·h；稳定验算取k=1.155，长细比验算取k=1.0，μ按支架立杆计算长度系数表取值",
+      "extraction_keywords": [
+        "扣件式",
+        "立杆",
+        "计算长度",
+        "l0",
+        "μ",
+        "1.155"
+      ],
+      "formula": "l0 = k·μ·h"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：l0=k·μ·h。标注步距h、计算长度系数μ、附加系数k的取值依据和计算结果",
+    "typical_violation": "方案缺少扣件式立杆计算长度验算过程，或k、μ取值与规范不符",
+    "manual_review": false,
+    "notes": "扣件式专属规则，不适用于盘扣式l0=max(βH·η·h, βH·γ·h'+2ka)。",
+    "status": "active"
+  },
+  {
+    "rule_id": "3.27",
+    "rule_name": "立杆稳定性验算-扣件式",
+    "module": "03_structural_calculation",
+    "category": "calculation",
+    "check_type": "calculation",
+    "severity": "A-mandatory",
+    "risk_level": "high",
+    "applicable_types": [
+      "koujian"
+    ],
+    "code_ref": {
+      "standard": "JGJ 130-2011 第5.2.6条 / JGJ 162-2008 第5.2.5条",
+      "clause": "",
+      "original_text": "扣件式支架立杆稳定性应满足：不组合风荷载时N/(φA)≤f；组合风荷载时N/(φA)+Mw/W≤f，Q235钢材强度设计值f取205N/mm²"
+    },
+    "legacy_code_ref": null,
+    "check_content": "扣件式支架立杆稳定性应满足N/(φA)≤f或N/(φA)+Mw/W≤f，Q235钢材强度设计值f取205N/mm²",
+    "check_logic": {
+      "description": "①不组合风荷载：N/(φA)≤f；②组合风荷载：N/(φA)+Mw/W≤f；③φ按长细比λ查表，f按钢材强度设计值取用",
+      "extraction_keywords": [
+        "扣件式",
+        "立杆",
+        "稳定性",
+        "N/(φA)",
+        "Mw/W",
+        "205"
+      ],
+      "formula": "N/(φA)≤f 或 N/(φA)+Mw/W≤f"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按规范公式重新验算并补充计算过程：N/(φA)≤f或N/(φA)+Mw/W≤f。标注轴力N、稳定系数φ、截面面积A、风弯矩Mw、截面模量W和强度设计值f",
+    "typical_violation": "方案缺少扣件式立杆稳定性验算过程，或验算结果不满足规范要求",
+    "manual_review": false,
+    "notes": "扣件式专属规则；盘扣式应走3.9/3.12，碗扣式应走3.15。",
     "status": "active"
   }
 ]

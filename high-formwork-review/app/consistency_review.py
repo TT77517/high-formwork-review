@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .calculation_dependencies import calculation_impacts_for_parameter
 from .models import MinerUDocument
 
 
@@ -69,9 +70,10 @@ def _parameter_consistency_item(
             "unit": fact.get("unit"),
             "status": fact.get("status"),
         },
+        "calculation_impacts": calculation_impacts_for_parameter(parameter_id),
         "automation_level": "parameter_consistency_only",
         "requires_human_review": status != "PASS",
-        "boundary": "本项只核对正文/构造参数与计算书输入参数是否一致，不进行承载力、稳定性等完整力学复算。",
+        "boundary": "本项只核对正文/构造参数与计算书输入参数是否一致，并提示受影响的公式验算；最终承载力、稳定性等仍由计算校核模块复算或追证。",
     }
 
 

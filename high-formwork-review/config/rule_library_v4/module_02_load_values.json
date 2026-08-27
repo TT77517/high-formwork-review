@@ -131,6 +131,20 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "一般混凝土结构模板支撑脚手架",
+        "expected": "施工荷载标准值不低于2.5kN/m²"
+      },
+      {
+        "condition": "设置水平泵管",
+        "expected": "施工荷载标准值不低于4.0kN/m²"
+      },
+      {
+        "condition": "存在移动设备",
+        "expected": "按移动设备自重另行计算"
+      }
+    ],
     "code_ref": {
       "standard": "GB55023-2022",
       "clause": "第4.2.4条 表4.2.4",
@@ -143,7 +157,7 @@
       "is_mandatory": true
     },
     "legacy_code_ref": null,
-    "check_content": "均布活荷载取1.0kN/m²（当模板面≤150m²时）或2.0kN/m²（当模板面>150m²时）；集中荷载取2.0kN；均布与集中荷载取较大值参与计算",
+    "check_content": "混凝土结构模板支撑脚手架施工荷载标准值：一般工况不应低于2.5kN/m²；有水平泵管设置时不应低于4.0kN/m²",
     "check_logic": {
       "description": "混凝土模板支撑脚手架施工荷载：一般≥2.5kN/m²；有水平泵管≥4.0kN/m²",
       "extraction_keywords": [
@@ -159,7 +173,7 @@
       "fail_condition": "取值低于规范要求"
     },
     "threshold": null,
-    "remedy_suggestion": "按GB55023-2022要求修改方案，确保满足施工人员及设备荷载标准值的具体规定：均布活荷载取1.0kN/m²（当模板面≤150m²时）或2.0kN/m²（当模板面>150m²时）；集中荷载取2.0kN",
+    "remedy_suggestion": "按GB55023-2022要求修改方案，确保满足施工人员及设备荷载标准值的具体规定：混凝土结构模板支撑脚手架施工荷载标准值一般不低于2.5kN/m²；有水平泵管设置时不低于4.0kN/m²",
     "typical_violation": "方案不满足施工人员及设备荷载标准值的要求",
     "manual_review": false,
     "notes": "全文强制。方案1取3.0kN/m²偏保守✓。注意有泵管时须取4.0",
@@ -278,9 +292,19 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "按JGJ162体系复核新浇混凝土侧压力",
+        "expected": "采用0.22γc·t0·β1·β2·V^0.5与γc·H取较小值"
+      },
+      {
+        "condition": "计算书引用GB50666附录A.0.4",
+        "expected": "不适用本规则，应使用2.19的0.28γc·t0·β公式"
+      }
+    ],
     "code_ref": {
-      "standard": "JGJ162-2016",
-      "clause": "第4.1.3条",
+      "standard": "JGJ 162-2008",
+      "clause": "第4.1.1条",
       "original_text": "新浇混凝土侧压力标准值F=0.22γct0β1β2v^(1/2)且F≤γcH；其中γc=24kN/m³",
       "formula": "F = min(0.22·γc·t0·β1·β2·V^0.5, γc·H)"
     },
@@ -692,11 +716,25 @@
     "applicable_types": [
       "universal"
     ],
+    "applicability_conditions": [
+      {
+        "condition": "采用内部振捣器，且浇筑速度V≤10m/h、坍落度≤180mm",
+        "expected": "采用0.28γc·t0·β·V^0.5与γc·H取较小值"
+      },
+      {
+        "condition": "浇筑速度V>10m/h或坍落度>180mm",
+        "expected": "直接按F=γc·H计算侧压力"
+      },
+      {
+        "condition": "无实测初凝时间",
+        "expected": "t0按200/(T+15)取值"
+      }
+    ],
     "code_ref": {
-      "standard": "GB50666-2011",
+      "standard": "GB 50666-2011",
       "clause": "附录A.0.4",
-      "original_text": "采用插入式振动器且浇筑速度不大于10m/h、坍落度不大于180mm时，侧压力标准值按下列公式计算取较小值：F=0.22γc·t0·β1·β2·V^0.5 且 F=γc·H",
-      "formula": "F = min(0.22·γc·t0·β1·β2·V^0.5, γc·H)",
+      "original_text": "采用内部振捣器时，当浇筑速度不大于10m/h且混凝土坍落度不大于180mm时，新浇筑混凝土对模板的最大侧压力标准值按F=0.28γc·t0·β·V^0.5与F=γc·H计算并取较小值；当浇筑速度大于10m/h或坍落度大于180mm时，侧压力标准值按F=γc·H计算",
+      "formula": "F = min(0.28·γc·t0·β·V^0.5, γc·H)；超出适用条件时 F = γc·H",
       "threshold": {
         "浇筑速度_max": "10m/h",
         "坍落度_max": "180mm"
@@ -704,13 +742,13 @@
     },
     "legacy_code_ref": {
       "standard": "JGJ162-2008/2016",
-      "clause": "第4.1.3条",
-      "note": "JGJ162与GB50666公式形式一致，但GB50666为附录A.0.4"
+      "clause": "第4.1.1条",
+      "note": "JGJ162采用0.22γc·t0·β1·β2·V^0.5；GB50666附录A.0.4采用0.28γc·t0·β·V^0.5，两者参数体系不同，不应混用"
     },
-    "check_content": "①浇筑速度V≤10m/h时用公式A.0.4；②取两式较小值；③t0=200/(T+15)无实测时；④V>10m/h或坍落度>180mm时按F=γc·H计算",
+    "check_content": "①采用内部振捣器且V≤10m/h、坍落度≤180mm时，按F=0.28γc·t0·β·V^0.5与F=γc·H取较小值；②无实测初凝时间时t0=200/(T+15)；③V>10m/h或坍落度>180mm时按F=γc·H计算；④不得套用JGJ162的0.22β1β2公式作为GB50666复核依据",
     "check_logic": {
-      "description": "①浇筑速度V≤10m/h时用公式A.0.4；②取两式较小值；③t0=200/(T+15)无实测时；④V>10m/h或坍落度>180mm时按F=γc·H计算",
-      "formula": "V≤10m/h且坍落度≤180mm时 F = min(0.22·γc·t0·β1·β2·V^0.5, γc·H)；否则 F = γc·H",
+      "description": "GB50666附录A侧压力复核：适用条件内使用0.28系数与单一坍落度修正系数β，超出浇筑速度或坍落度条件时按液柱压力γcH",
+      "formula": "V≤10m/h且坍落度≤180mm时 F = min(0.28·γc·t0·β·V^0.5, γc·H)；否则 F = γc·H",
       "extraction_keywords": [
         "侧压力",
         "G4k",
@@ -718,25 +756,25 @@
         "浇筑速度",
         "初凝时间",
         "t0",
-        "β1",
-        "β2",
+        "β",
+        "0.28",
         "坍落度"
       ],
       "operator": "formula_verification",
       "verification_steps": [
         "确认γc=24kN/m³",
         "确认t0取值合理(无实测时t0=200/(T+15))",
-        "确认β1(外加剂系数)、β2(坍落度系数)取值合理",
+        "确认β按坍落度区间取值：50mm<坍落度≤90mm取0.85，90mm<坍落度≤130mm取0.90，130mm<坍落度≤180mm取1.00",
         "确认V(浇筑速度)取值合理",
         "确认取两式较小值",
         "V>10m/h或坍落度>180mm时按F=γc·H计算"
       ]
     },
     "threshold": null,
-    "remedy_suggestion": "按规范公式重新验算并补充计算过程：。标注输入参数、公式、计算结果和判定结论",
+    "remedy_suggestion": "按GB50666-2011附录A.0.4重新验算并补充计算过程：适用条件内采用F = min(0.28·γc·t0·β·V^0.5, γc·H)，超出条件时采用F=γc·H。标注γc、t0、β、V、H、坍落度及最终取值。",
     "typical_violation": "方案缺少混凝土侧压力标准值计算(GB50666版)验算过程，或验算结果不满足规范要求",
     "manual_review": false,
-    "notes": "[原三方映射ID: G-01] 与L-05规则内容关联但规范来源不同：L-05引用JGJ162，本规则引用GB50666",
+    "notes": "[原三方映射ID: G-01] 与2.8规则均为侧压力复核，但适用规范和公式不同：2.8为JGJ162的0.22β1β2体系，本规则为GB50666的0.28β体系",
     "status": "active"
   },
   {
@@ -929,6 +967,64 @@
     "typical_violation": "方案不满足荷载组合正确性的要求",
     "manual_review": false,
     "notes": "[原三方映射ID: L-09] 方案1公式1.3×(G1k+(G2k+G3k)×h)+1.5×γL×Q1k正确体现GB55001分项系数",
+    "status": "active"
+  },
+  {
+    "rule_id": "2.24",
+    "rule_name": "泵送或不均匀堆载附加水平荷载",
+    "module": "02_load_values",
+    "category": "load",
+    "check_type": "semantic",
+    "severity": "B-required",
+    "risk_level": "medium",
+    "applicable_types": [
+      "universal"
+    ],
+    "applicability_conditions": [
+      {
+        "condition": "存在泵送混凝土工况",
+        "expected": "计入Q3附加水平荷载"
+      },
+      {
+        "condition": "存在不均匀堆载工况",
+        "expected": "计入Q3附加水平荷载"
+      },
+      {
+        "condition": "Q3取值与作用位置",
+        "expected": "取计算工况下竖向永久荷载标准值的2%，作用在模板支架上端水平方向"
+      }
+    ],
+    "code_ref": {
+      "standard": "GB 50666-2011",
+      "clause": "附录A.0.7",
+      "original_text": "泵送混凝土或不均匀堆载等因素产生的附加水平荷载标准值Q3可取计算工况下竖向永久荷载标准值的2%，并应作用在模板支架上端水平方向",
+      "threshold": {
+        "param": "Q3",
+        "operator": "==",
+        "value": "2%竖向永久荷载标准值",
+        "unit": "kN/m²或等效水平力"
+      }
+    },
+    "legacy_code_ref": null,
+    "check_content": "存在泵送混凝土或不均匀堆载工况时，应计入附加水平荷载Q3，标准值可取计算工况下竖向永久荷载标准值的2%，并作用在模板支架上端水平方向",
+    "check_logic": {
+      "description": "检查泵送或不均匀堆载工况是否计入Q3附加水平荷载，且取值为竖向永久荷载标准值的2%",
+      "extraction_keywords": [
+        "附加水平荷载",
+        "Q3",
+        "泵送",
+        "不均匀堆载",
+        "2%",
+        "支架上端"
+      ],
+      "operator": "context_check",
+      "fail_condition": "存在泵送或不均匀堆载工况但未计入Q3，或Q3取值低于竖向永久荷载标准值的2%"
+    },
+    "threshold": null,
+    "remedy_suggestion": "按GB50666-2011附录A.0.7补充Q3附加水平荷载：泵送混凝土或不均匀堆载工况取竖向永久荷载标准值的2%，并明确作用位置为模板支架上端水平方向。",
+    "typical_violation": "方案存在泵送或不均匀堆载工况，但荷载组合或抗倾覆验算未体现Q3附加水平荷载",
+    "manual_review": true,
+    "notes": "与2.20荷载组合项完整性配套：2.20检查Q3是否作为组合项出现，本规则检查Q3的触发工况、取值和作用方向",
     "status": "active"
   }
 ]

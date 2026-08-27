@@ -9,11 +9,12 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from ..condition_evaluator import evaluate_applicability_conditions
 from ..models import MinerUDocument
 from .agent_guardrails import EvidenceRegistry, display_normalize, normalize_for_match
 from .agent_tools import TOOL_HANDLERS
 
-CALC_AGENT_RULE_IDS = {"2.8", "2.12", "3.19", "3.20", "3.25"}
+CALC_AGENT_RULE_IDS = {"2.8", "2.12", "2.19", "3.19", "3.20", "3.22", "3.25"}
 CALC_AGENT_VERSION = "calculation-agent-v1"
 SEARCH_WINDOW_BEFORE = 90
 SEARCH_WINDOW_AFTER = 180
@@ -27,6 +28,15 @@ CALC_RULE_PROFILES: dict[str, dict[str, Any]] = {
         "missing_checks": [
             ("侧压力公式", ["0.22", "γ", "t0", "β1", "β2", "V"]),
             ("取两式较小值", ["min", "较小", "γH"]),
+        ],
+    },
+    "2.19": {
+        "keywords": ["侧压力", "F", "0.28", "γc", "t0", "β", "坍落度"],
+        "preferred_sections": ["计算书", "荷载计算", "侧压力", "GB50666"],
+        "missing_checks": [
+            ("GB50666侧压力公式", ["0.28", "γ", "t0", "β", "V"]),
+            ("适用条件", ["浇筑速度", "坍落度"]),
+            ("取两式较小值或γH分支", ["较小", "γH"]),
         ],
     },
     "2.12": {
@@ -51,6 +61,15 @@ CALC_RULE_PROFILES: dict[str, dict[str, Any]] = {
         "missing_checks": [
             ("抗倾覆公式", ["MR", "MT", "γ0"]),
             ("倾覆/抗倾覆力矩", ["倾覆力矩", "抗倾覆力矩"]),
+        ],
+    },
+    "3.22": {
+        "keywords": ["单肢立杆荷载", "立杆荷载", "顶层步距", "标准型", "重型", "40", "65"],
+        "preferred_sections": ["计算书", "构造", "盘扣", "步距"],
+        "missing_checks": [
+            ("盘扣架型号", ["标准型", "重型", "B型", "Z型"]),
+            ("单肢立杆荷载", ["单肢立杆荷载", "立杆荷载", "Nd"]),
+            ("顶层步距缩小措施", ["顶层步距缩小", "缩小0.5", "比标准步距缩小"]),
         ],
     },
     "3.25": {
@@ -82,6 +101,9 @@ def trace_calculation_evidence(
     rule: dict[str, Any],
     document: MinerUDocument,
     segments: list[dict[str, Any]],
+    *,
+    facts: dict[str, Any] | None = None,
+    condition_evaluation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """为单条计算规则追踪计算书证据，返回可并入 calculation_results 的 agent 对象。"""
     started = time.perf_counter()
@@ -89,6 +111,22 @@ def trace_calculation_evidence(
     profile = CALC_RULE_PROFILES.get(rule_id) or _profile_from_rule(rule)
     registry = EvidenceRegistry(document_id=document.document_id)
     steps: list[dict[str, Any]] = []
+    if condition_evaluation is None:
+        condition_evaluation = evaluate_applicability_conditions(
+            rule,
+            facts=facts,
+            text="\n".join(str(seg.get("text") or "") for seg in segments),
+        )
+    if condition_evaluation is not None:
+        steps.append({
+            "step": 1,
+            "action": "evaluate_applicability_conditions",
+            "args": {
+                "condition_count": len(condition_evaluation.get("items") or []),
+            },
+            "status": condition_evaluation.get("overall_status"),
+            "summary": _condition_summary(condition_evaluation),
+        })
 
     evidence = _search_segments(
         segments,
@@ -97,7 +135,7 @@ def trace_calculation_evidence(
         registry=registry,
     )
     steps.append({
-        "step": 1,
+        "step": len(steps) + 1,
         "action": "search_calculation_evidence",
         "args": {
             "keywords": profile.get("keywords") or [],
@@ -114,7 +152,7 @@ def trace_calculation_evidence(
         )
         evidence = _registry_evidence(registry, fallback_ids)
         steps.append({
-            "step": 2,
+            "step": len(steps) + 1,
             "action": "search_document",
             "args": {
                 "keywords": list(profile.get("keywords") or [])[:4],
@@ -142,11 +180,19 @@ def trace_calculation_evidence(
         "evidence": evidence,
         "found": _found_items(evidence),
         "missing": missing,
+        "condition_evaluation": condition_evaluation,
         "llm_calls": 0,
         "tool_calls": 1,
         "latency_ms": int((time.perf_counter() - started) * 1000),
         "registry": registry.to_dict(),
     }
+
+
+def _condition_summary(condition_evaluation: dict[str, Any]) -> str:
+    parts = []
+    for item in condition_evaluation.get("items") or []:
+        parts.append(f"{item.get('condition')}={item.get('status')}")
+    return "；".join(parts)
 
 
 def _profile_from_rule(rule: dict[str, Any]) -> dict[str, Any]:

@@ -126,7 +126,7 @@ def test_selected_rules_include_calculation_agent_trace() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
     by_id = {item["rule_id"]: item for item in result["results"]}
 
     for rule_id in ["2.8", "2.12", "3.19", "3.20", "3.25"]:
@@ -149,7 +149,7 @@ def test_foundation_bearing_recheck_passes_when_pressure_within_limit() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
     item = {row["rule_id"]: row for row in result["results"]}["3.19"]
 
     assert item["route"] == "deterministic_recheck"
@@ -172,7 +172,7 @@ def test_foundation_bearing_recheck_flags_exceedance() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
     item = {row["rule_id"]: row for row in result["results"]}["3.19"]
 
     assert item["route"] == "deterministic_recheck"
@@ -194,12 +194,149 @@ def test_load_combination_recheck_detects_ultimate_coefficients() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
     item = {row["rule_id"]: row for row in result["results"]}["2.12"]
 
     assert item["route"] == "deterministic_recheck"
     assert item["status"] == "COMPLIANT"
     assert item["calculation_recheck"]["formula_id"] == "load_combination"
+
+
+def test_side_pressure_recheck_jgj162_uses_022_beta1_beta2_formula() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "混凝土侧压力验算：γc=24kN/m³，t0=5h，β1=1.0，β2=1.15，V=2m/h，H=3m，F=43.0kN/m²。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["2.8"]
+
+    assert item["route"] == "deterministic_recheck"
+    assert item["status"] == "COMPLIANT"
+    assert item["calculation_recheck"]["formula_id"] == "side_pressure"
+
+
+def test_side_pressure_recheck_gb50666_uses_028_single_beta_formula() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "GB50666混凝土侧压力验算：γc=24kN/m³，t0=5h，β=1.0，V=2m/h，H=3m，坍落度=160mm，F=47.5kN/m²。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["2.19"]
+
+    assert item["route"] == "deterministic_recheck"
+    assert item["status"] == "COMPLIANT"
+    assert item["calculation_recheck"]["allowed_value"] == 47.5176
+    conditions = item["applicability_conditions"]
+    assert any("V≤10m/h" in condition["condition"] for condition in conditions)
+    assert any("F=γc·H" in condition["expected"] for condition in conditions)
+
+
+def test_side_pressure_recheck_flags_wrong_reported_value() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "GB50666混凝土侧压力验算：γc=24kN/m³，t0=5h，β=1.0，V=2m/h，H=3m，坍落度=160mm，F=60.0kN/m²。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["2.19"]
+
+    assert item["route"] == "deterministic_recheck"
+    assert item["status"] == "VIOLATED"
+    assert item["calculation_recheck"]["status"] == "ISSUE"
+
+
+def test_side_pressure_condition_evaluation_selects_hydrostatic_branch() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "GB50666混凝土侧压力验算：γc=24kN/m³，V=12m/h，H=3m，坍落度=160mm，F=72kN/m²。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["2.19"]
+
+    assert item["status"] == "COMPLIANT"
+    assert item["condition_evaluation"]["selected_branch"] == "hydrostatic_gamma_h"
+    assert item["calculation_agent"]["condition_evaluation"]["selected_branch"] == "hydrostatic_gamma_h"
+
+
+def test_side_pressure_condition_is_unknown_when_velocity_missing() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "GB50666混凝土侧压力验算：γc=24kN/m³，H=3m，坍落度=160mm。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["2.19"]
+
+    assert item["condition_evaluation"]["selected_branch"] == "unknown"
+    assert item["condition_evaluation"]["items"][0]["status"] == "UNKNOWN"
 
 
 def test_jack_capacity_recheck_still_runs_after_new_recheckers() -> None:
@@ -216,12 +353,34 @@ def test_jack_capacity_recheck_still_runs_after_new_recheckers() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "coupler"}}})
     item = {row["rule_id"]: row for row in result["results"]}["3.17"]
 
     assert item["route"] == "deterministic_recheck"
     assert item["status"] == "COMPLIANT"
     assert item["calculation_recheck"]["formula_id"] == "jack_capacity"
+
+
+def test_pankou_jack_capacity_uses_pankou_design_capacity() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(1, 2, "paragraph", "盘扣式可调托撑承载力验算：N=90kN≤Nd=100kN，满足要求。"),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["3.17p"]
+
+    assert item["route"] == "deterministic_recheck"
+    assert item["status"] == "COMPLIANT"
+    assert item["calculation_recheck"]["allowed_value"] == 100.0
 
 
 def test_overturning_recheck_passes_with_explicit_moments() -> None:
@@ -238,7 +397,7 @@ def test_overturning_recheck_passes_with_explicit_moments() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
     item = {row["rule_id"]: row for row in result["results"]}["3.20"]
 
     assert item["route"] == "deterministic_recheck"
@@ -260,12 +419,128 @@ def test_overturning_recheck_flags_insufficient_resisting_moment() -> None:
         ],
     )
 
-    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "pankou"}}})
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
     item = {row["rule_id"]: row for row in result["results"]}["3.20"]
 
     assert item["route"] == "deterministic_recheck"
     assert item["status"] == "VIOLATED"
     assert item["calculation_recheck"]["status"] == "ISSUE"
+
+
+def test_pankou_top_step_condition_triggers_when_b_type_load_exceeds_40kn() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "盘扣标准型B型支撑架，单肢立杆荷载设计值=45kN，顶层步距缩小0.5m。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["3.22"]
+
+    assert item["route"] == "agent_evidence"
+    assert item["condition_evaluation"]["selected_branch"] == "top_step_must_reduce"
+    assert item["condition_evaluation"]["items"][0]["status"] == "TRIGGERED"
+    assert item["calculation_agent"]["steps"][0]["action"] == "evaluate_applicability_conditions"
+
+
+def test_pankou_top_step_agent_requires_reduction_phrase() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "盘扣标准型B型支撑架，单肢立杆荷载设计值=45kN，顶层步距按方案布置。",
+                ),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["3.22"]
+
+    assert item["condition_evaluation"]["selected_branch"] == "top_step_must_reduce"
+    assert "顶层步距缩小措施" in item["calculation_agent"]["missing"]
+
+
+def test_calculation_rules_are_gated_by_support_system() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(
+                    1,
+                    2,
+                    "paragraph",
+                    "立杆轴力、计算长度、稳定性、长细比、扣件抗滑移、连墙件、托撑承载力验算。",
+                ),
+            ])
+        ],
+    )
+
+    pankou = run_calculation_engine(document, {"facts": {"support_system": {"value": "disk_lock"}}})
+    coupler = run_calculation_engine(document, {"facts": {"support_system": {"value": "coupler"}}})
+    other = run_calculation_engine(document, {"facts": {"support_system": {"value": "other"}}})
+
+    pankou_by_id = {row["rule_id"]: row for row in pankou["results"]}
+    coupler_by_id = {row["rule_id"]: row for row in coupler["results"]}
+    other_by_id = {row["rule_id"]: row for row in other["results"]}
+
+    for rule_id in ["3.8", "3.11", "3.16", "3.17", "3.18", "3.26", "3.27"]:
+        assert pankou_by_id[rule_id]["status"] == "NOT_APPLICABLE"
+        assert coupler_by_id[rule_id]["status"] != "NOT_APPLICABLE"
+
+    for rule_id in ["3.8a", "3.9", "3.10", "3.12", "3.13", "3.14", "3.17p", "3.20", "3.21", "3.22"]:
+        assert pankou_by_id[rule_id]["status"] != "NOT_APPLICABLE"
+        assert coupler_by_id[rule_id]["status"] == "NOT_APPLICABLE"
+
+    assert other_by_id["3.15"]["status"] != "NOT_APPLICABLE"
+    assert pankou_by_id["3.15"]["status"] == "NOT_APPLICABLE"
+    assert coupler_by_id["3.15"]["status"] == "NOT_APPLICABLE"
+
+
+def test_koujian_stability_recheck_runs_for_coupler_system() -> None:
+    document = MinerUDocument(
+        document_id="demo",
+        source_file_name="demo.pdf",
+        source_sha256="sha",
+        physical_page_count=1,
+        pages=[
+            _page(1, [
+                _block(1, 1, "title", "模板支架计算书"),
+                _block(1, 2, "paragraph", "扣件式立杆稳定性验算：σ=180N/mm²≤f=205N/mm²，满足要求。"),
+            ])
+        ],
+    )
+
+    result = run_calculation_engine(document, {"facts": {"support_system": {"value": "coupler"}}})
+    item = {row["rule_id"]: row for row in result["results"]}["3.27"]
+
+    assert item["route"] == "deterministic_recheck"
+    assert item["status"] == "COMPLIANT"
+    assert item["calculation_recheck"]["formula_id"] == "vertical_stability"
 
 
 def test_calculation_agent_falls_back_to_shared_search_document_tool() -> None:

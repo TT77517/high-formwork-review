@@ -11,8 +11,8 @@ from typing import Any
 
 
 SUPPORTED_RULES = {
-    "2.12", "2.23", "3.9", "3.11", "3.12", "3.14", "3.15", "3.17",
-    "3.19", "3.20", "3.25",
+    "2.8", "2.12", "2.19", "2.23", "3.9", "3.11", "3.12", "3.14", "3.15", "3.17", "3.17p",
+    "3.19", "3.20", "3.25", "3.27",
 }
 
 
@@ -28,9 +28,11 @@ def recheck_calculation(
         return _recheck_slenderness(rule, segments)
     if rule_id in {"2.12", "2.23"}:
         return _recheck_load_combination(rule, segments)
-    if rule_id in {"3.9", "3.12", "3.15"}:
+    if rule_id in {"2.8", "2.19"}:
+        return _recheck_side_pressure(rule, segments)
+    if rule_id in {"3.9", "3.12", "3.15", "3.27"}:
         return _recheck_stability(rule, segments)
-    if rule_id == "3.17":
+    if rule_id in {"3.17", "3.17p"}:
         return _recheck_jack_capacity(rule, segments)
     if rule_id == "3.19":
         return _recheck_foundation_bearing(rule, segments)
@@ -76,6 +78,117 @@ def _recheck_load_combination(rule: dict[str, Any], segments: list[dict[str, Any
         found=["识别到承载能力极限状态荷载组合分项系数1.3/1.5"],
         missing=[],
         decision="荷载组合分项系数表达式满足当前规则的确定性复核条件。",
+    )
+
+
+def _recheck_side_pressure(rule: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
+    rule_id = str(rule.get("rule_id") or "")
+    is_gb50666 = rule_id == "2.19"
+    focused = _focused_segments(
+        segments,
+        ("侧压力", "G4", "G4k", "F=", "γc", "gamma", "t0", "β", "beta", "浇筑速度", "坍落度"),
+    )
+    text = _join_text(focused)
+    expression = (
+        "V<=10且坍落度<=180时 F = min(0.28*γc*t0*β*sqrt(V), γc*H)，否则 F = γc*H"
+        if is_gb50666
+        else "F = min(0.22*γc*t0*β1*β2*sqrt(V), γc*H)"
+    )
+    if not text:
+        return _uncertain(rule, "side_pressure", expression, ["计算书未找到混凝土侧压力计算片段"], focused)
+
+    gamma_c = _find_explicit_value(text, (r"γc", r"γ_c", r"gammac", r"混凝土重力密度"))
+    t0 = _find_explicit_value(text, (r"t0", r"初凝时间"))
+    velocity = _find_explicit_value(text, (r"\bV\b", r"浇筑速度"))
+    height = _find_explicit_value(text, (r"\bH\b", r"浇筑高度", r"有效压头高度", r"侧压力计算位置至顶部高度"))
+    reported = _find_side_pressure_result(text)
+    slump = _find_explicit_value(text, (r"坍落度",))
+
+    missing = []
+    if gamma_c is None:
+        missing.append("缺少混凝土重力密度 γc")
+    if height is None:
+        missing.append("缺少侧压力计算高度 H")
+    if is_gb50666:
+        beta = _find_explicit_value(text, (r"β(?![12])", r"beta(?![12])", r"坍落度影响修正系数"))
+        force_hydrostatic = (velocity is not None and velocity > 10) or (slump is not None and slump > 180)
+        if velocity is None and not (slump is not None and slump > 180):
+            missing.append("缺少浇筑速度 V")
+        if t0 is None and not force_hydrostatic:
+            missing.append("缺少初凝时间 t0")
+        if beta is None and not force_hydrostatic:
+            missing.append("缺少坍落度影响修正系数 β")
+    else:
+        beta1 = _find_explicit_value(text, (r"β1", r"beta1", r"外加剂影响系数"))
+        beta2 = _find_explicit_value(text, (r"β2", r"beta2", r"坍落度影响系数"))
+        if t0 is None:
+            missing.append("缺少初凝时间 t0")
+        if velocity is None:
+            missing.append("缺少浇筑速度 V")
+        if beta1 is None:
+            missing.append("缺少外加剂影响系数 β1")
+        if beta2 is None:
+            missing.append("缺少坍落度影响系数 β2")
+    if reported is None:
+        missing.append("缺少计算书给出的侧压力结果 F")
+    if missing:
+        return _uncertain(rule, "side_pressure", expression, missing, focused)
+
+    hydrostatic = gamma_c * height
+    inputs = [
+        _input("γc", gamma_c, "kN/m³", "混凝土重力密度"),
+        _input("H", height, "m", "侧压力计算高度"),
+    ]
+    if is_gb50666 and ((velocity is not None and velocity > 10) or (slump is not None and slump > 180)):
+        computed = hydrostatic
+        substituted = f"F = γc*H = {gamma_c:g} * {height:g} = {computed:.2f}"
+        if velocity is not None:
+            inputs.append(_input("V", velocity, "m/h", "浇筑速度"))
+        if slump is not None:
+            inputs.append(_input("坍落度", slump, "mm", "坍落度"))
+    elif is_gb50666:
+        formula_pressure = 0.28 * gamma_c * t0 * beta * (velocity ** 0.5)
+        computed = min(formula_pressure, hydrostatic)
+        inputs.extend([
+            _input("t0", t0, "h", "初凝时间"),
+            _input("β", beta, "", "坍落度影响修正系数"),
+            _input("V", velocity, "m/h", "浇筑速度"),
+        ])
+        substituted = (
+            f"F = min(0.28*{gamma_c:g}*{t0:g}*{beta:g}*sqrt({velocity:g}), "
+            f"{gamma_c:g}*{height:g}) = {computed:.2f}"
+        )
+    else:
+        formula_pressure = 0.22 * gamma_c * t0 * beta1 * beta2 * (velocity ** 0.5)
+        computed = min(formula_pressure, hydrostatic)
+        inputs.extend([
+            _input("t0", t0, "h", "初凝时间"),
+            _input("β1", beta1, "", "外加剂影响系数"),
+            _input("β2", beta2, "", "坍落度影响系数"),
+            _input("V", velocity, "m/h", "浇筑速度"),
+        ])
+        substituted = (
+            f"F = min(0.22*{gamma_c:g}*{t0:g}*{beta1:g}*{beta2:g}*sqrt({velocity:g}), "
+            f"{gamma_c:g}*{height:g}) = {computed:.2f}"
+        )
+
+    tolerance = max(1.0, computed * 0.03)
+    status = "PASS" if abs(reported - computed) <= tolerance else "ISSUE"
+    return _result(
+        rule,
+        formula_id="side_pressure",
+        formula_name="混凝土侧压力复算",
+        expression=expression,
+        inputs=inputs + [_input("F", reported, "kN/m²", "计算书给出的侧压力结果")],
+        substituted_expression=f"{substituted}; report F = {reported:g}",
+        computed_value=reported,
+        allowed_value=round(computed, 4),
+        operator="≈",
+        status=status,
+        segments=focused,
+        found=[f"复算侧压力 {computed:.2f}kN/m²", f"计算书给出 {reported:g}kN/m²"],
+        missing=[],
+        decision=f"计算书结果 {reported:g} 与复算值 {computed:.2f} {'一致' if status == 'PASS' else '不一致'}",
     )
 
 
@@ -196,10 +309,11 @@ def _recheck_jack_capacity(rule: dict[str, Any], segments: list[dict[str, Any]])
     # Try explicit assignment first (N=30kN), then table format (容许值[N](kN) 30),
     # then near-comparison pattern (30kN≤40kN)
     n_value = _find_explicit_value(text, (r"\bN\b", r"轴力", r"受力"))
+    default_limit = 100.0 if str(rule.get("rule_id")) == "3.17p" else 40.0
     limit = (
         _find_explicit_value(text, (r"Nd", r"承载力设计值", r"允许承载力", r"容许承载力"))
         or _find_table_value(text, ("承载力容许值", "承载力设计值", "容许承载力"))
-        or 40.0
+        or default_limit
     )
     comparison = _parse_near_comparison(_compact_formula(text))
     if comparison and n_value is None:
@@ -406,6 +520,7 @@ def _uncertain(
             "foundation_bearing": "地基承载力复算",
             "load_combination": "荷载组合系数复核",
             "overturning": "抗倾覆复算",
+            "side_pressure": "混凝土侧压力复算",
         }.get(formula_id, "公式复算"),
         "expression": expression,
         "inputs": [],
@@ -496,6 +611,19 @@ def _find_table_value(text: str, labels: tuple[str, ...]) -> float | None:
     for label in labels:
         # Pattern: label, then optional [unit] or (unit) annotations, then the number
         pattern = rf"{label}(?:\s*\[[^\]]*\])?(?:\s*\([^)]*\))?\s+(\d+(?:\.\d+)?)"
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+    return None
+
+
+def _find_side_pressure_result(text: str) -> float | None:
+    unit = r"(?:kN\s*/\s*m(?:2|²)|kPa|KN\s*/\s*m(?:2|²))"
+    patterns = [
+        rf"(?:侧压力(?:标准值|计算值|结果)?|G4k?|F)\s*(?:=|:|：|＝)\s*(-?\d+(?:\.\d+)?)\s*{unit}",
+        rf"(?:取|取值为|较小值为|结果为)\s*(-?\d+(?:\.\d+)?)\s*{unit}",
+    ]
+    for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return float(match.group(1))

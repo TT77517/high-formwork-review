@@ -426,6 +426,8 @@ def _build_result(
         "remedy_suggestion": rule.get("remedy_suggestion", ""),
         "typical_violation": rule.get("typical_violation", ""),
         "manual_review": rule.get("manual_review", False),
+        "applicable_types": rule.get("applicable_types", ["universal"]),
+        "applicability_conditions": rule.get("applicability_conditions", []),
         "evidence": evidence,
         "source": source,
     }

@@ -196,3 +196,7 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
     assert state["formula_recalculations"][0]["formula_id"] == "vertical_stability"
     assert state["drawing_evidence_quality"]["counts"]["数值冲突"] == 1
     assert state["parameter_to_rules"]["head_jack_cantilever_length"][0]["rule_id"] == "4.12"
+    assert any(
+        ref["source"] == "calculation_engine" and ref["rule_id"] == "3.9"
+        for ref in state["parameter_to_rules"]["standard_step_height"]
+    )

@@ -567,6 +567,8 @@ def _build_sem_result(
         "remedy_suggestion": rule.get("remedy_suggestion", ""),
         "typical_violation": rule.get("typical_violation", ""),
         "manual_review": rule.get("manual_review", True),
+        "applicable_types": rule.get("applicable_types", ["universal"]),
+        "applicability_conditions": rule.get("applicability_conditions", []),
         "evidence": evidence[:5],
         "semantic_judgment": rule.get("check_logic", {}).get("semantic_judgment", ""),
         "raw_evidence_snippet": raw_evidence,

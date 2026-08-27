@@ -16,6 +16,7 @@ import re
 import unicodedata
 from typing import Any
 
+from .condition_evaluator import evaluate_applicability_conditions
 from .calculation_rechecker import recheck_calculation
 from .models import MinerUDocument
 from .rule_engine import (
@@ -39,30 +40,33 @@ FORMULA_KEYWORDS: dict[str, list[str]] = {
     "3.5": ["次楞", "挠度", "ω", "l/150", "l/250"],
     "3.6": ["主楞", "抗弯", "σ", "M/W"],
     "3.7": ["主楞", "挠度", "ω", "l/150", "l/250"],
-    "3.8": ["立杆", "轴力", "N", "1.3", "1.5", "NGk", "NQk"],
+    "3.8": ["立杆", "轴力", "N", "1.2", "1.4", "NGk", "NQk"],
     "3.8a": ["立杆", "轴力", "N", "1.3", "1.5", "盘扣"],
     "3.9": ["立杆", "稳定", "σ", "N/φA", "f"],
     "3.10": ["计算长度", "l0", "η", "k"],
-    "3.11": ["长细比", "λ", "150"],
+    "3.11": ["长细比", "λ", "210"],
+    "3.26": ["计算长度", "l0", "k", "μ", "1.155"],
+    "3.27": ["立杆", "稳定", "N/φA", "Mw/W", "205"],
     "3.12": ["立杆", "稳定", "σ", "φA", "f"],
     "3.13": ["计算长度", "l0", "η", "k", "β"],
     "3.14": ["长细比", "λ", "150"],
     "3.15": ["立杆", "稳定", "碗扣"],
     "3.16": ["扣件", "抗滑", "Rc"],
     "3.17": ["托撑", "承载力", "N"],
+    "3.17p": ["盘扣", "托撑", "承载力", "100", "140"],
     "3.18": ["连墙件", "N"],
     "3.19": ["地基", "承载力"],
-    "3.20": ["抗倾覆", "MR", "MT", "γ0"],
+    "3.20": ["盘扣", "抗倾覆", "MR", "MT", "γ0"],
     "3.21": ["长细比", "λ", "≤"],
     "3.22": ["顶层", "步距", "0.5"],
     "3.23": ["变形", "限值", "ω"],
     "3.24": ["长细比", "λ", "180"],
     "3.25": ["抗倾覆", "MR", "γ0", "MT"],
-    "2.8": ["侧压力", "F", "混凝土", "浇筑速度"],
+    "2.8": ["侧压力", "F", "0.22", "β1", "β2", "浇筑速度"],
     "2.12": ["荷载组合", "1.3", "1.5"],
     "2.13": ["正常使用", "标准组合", "频遇"],
     "2.14": ["风荷载", "w0", "βz"],
-    "2.19": ["侧压力", "F", "GB50666"],
+    "2.19": ["侧压力", "F", "0.28", "γc", "t0", "β"],
     "2.23": ["荷载组合", "1.3", "1.5", "γ0"],
 }
 
@@ -239,7 +243,7 @@ def run_calculation_engine(
 
     results: list[dict[str, Any]] = []
     for rule in rules:
-        result = _evaluate_calculation(rule, calc_text, system_value, segments, document)
+        result = _evaluate_calculation(rule, calc_text, system_value, segments, document, facts)
         results.append(result)
 
     compliant = sum(1 for r in results if r["status"] == "COMPLIANT")
@@ -268,6 +272,7 @@ def _evaluate_calculation(
     system_value: str,
     segments: list[dict[str, Any]] | None = None,
     document: MinerUDocument | None = None,
+    facts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """评估单条计算规则——检查验算项目是否存在于计算书中。"""
     rule_id = rule.get("rule_id", "")
@@ -319,11 +324,18 @@ def _evaluate_calculation(
             })
 
     threshold_match = len(keywords)
+    condition_evaluation = evaluate_applicability_conditions(rule, facts=facts, text=calc_text)
     recheck = recheck_calculation(rule, segments or [])
     route = calculation_agent_route(str(rule_id), recheck)
     calc_agent: dict[str, Any] | None = None
     if document is not None and should_run_calculation_agent(str(rule_id)):
-        calc_agent = trace_calculation_evidence(rule, document, segments or [])
+        calc_agent = trace_calculation_evidence(
+            rule,
+            document,
+            segments or [],
+            facts=facts,
+            condition_evaluation=condition_evaluation,
+        )
         agent_evidence = _agent_evidence_to_review_evidence(calc_agent)
         if agent_evidence:
             evidence = agent_evidence
@@ -341,6 +353,7 @@ def _evaluate_calculation(
             recheck=recheck,
             route=route,
             calc_agent=calc_agent,
+            condition_evaluation=condition_evaluation,
         )
 
     if matched_count >= max(2, threshold_match // 2):
@@ -373,6 +386,7 @@ def _evaluate_calculation(
         recheck=recheck,
         route=route,
         calc_agent=calc_agent,
+        condition_evaluation=condition_evaluation,
     )
 
 
@@ -421,6 +435,7 @@ def _build_calc_result(
     recheck: dict[str, Any] | None = None,
     route: str = "presence_check",
     calc_agent: dict[str, Any] | None = None,
+    condition_evaluation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     code_ref = rule.get("code_ref") or {}
     cl = rule.get("check_logic") or {}
@@ -443,10 +458,14 @@ def _build_calc_result(
         "remedy_suggestion": rule.get("remedy_suggestion", ""),
         "typical_violation": rule.get("typical_violation", ""),
         "manual_review": rule.get("manual_review", True),
+        "applicable_types": rule.get("applicable_types", ["universal"]),
+        "applicability_conditions": rule.get("applicability_conditions", []),
         "evidence": evidence[:5],
         "review_explanation": explanation,
         "route": route,
     }
+    if condition_evaluation is not None:
+        result["condition_evaluation"] = condition_evaluation
     if route in {"agent_evidence", "human_review"}:
         result["manual_review"] = True
     if recheck is not None:

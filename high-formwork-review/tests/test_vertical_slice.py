@@ -330,6 +330,10 @@ def test_consistency_review_compares_design_and_calculation_values() -> None:
 
     assert result[0]["status"] == "PASS"
     assert result[0]["automation_level"] == "parameter_consistency_only"
+    assert any(
+        impact["rule_id"] == "3.11" and impact["relationship"] == "direct_input"
+        for impact in result[0]["calculation_impacts"]
+    )
 
 
 def test_review_summary_accepts_consistency_and_drawing_reviews() -> None:

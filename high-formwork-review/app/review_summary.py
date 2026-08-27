@@ -16,6 +16,7 @@ def build_review_results(
     comparison: dict[str, Any] | None = None,
     consistency_review: list[dict[str, Any]] | None = None,
     drawing_review: list[dict[str, Any]] | None = None,
+    calculation: dict[str, Any] | None = None,
     rule_engine: dict[str, Any] | None = None,
     semantic: dict[str, Any] | None = None,
     document_pages: list[dict[str, Any]] | None = None,
@@ -86,6 +87,28 @@ def build_review_results(
                     "basis": [],
                 }
             )
+    for item in (calculation or {}).get("results", []):
+        if not _calculation_condition_needs_review(item):
+            continue
+        queue.append(
+            {
+                "source": "calculation_engine",
+                "review_item_id": item.get("rule_id"),
+                "item_key": f"calculation_engine:{item.get('rule_id')}:conditions",
+                "title": f"{item.get('rule_name') or item.get('rule_id')}：适用条件待确认",
+                "system_result": "REVIEW",
+                "reason": _calculation_condition_reason(item),
+                "evidence": item.get("evidence", []),
+                "basis": [(item.get("code_ref") or {}).get("standard", "")],
+                "link": {"tab": "calculation", "rule_id": item.get("rule_id")},
+                "meta": {
+                    "severity": item.get("severity"),
+                    "module": item.get("module"),
+                    "route": item.get("route"),
+                    "condition_evaluation": item.get("condition_evaluation") or {},
+                },
+            }
+        )
 
     # 规则引擎/语义引擎需要人工确认的事项逐条入队（按强制等级排序）
     engine_items = []
@@ -214,6 +237,10 @@ def build_review_results(
             "consistency_review": sum(item.get("status") == "REVIEW" for item in consistency_review),
             "drawing_total": len(drawing_review),
             "drawing_review": sum(item.get("requires_human_review") for item in drawing_review),
+            "calculation_total": (calculation or {}).get("total_rules", 0),
+            "calculation_compliant": (calculation or {}).get("compliant", 0),
+            "calculation_violated": (calculation or {}).get("violated", 0),
+            "calculation_uncertain": (calculation or {}).get("uncertain", 0),
             "rule_engine_total": (rule_engine or {}).get("total_rules", 0),
             "rule_engine_compliant": (rule_engine or {}).get("compliant", 0),
             "rule_engine_violated": (rule_engine or {}).get("violated", 0),
@@ -230,3 +257,41 @@ def _completeness_dict(value: Any) -> dict[str, Any]:
     if is_dataclass(value):
         return asdict(value)
     return value if isinstance(value, dict) else {}
+
+
+def _calculation_condition_needs_review(item: dict[str, Any]) -> bool:
+    condition = item.get("condition_evaluation") or {}
+    if not condition:
+        return False
+    review_items = _calculation_review_condition_items(condition)
+    if not review_items:
+        return False
+    return (
+        condition.get("overall_status") in {"UNKNOWN", "PARTIAL"}
+        or condition.get("selected_branch") == "unknown"
+    )
+
+
+def _calculation_review_condition_items(condition: dict[str, Any]) -> list[dict[str, Any]]:
+    items = []
+    for cond_item in condition.get("items") or []:
+        if cond_item.get("status") != "UNKNOWN":
+            continue
+        basis = str(cond_item.get("basis") or "")
+        if basis == "当前版本未内置该条件判定":
+            continue
+        items.append(cond_item)
+    return items
+
+
+def _calculation_condition_reason(item: dict[str, Any]) -> str:
+    condition = item.get("condition_evaluation") or {}
+    review_items = _calculation_review_condition_items(condition)
+    if not review_items:
+        return "适用条件未能自动确认，需人工复核。"
+    texts = []
+    for cond_item in review_items:
+        condition_text = cond_item.get("condition") or cond_item.get("expected") or "条件"
+        basis = cond_item.get("basis") or "证据不足"
+        texts.append(f"{condition_text}：{basis}")
+    return "；".join(texts)

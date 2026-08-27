@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+from collections import Counter
+from pathlib import Path
+
 from app.calculation_engine import run_calculation_engine
 from app.calculation_rechecker import recheck_calculation
 from app.rule_engine import (
@@ -11,6 +15,9 @@ from app.rule_engine import (
 )
 from app.semantic_engine import run_semantic_engine_local
 from tests.test_vertical_slice import _document
+
+
+RULE_DIR = Path(__file__).resolve().parents[1] / "config" / "rule_library_v4"
 
 
 def _facts(system):
@@ -45,6 +52,34 @@ def test_system_applicability_status_gate():
     assert system_applicability_status(["pankou"], "disk_lock") is None
     assert system_applicability_status(["pankou"], "coupler") == "NOT_APPLICABLE"
     assert system_applicability_status(["pankou", "koujian"], "coupler") is None
+
+
+def test_rule_library_index_counts_match_rule_files():
+    index = json.loads((RULE_DIR / "index.json").read_text(encoding="utf-8"))
+    total = 0
+    for module in index["modules"]:
+        rules = json.loads((RULE_DIR / module["file"]).read_text(encoding="utf-8"))
+        distribution = Counter(rule.get("check_type") for rule in rules)
+        total += len(rules)
+
+        assert module["rule_count"] == len(rules), module["file"]
+        assert module["check_type_distribution"] == dict(distribution), module["file"]
+
+    assert index["total_rules"] == total
+
+
+def test_load_rule_applicability_conditions_stay_on_target_rules():
+    rules = {
+        rule["rule_id"]: rule
+        for rule in json.loads((RULE_DIR / "module_02_load_values.json").read_text(encoding="utf-8"))
+    }
+
+    assert "applicability_conditions" not in rules["2.1"]
+    assert "applicability_conditions" not in rules["2.2"]
+    assert "applicability_conditions" in rules["2.4"]
+    assert "applicability_conditions" in rules["2.8"]
+    assert "applicability_conditions" in rules["2.19"]
+    assert "applicability_conditions" in rules["2.24"]
 
 
 def test_unknown_system_marks_type_rules_pending():

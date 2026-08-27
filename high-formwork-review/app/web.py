@@ -1355,6 +1355,7 @@ def _run_review_stages(
             substantive_review,
             consistency_review=consistency_review,
             drawing_review=drawing_review,
+            calculation=calculation_result,
             rule_engine=rule_engine_result,
             semantic=semantic_result,
             document_pages=[
@@ -1624,6 +1625,7 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
         "completeness": job_dir / "completeness_summary.json",
         "substantive": job_dir / "substantive_review.json",
         "rule_engine": job_dir / "rule_engine_results.json",
+        "calculation": job_dir / "calculation_results.json",
         "consistency": job_dir / "consistency_review.json",
         "drawing": job_dir / "drawing_review.json",
         "comparison": job_dir / "review_comparison.json",
@@ -1633,6 +1635,7 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
     comparison = _read_json(paths["comparison"], "") if paths["comparison"].is_file() else None
     consistency = _read_json(paths["consistency"], "") if paths["consistency"].is_file() else None
     drawing = _read_json(paths["drawing"], "") if paths["drawing"].is_file() else None
+    calculation = _read_json(paths["calculation"], "") if paths["calculation"].is_file() else None
     rule_engine = _read_json(paths["rule_engine"], "") if paths["rule_engine"].is_file() else None
     semantic_path = job_dir / "semantic_results.json"
     semantic = _read_json(semantic_path, "") if semantic_path.is_file() else None
@@ -1657,6 +1660,7 @@ def _write_precheck_summary_if_ready(job_dir: Path) -> None:
             comparison=comparison,
             consistency_review=consistency,
             drawing_review=drawing,
+            calculation=calculation,
             rule_engine=rule_engine,
             semantic=semantic,
             document_pages=document_pages,

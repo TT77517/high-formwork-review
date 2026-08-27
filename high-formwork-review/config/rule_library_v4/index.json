@@ -7,7 +7,7 @@
     "v4.0.0": "合并127条模块规则与47条三方映射规则，去重23条重叠，新增24条，共156条。统一18字段结构。三方映射表中的plan_facts(方案实例数据)移除，created/last_modified移至index元数据。新增remedy_suggestion/typical_violation/manual_review/check_content字段(已全部填充)。 新增8条语义判断规则(module_06: 6.28~6.35)，覆盖安全措施完整性、应急预案可操作性、危险源辨识、监测方案合理性、验收制度合规性、人员配备等语义审查场景。",
     "v3.3.0": "127条规则，6模块JSON+index.json。新增GB55023 §2.0.3-2.0.6和§5/6条款。"
   },
-  "total_rules": 164,
+  "total_rules": 172,
   "modules": [
     {
       "id": "module_01_procedure_compliance",
@@ -25,12 +25,12 @@
       "id": "module_02_load_values",
       "name": "荷载取值审查",
       "file": "module_02_load_values.json",
-      "rule_count": 23,
+      "rule_count": 24,
       "original_count": 18,
       "new_from_tm": 5,
       "check_type_distribution": {
         "deterministic": 5,
-        "semantic": 12,
+        "semantic": 13,
         "calculation": 6
       }
     },
@@ -38,23 +38,23 @@
       "id": "module_03_structural_calculation",
       "name": "结构计算审查",
       "file": "module_03_structural_calculation.json",
-      "rule_count": 26,
+      "rule_count": 29,
       "original_count": 21,
       "new_from_tm": 5,
       "check_type_distribution": {
-        "calculation": 26
+        "calculation": 29
       }
     },
     {
       "id": "module_04_construction_requirements",
       "name": "构造要求审查",
       "file": "module_04_construction_requirements.json",
-      "rule_count": 33,
+      "rule_count": 36,
       "original_count": 24,
       "new_from_tm": 9,
       "check_type_distribution": {
         "deterministic": 18,
-        "semantic": 15
+        "semantic": 18
       }
     },
     {
@@ -73,12 +73,12 @@
       "id": "module_06_safety_measures",
       "name": "安全措施审查",
       "file": "module_06_safety_measures.json",
-      "rule_count": 35,
+      "rule_count": 36,
       "original_count": 27,
       "new_from_tm": 1,
       "check_type_distribution": {
-        "deterministic": 7,
-        "semantic": 28
+        "deterministic": 6,
+        "semantic": 30
       },
       "new_semantic": 8
     }
@@ -125,6 +125,11 @@
         "name": "applicable_types",
         "type": "array",
         "description": "适用支架类型: pankou/koujian/wankou/universal"
+      },
+      {
+        "name": "applicability_conditions",
+        "type": "array",
+        "description": "适用条件/触发工况: [{condition, expected}]，用于区分同一规则在不同构件、工况、规范引用或参数阈值下的审查口径"
       },
       {
         "name": "code_ref",

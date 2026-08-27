@@ -112,3 +112,72 @@ def test_queue_without_new_args_keeps_legacy_items():
     out = build_review_results(_qual("disk_lock"), _comp(), [])
     keys = [i["item_key"] for i in out["human_review_queue"]]
     assert keys == ["completeness_review:HF-COMP-001"]
+
+
+def test_calculation_condition_gap_enters_manual_queue():
+    calculation = {
+        "total_rules": 1,
+        "results": [
+            {
+                "rule_id": "2.19",
+                "rule_name": "新浇混凝土侧压力标准值",
+                "status": "UNCERTAIN",
+                "reason": "侧压力分支条件缺参",
+                "severity": "B-required",
+                "module": "02_load_values",
+                "route": "agent_evidence",
+                "code_ref": {"standard": "GB 50666-2011"},
+                "evidence": [{"page": 8, "quote": "新浇混凝土侧压力标准值"}],
+                "condition_evaluation": {
+                    "overall_status": "UNKNOWN",
+                    "selected_branch": "unknown",
+                    "items": [
+                        {
+                            "condition": "采用内部振捣器，且浇筑速度V≤10m/h、坍落度≤180mm",
+                            "expected": "按公式 F=0.28γct0βv^0.5 计算",
+                            "status": "UNKNOWN",
+                            "basis": "未提取到浇筑速度V或坍落度，无法选择侧压力分支",
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+
+    out = build_review_results(_qual("disk_lock"), _comp(), [], calculation=calculation)
+    keys = [i["item_key"] for i in out["human_review_queue"]]
+
+    assert "calculation_engine:2.19:conditions" in keys
+    item = out["human_review_queue"][keys.index("calculation_engine:2.19:conditions")]
+    assert item["source"] == "calculation_engine"
+    assert item["link"] == {"tab": "calculation", "rule_id": "2.19"}
+    assert "浇筑速度" in item["reason"]
+
+
+def test_generic_calculation_condition_placeholder_is_not_queued():
+    calculation = {
+        "total_rules": 1,
+        "results": [
+            {
+                "rule_id": "3.1",
+                "rule_name": "受弯构件强度验算",
+                "condition_evaluation": {
+                    "overall_status": "UNKNOWN",
+                    "selected_branch": "unknown",
+                    "items": [
+                        {
+                            "condition": "适用条件",
+                            "expected": "待人工确认",
+                            "status": "UNKNOWN",
+                            "basis": "当前版本未内置该条件判定",
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+
+    out = build_review_results(_qual("disk_lock"), _comp(), [], calculation=calculation)
+    keys = [i["item_key"] for i in out["human_review_queue"]]
+
+    assert "calculation_engine:3.1:conditions" not in keys

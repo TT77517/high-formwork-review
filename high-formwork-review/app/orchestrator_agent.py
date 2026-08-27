@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .calculation_dependencies import parameters_for_calculation_rule, parameters_for_formula_id
 from .models import MinerUDocument
 from .uncertainty_analysis import build_uncertainty_analysis
 
@@ -457,6 +458,9 @@ def _parameter_to_rules(
             recheck = result.get("calculation_recheck") or {}
             if isinstance(recheck, dict) and recheck.get("status") == "UNCERTAIN":
                 params.update(_params_from_formula_id(str(recheck.get("formula_id") or "")))
+            if source == "calculation_engine":
+                formula_id = str(recheck.get("formula_id") or "") if isinstance(recheck, dict) else ""
+                params.update(parameters_for_calculation_rule(str(result.get("rule_id") or ""), formula_id or None))
             for param in params:
                 if param in mapping:
                     mapping[param].append({
@@ -482,6 +486,9 @@ def _params_from_text(text: str) -> set[str]:
 
 
 def _params_from_formula_id(formula_id: str) -> set[str]:
+    explicit = parameters_for_formula_id(formula_id)
+    if explicit:
+        return explicit
     if formula_id == "slenderness":
         return {"standard_step_height", "support_height"}
     if formula_id == "vertical_stability":
