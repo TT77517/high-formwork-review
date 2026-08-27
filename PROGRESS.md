@@ -492,3 +492,28 @@
 
   design doc 不需要新版本：已用 Section 1.3 已完成清单记录当前封版基线。
   下一步建议：等用户确认 P0 路径；不进入 Task 8C。
+
+- [2026-08-27 19:00] claude 签退 — 完成了：Task 8B.2 失败尸检（OBSERVE-ONLY，0 production delta）：
+  逐个对 13 个 critical_fact DrawingEvidence acquisition failure 做 alias/synonym 在 214 页全文档搜索 + 候选页 OCR/VLM 链路审计。
+  核心修正 Task 8B.1 错误的 P0（"Drawing Recall"）：
+  
+  真实 primary root cause 分布（13 task 总和）：
+  - OCR_RECOGNITION_MISS: 7（Group B；recall 找到 1-8 候选页，但 OCR 在 image block 上无法 re-detect alias text；VLM found=False 是 downstream consequence 而非 primary）
+  - TARGET_NOT_PRESENT: 5（base_jack_insertion/free_end/base_jack_screw_ext/top_level_to_jack/main_beam——5 个参数连"插入"/"自由端"/"底座外伸"等 3-4 个工程同义表达在 214 页都搜不到；这些是规范条文要求/施工组织设计参数，不是图纸标注目标）
+  - ALIAS_RECALL_MISS: 1（monitoring_point_spacing：target "监测点" 在 p41 出现 6 次，但 registry "监测点间距/观测点间距" 不在文本里）
+  
+  真实 P0 = TARGET_NOT_PRESENT (5/13 = 38.5%)，不是 recall/OCR/VLM。
+  按 §四十八 决策规则：最大类是 TARGET_NOT_PRESENT 时不做 recall enhancement；
+  重新评估 registry applicability → Drawing Review Task Applicability / Registry Governance。
+  
+  Coverage（diagnostic, NOT accuracy）：
+  - DRAWING_TARGET_EXISTENCE_RATE: 8/13 = 61.5%
+  - PAGE_RECALL_RATE_ON_EXISTING_TARGETS: 7/8 = 87.5% (excluding ALIAS_RECALL_MISS) / 0/8 if strictly
+  - EVIDENCE_EXTRACTION_RATE_ON_CORRECT_PAGES: 0/8 (OCR layer 全部失败)
+  
+  推荐下一任务：Drawing Review Task Applicability / Registry Governance（仅 1 项推荐）
+  Backlog P1: OCR_RECOGNITION_MISS (7) — Drawing OCR Evidence Extraction Enhancement
+  Backlog P2: ALIAS_RECALL_MISS (1) — Registry Alias Audit
+  
+  full suite 388/1/0 不变；artifacts 在 tmp/drawing_agent_regression/root_cause_audit.json（.gitignored）。
+  不实施推荐任务；不进入 Task 8C；等待用户确认 P0 路径。
