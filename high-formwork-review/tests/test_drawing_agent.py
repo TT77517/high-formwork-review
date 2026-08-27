@@ -761,3 +761,141 @@ def test_drawing_agent_v6_search_text_tool_unavailable_keeps_drawing_evidence() 
     assert len(state.drawing_evidence) == 1
     assert state.drawing_evidence[0].source_type == "ocr"
 
+
+# ---------------------------------------------------------------------------
+# Task 7C: CHECK_PARAM → structured DrawingEvidence
+# ---------------------------------------------------------------------------
+
+
+def _fake_legacy_check_result(*, body, drawing, drawing_evidence, status="PASS"):
+    """构造一个模仿真实 cross_check_param schema 的 check result dict。
+
+    只覆盖 adapter 关心的字段（drawing_value + drawing_evidence + body_value + status），
+    其余字段（category / title / explanation / boundary 等）填占位符。
+    """
+    return {
+        "review_item_id": "DR-99",
+        "category": "图文一致性",
+        "title": "...",
+        "review_method": "text_drawing_cross_check",
+        "status": status,
+        "conclusion": "...",
+        "body_value": body,
+        "drawing_value": drawing,
+        "text_evidence": [],
+        "drawing_evidence": drawing_evidence,
+        "evidence_quality": "high" if status == "PASS" else "medium",
+        "review_explanation": {},
+        "automation_level": "text_level_cross_check",
+        "requires_human_review": status != "PASS",
+        "boundary": "...",
+    }
+
+
+def _run_check_param_test(*, text_value, unit, aliases, fact_id, check_result):
+    """最小 Agent 编排：recall 1 candidate + check_tool 返 check_result。"""
+    from app.drawing_agent import DrawingConsistencyAgent, DrawingReviewTask
+
+    def _check(document, facts, config, *, ocr_texts=None, job_dir=None):
+        return check_result
+    agent = DrawingConsistencyAgent(
+        recall_tool=_make_recall_tool(
+            [{"physical_page": 88, "keyword_hits": aliases}], {"n": 0},
+        ),
+        check_tool=_check,
+        ocr_tool=lambda *a, **k: None,
+    )
+    task = DrawingReviewTask(
+        fact_id=fact_id, display_name=fact_id, aliases=aliases,
+        text_value=text_value, unit=unit,
+    )
+    return agent.run(task=task, document=None, facts={}, config={"fact_id": fact_id})
+
+
+def test_check_param_same_value_creates_drawing_evidence() -> None:
+    """Task 7C Test 1: text=drawing=900 → DrawingEvidence(source_type='legacy_check', value=900)。"""
+    from app.drawing_agent import CHECK_PARAM, SEARCH_DRAWING
+    check_result = _fake_legacy_check_result(
+        body=900, drawing=900,
+        drawing_evidence=[{"value": 900, "page": 88, "quote": "步距900mm", "keyword": "步距", "source": "native_text"}],
+        status="PASS",
+    )
+    state = _run_check_param_test(
+        text_value=900, unit="mm", aliases=["步距"],
+        fact_id="standard_step_height", check_result=check_result,
+    )
+    assert [a["action"] for a in state.actions_taken] == [SEARCH_DRAWING, CHECK_PARAM]
+    assert len(state.text_evidence) == 1
+    assert len(state.drawing_evidence) == 1
+    d_ev = state.drawing_evidence[0]
+    assert d_ev.fact_id == "standard_step_height"
+    assert d_ev.source_type == "legacy_check"
+    assert d_ev.value == 900
+    assert d_ev.unit == "mm"
+    assert d_ev.page == 88
+    assert d_ev.evidence_text == "步距900mm"
+    assert d_ev.source_role == "drawing_annotation"
+    assert d_ev.confidence is None
+    assert state.finish_reason == "check_completed"
+
+
+def test_check_param_different_value_preserves_both() -> None:
+    """Task 7C Test 2（最关键）: text=900, drawing=1200 → TextEvidence=900, DrawingEvidence=1200。"""
+    check_result = _fake_legacy_check_result(
+        body=900, drawing=1200,
+        drawing_evidence=[{"value": 1200, "page": 88, "quote": "步距1200mm", "keyword": "步距", "source": "native_text"}],
+        status="ISSUE",
+    )
+    state = _run_check_param_test(
+        text_value=900, unit="mm", aliases=["步距"],
+        fact_id="standard_step_height", check_result=check_result,
+    )
+    assert len(state.text_evidence) == 1
+    assert len(state.drawing_evidence) == 1
+    assert state.text_evidence[0].value == 900
+    assert state.drawing_evidence[0].value == 1200
+    # 关键反退化断言：DrawingEvidence.value 绝不能复制 task.text_value
+    assert state.drawing_evidence[0].value != 900
+
+
+def test_check_param_scope_and_metadata() -> None:
+    """Task 7C Test 3: 真实 drawing-side quote 含 '梁底' → scope=beam_bottom；保留 page/unit/quote。"""
+    check_result = _fake_legacy_check_result(
+        body=[900, 900], drawing=[900, 900],
+        drawing_evidence=[{
+            "value": [900, 900], "page": 12, "quote": "梁底立杆间距900×900mm",
+            "keyword": "立杆纵距", "source": "native_text",
+        }],
+        status="PASS",
+    )
+    state = _run_check_param_test(
+        text_value=[900, 900], unit="mm", aliases=["立杆纵距"],
+        fact_id="vertical_spacing", check_result=check_result,
+    )
+    d_ev = state.drawing_evidence[0]
+    assert d_ev.page == 12
+    assert d_ev.unit == "mm"
+    assert d_ev.evidence_text == "梁底立杆间距900×900mm"
+    assert d_ev.source_role == "drawing_annotation"
+    # Task 7A scope engine：梁底 → beam_bottom
+    assert d_ev.scope == {"member_type": "beam", "location": "beam_bottom"}
+
+
+def test_check_param_no_drawing_evidence_does_not_crash() -> None:
+    """Task 7C Test 4: drawing_value=None（REVIEW 路径）→ state.drawing_evidence=[]，不伪造空壳 Evidence。"""
+    check_result = _fake_legacy_check_result(
+        body=1500, drawing=None, drawing_evidence=[], status="REVIEW",
+    )
+    state = _run_check_param_test(
+        text_value=1500, unit="mm", aliases=["步距"],
+        fact_id="standard_step_height", check_result=check_result,
+    )
+    # 不伪造空壳 Evidence
+    assert state.drawing_evidence == []
+    # TextEvidence 仍存在
+    assert len(state.text_evidence) == 1
+    assert state.text_evidence[0].value == 1500
+    # CHECK_PARAM action 正常完成
+    assert state.finish_reason == "check_completed"
+    assert [a["action"] for a in state.actions_taken] == ["SEARCH_DRAWING", "CHECK_PARAM"]
+

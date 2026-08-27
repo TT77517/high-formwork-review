@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -159,6 +160,72 @@ FINISH = "FINISH"
 OCR_PAGE = "OCR_PAGE"
 INSPECT_IMAGE = "INSPECT_IMAGE"
 SEARCH_TEXT = "SEARCH_TEXT"
+
+
+# ---------------------------------------------------------------------------
+# Task 7C: CHECK_PARAM legacy result → structured DrawingEvidence
+# ---------------------------------------------------------------------------
+
+
+def _check_result_to_drawing_evidence(
+    task: DrawingReviewTask,
+    result: Mapping[str, Any] | None,
+) -> Evidence | None:
+    """Convert legacy ``check_tool`` result → structured ``Evidence``.
+
+    Structured evidence preserves the raw drawing-side fact; legacy
+    PASS/ISSUE tolerance remains separate. Returns ``None`` if no usable
+    drawing-side evidence exists. Does NOT inspect ``status`` to decide
+    whether to emit Evidence. Does NOT mutate the input ``result``.
+    """
+    if not isinstance(result, Mapping):
+        return None
+    drawing_value = result.get("drawing_value")
+    if drawing_value is None:
+        return None
+    chosen: Mapping[str, Any] | None = None
+    for entry in result.get("drawing_evidence") or []:
+        if isinstance(entry, Mapping) and _values_match(entry.get("value"), drawing_value):
+            chosen = entry
+            break
+    if chosen is None:
+        return None
+    page = chosen.get("page")
+    quote = chosen.get("quote") or ""
+    if isinstance(quote, str) and len(quote) > 300:
+        quote = quote[:300]
+    if page is None and not quote:
+        return None
+    return Evidence(
+        fact_id=task.fact_id,
+        source_type="legacy_check",
+        value=drawing_value,
+        unit=getattr(task, "unit", None),
+        page=page,
+        evidence_text=quote or None,
+        confidence=None,
+        source_role="drawing_annotation",
+        scope=resolve_evidence_scope(task.scope, quote or None, task.aliases),
+    )
+
+
+def _values_match(left: object, right: object) -> bool:
+    """scalar / 2D list-tuple 最小相等（1e-9 容差）。"""
+    if left is None or right is None:
+        return False
+    left_seq = isinstance(left, (list, tuple))
+    right_seq = isinstance(right, (list, tuple))
+    if left_seq != right_seq:
+        return False
+    if left_seq and (len(left) != 2 or len(right) != 2):  # type: ignore[arg-type]
+        return False
+    try:
+        if left_seq:
+            return math.isclose(float(left[0]), float(right[0]), rel_tol=0.0, abs_tol=1e-9) \
+                and math.isclose(float(left[1]), float(right[1]), rel_tol=0.0, abs_tol=1e-9)  # type: ignore[index]
+        return math.isclose(float(left), float(right), rel_tol=0.0, abs_tol=1e-9)
+    except (TypeError, ValueError, IndexError):
+        return False
 
 
 class DrawingConsistencyAgent:
@@ -356,6 +423,12 @@ class DrawingConsistencyAgent:
                     "observation": observation,
                 }
             )
+            # Task 7C：将 legacy check result 结构化为 DrawingEvidence。
+            # 不改变 observation / finish_reason / Action / Policy。
+            if isinstance(result, Mapping):
+                ev = _check_result_to_drawing_evidence(state.task, result)
+                if ev is not None:
+                    state.drawing_evidence.append(ev)
             if result is None:
                 self._finish(state, "check_returned_none")
             else:
