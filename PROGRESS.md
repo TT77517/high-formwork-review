@@ -621,3 +621,32 @@
   Backlog P2：Registry Alias Audit（monitoring_point_spacing）
 
   不实施推荐任务；不进入 Task 8C；不修改 Registry/Agent/Comparator；不补 alias/scope/unit；等待用户确认 P0 路径。
+
+- [2026-08-27 20:25] claude 签退 — 完成了：Task 8B.4.1 Vision Smoke vs Agent Run Parity Audit（OBSERVE-ONLY，0 production delta，0 new pytest）：
+
+  **关键发现 — 7 Vision false 中 5/7 实际是 page 没图，2/7 才是 task 接地问题**
+  - 4 case `TARGET_NOT_IN_SELECTED_IMAGE`（support_height p3 / sweeper p18×2 / panel_thickness p50 / panel_stringer_spacing p18，页面 0 image block，agent 仍走 INSPECT_IMAGE → `_empty_contract`，无 provider 请求）
+  - 1 case `IMAGE_SELECTION_MISS`（height_to_width_ratio p20，与 smoke 不同图）
+  - 2 case `TASK_GROUNDING_MISMATCH`（head_jack_insertion / head_jack_screw_exposed_length p21，**SAME image as smoke 哈希校验通过**，agent 仍 found=False）
+
+  **Parity Replay（4 calls，预算内）** — page 21 同图同 provider 同模型：
+  - 1A: head_jack_insertion_length + agent task → found=False
+  - 1B: 同图 + smoke-style task → **found=True, value=500, "≥500"** ✓
+  - 2A: head_jack_screw_exposed_length + agent task → found=False
+  - 2B: 同图 + smoke-style task → **found=True, value=500, "≥500"** ✓
+  → VLM 能力可达；prompt aliases 视觉语义 gap 是真因（agent aliases 缺 "可调托撑" 这个图像真实术语）
+
+  **OCR P0 重判：NO** — RapidOCR 引擎工作正常（3/3 real calls 返文），OCR 不是瓶颈。3/3 evidence_created=0 是 alias 匹配 gap。
+
+  **更正 8B.4 tool_stats**：4 case 实际未发 provider 请求（image 缺失 short-circuit），真 REAL_PROVIDER_REQUESTS=3（非 7）。
+
+  **Root Cause Distribution (sum=7)**：TARGET_NOT_IN_SELECTED_IMAGE=4 / IMAGE_SELECTION_MISS=1 / TASK_GROUNDING_MISMATCH=2 / VLM_NONDETERMINISM=0 / TRUE_VLM_RECOGNITION_MISS=0
+
+  **NEXT_TASK 改为：Drawing Image Selection Enhancement**（5/7 = 71% 是 page-level recall 选错页；不是 VLM/OCR）
+  - Backlog P1: Drawing Task Grounding Enhancement（2/7 同图 prompt 适配）
+  - Backlog P2: Drawing Alias Recall Enhancement（OCR 返文但 0 evidence）
+
+  artifacts：`vision_parity_audit.json` / `vision_parity_summary.md` / `parity_replay.json`（tmp/.gitignored，不入 git）。
+  full suite 392/1/0 不变；不实施推荐任务；不进入 Task 8C；等待用户确认 P0 路径。
+
+- [2026-08-27 19:55] claude 签到 — 开始处理：Task 8B.4.1: Vision Smoke vs Agent Run Parity Audit (OBSERVE-ONLY)
