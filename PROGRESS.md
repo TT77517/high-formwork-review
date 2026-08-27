@@ -731,3 +731,12 @@
   - 新 fallback false：`monitoring_point_spacing` page41 无 usable image 后进入 page214 `a462...jpg`，selected image 有监测布置视觉元素但无清晰“监测点间距”或目标值，`RECALL_TERM` 来自页面标题/文本；重归类为 image/readability issue，不证明 grounding。
   - 已证明 golden：`head_jack_insertion_length` / `head_jack_screw_exposed_length` 复用 8B.4.1 parity replay，同 page21 同图同 provider/model：agent task false，smoke-style grounded terminology true，正式保留为 task grounding issue。
   - Full suite：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：Task 8B.7 — Drawing Task Grounding Enhancement（仅针对已证明 golden terminology gap）。
+
+- [2026-08-27 23:39] codex 签到 — 开始处理：Task 8B.7: Drawing Task Grounding Enhancement
+
+- [2026-08-27 23:47] codex 签退 — 完成了：Task 8B.7 pre-implementation applicability audit，结论 BLOCKED_BY_APPLICABILITY（observe-only，0 production/test change）：
+  - page21 selected image hash `c8cef8cd60a4345c...` 与 golden artifact 一致；图中可见术语为“立杆 / 水平杆 / 对接扣件 / ≥500”，未见“可调托撑/托撑/顶托/插入立杆/丝杆外露”等可将 `≥500` 安全归因到 head-jack 的视觉术语。
+  - `head_jack_insertion_length`：visible value=≥500，但 term→fact relation=UNCLEAR/NO；不能把 smoke-style recognition success 当作插入长度 attribution。
+  - `head_jack_screw_exposed_length`：visible value=≥500，但图中无外露长度语义，且 page text 对丝杆外露约束为 400mm；APPLICABLE=NO，禁止通过 vision_terms 强行转 true。
+  - 因两条 proven case 均未达到 APPLICABLE=YES，本 Task 未新增 `vision_terms`、未改 prompt、未跑新 provider smoke，避免 false-positive grounding。
+  - Full suite：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：Task 8B.7a — Correct Golden Grounding Set / Image Attribution Audit。
