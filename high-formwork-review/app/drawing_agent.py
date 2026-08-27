@@ -177,19 +177,34 @@ def _check_result_to_drawing_evidence(
     PASS/ISSUE tolerance remains separate. Returns ``None`` if no usable
     drawing-side evidence exists. Does NOT inspect ``status`` to decide
     whether to emit Evidence. Does NOT mutate the input ``result``.
+
+    Provenance 规则（Task 7C.1）：
+
+    - 多个 drawing_evidence entry 数值匹配 drawing_value 时，仅在所有
+      匹配的 (page, quote) signature 一致（同一标注重复）时才返回 Evidence；
+      否则返回 None（不任意绑定第一条，避免"梁底 vs 板底"假关联）。
+    - unit：legacy cross_check_param 的 drawing_evidence entry 不携带
+      unit 字段（unit 仅在 quote 字符串中或由 task 隐式假设），因此
+      DrawingEvidence.unit = None（显式说明非图纸自带单位，让 Comparator
+      Unit Gate 报 unit_incomplete → UNCERTAIN）。
     """
     if not isinstance(result, Mapping):
         return None
     drawing_value = result.get("drawing_value")
     if drawing_value is None:
         return None
-    chosen: Mapping[str, Any] | None = None
+    matches: list[Mapping[str, Any]] = []
     for entry in result.get("drawing_evidence") or []:
         if isinstance(entry, Mapping) and _values_match(entry.get("value"), drawing_value):
-            chosen = entry
-            break
-    if chosen is None:
+            matches.append(entry)
+    if not matches:
         return None
+    # 唯一性 / 等价性检查
+    if len(matches) > 1:
+        sigs = {(m.get("page"), m.get("quote")) for m in matches}
+        if len(sigs) > 1:
+            return None  # 多个不同 page/quote 同时匹配 → 无法证明唯一来源
+    chosen = matches[0]
     page = chosen.get("page")
     quote = chosen.get("quote") or ""
     if isinstance(quote, str) and len(quote) > 300:
@@ -200,7 +215,7 @@ def _check_result_to_drawing_evidence(
         fact_id=task.fact_id,
         source_type="legacy_check",
         value=drawing_value,
-        unit=getattr(task, "unit", None),
+        unit=None,  # FALLBACK_PARAMETER_UNIT：legacy 不携带 drawing-side unit
         page=page,
         evidence_text=quote or None,
         confidence=None,

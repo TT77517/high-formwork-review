@@ -831,7 +831,11 @@ def test_check_param_same_value_creates_drawing_evidence() -> None:
     assert d_ev.fact_id == "standard_step_height"
     assert d_ev.source_type == "legacy_check"
     assert d_ev.value == 900
-    assert d_ev.unit == "mm"
+    # Task 7C.1：unit provenance 修正。legacy drawing_evidence entry 不带
+    # drawing-side unit 字段 → DrawingEvidence.unit 必须为 None，让 Comparator
+    # Unit Gate 报 unit_incomplete → UNCERTAIN，不偷偷用 task.unit 伪造
+    # "图纸明确单位"。
+    assert d_ev.unit is None
     assert d_ev.page == 88
     assert d_ev.evidence_text == "步距900mm"
     assert d_ev.source_role == "drawing_annotation"
@@ -874,7 +878,8 @@ def test_check_param_scope_and_metadata() -> None:
     )
     d_ev = state.drawing_evidence[0]
     assert d_ev.page == 12
-    assert d_ev.unit == "mm"
+    # Task 7C.1：unit 改为 None（无 drawing-side unit 字段）
+    assert d_ev.unit is None
     assert d_ev.evidence_text == "梁底立杆间距900×900mm"
     assert d_ev.source_role == "drawing_annotation"
     # Task 7A scope engine：梁底 → beam_bottom
@@ -898,4 +903,37 @@ def test_check_param_no_drawing_evidence_does_not_crash() -> None:
     # CHECK_PARAM action 正常完成
     assert state.finish_reason == "check_completed"
     assert [a["action"] for a in state.actions_taken] == ["SEARCH_DRAWING", "CHECK_PARAM"]
+
+    # ── Task 7C.1 sub-cases（不新增 pytest 函数）──
+    # (a) 多个 value-match entry 但 page/quote 不同 → 保守不生成 Evidence
+    multi_diff = _fake_legacy_check_result(
+        body=900, drawing=900,
+        drawing_evidence=[
+            {"value": 900, "page": 10, "quote": "梁底立杆间距900×900mm", "keyword": "立杆纵距"},
+            {"value": 900, "page": 20, "quote": "板底立杆间距900×900mm", "keyword": "立杆纵距"},
+        ],
+        status="PASS",
+    )
+    s_a = _run_check_param_test(
+        text_value=900, unit="mm", aliases=["立杆纵距"],
+        fact_id="vertical_spacing", check_result=multi_diff,
+    )
+    assert s_a.drawing_evidence == []  # 不得任意绑定第一条（梁底 scope）
+
+    # (b) 多个 value-match entry 且 page/quote 完全一致 → 允许 collapse 取其一
+    multi_same = _fake_legacy_check_result(
+        body=900, drawing=900,
+        drawing_evidence=[
+            {"value": 900, "page": 10, "quote": "立杆纵距900mm", "keyword": "立杆纵距"},
+            {"value": 900, "page": 10, "quote": "立杆纵距900mm", "keyword": "立杆纵距"},
+        ],
+        status="PASS",
+    )
+    s_b = _run_check_param_test(
+        text_value=900, unit="mm", aliases=["立杆纵距"],
+        fact_id="vertical_spacing", check_result=multi_same,
+    )
+    assert len(s_b.drawing_evidence) == 1
+    assert s_b.drawing_evidence[0].page == 10
+    assert s_b.drawing_evidence[0].unit is None  # Task 7C.1 unit provenance 修正
 
