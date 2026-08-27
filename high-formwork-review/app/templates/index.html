@@ -99,12 +99,6 @@
           </form>
           <p id="uploadError" class="error-text" role="alert"></p>
         </div>
-        <div class="task-info-grid">
-          <div class="info-cell"><label>文件名</label><span id="taskFile">—</span></div>
-          <div class="info-cell"><label>上传时间</label><span id="taskTime">—</span></div>
-          <div class="info-cell"><label>任务编号</label><span id="taskId">—</span></div>
-          <div class="info-cell"><label>当前阶段</label><span id="taskStage">waiting</span></div>
-        </div>
         <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
         <p id="taskMessage" class="task-message">请选择审查方式和 PDF 文件。</p>
       </section>
@@ -190,10 +184,10 @@
           <span id="difyWarning" class="alert-inline hidden"></span>
         </div>
         <div class="review-desc">
-          <p><b>审查流程说明：</b>本表展示 10 项完整性规则的审查结果，分两阶段执行。</p>
-          <p><b>① 本地预审（规则引擎）：</b>通过关键词与文档结构匹配，判断方案是否包含各必备章节。绿色「已识别」= 完整匹配；黄色「部分匹配」= 部分要素匹配，已送 Dify 语义复核；其余为疑似缺失或无法核验。</p>
-          <p><b>② Dify 语义复核：</b>对本地预审结果进行深度语义比对。绿色「未复核」= 本地置信度高，无需复核；绿色「已复核」= Dify 已完成语义验证。</p>
-          <p><b>一致性列：</b>对比本地预审与 Dify 复核结论。红色「不一致」表示两阶段结论存在分歧，需人工关注。</p>
+          <p><b>审查流程说明：</b>本页只判断方案是否覆盖 10 项必备章节和内容要素，不给出最终合格结论。</p>
+          <p><b>本地预审：</b>先按章节、关键词、表格和图文结构查找证据；「已识别」表示证据较完整，「部分匹配」表示只找到部分要素，「疑似缺失/无法核验」需要人工查看原文。</p>
+          <p><b>语义复核：</b>对需要复核的项目再做语义比对；「未复核」通常表示本地证据已足够，「已复核」表示语义复核已完成。</p>
+          <p><b>人工关注：</b>重点查看「结果不一致」「部分匹配」「无法核验」的项目，进入详情后先看检查要求和判定依据，再展开证据。</p>
         </div>
         <div class="table-wrap"><table class="data-table" id="reviewTable">
           <thead><tr><th>规则</th><th>检查事项</th><th>本地预审</th><th>Dify审查</th><th>一致性</th><th>人工状态</th><th>操作</th></tr></thead>

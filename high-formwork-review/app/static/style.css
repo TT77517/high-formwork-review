@@ -253,6 +253,11 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .detail-section { margin-bottom: 24px; }
 .detail-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-secondary); }
 .detail-section p { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.fold-detail { margin-bottom: 16px; border: 1px solid var(--border-secondary); border-radius: var(--radius-sm); background: #fff; }
+.fold-detail summary { cursor: pointer; padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.fold-detail .fold-body { padding: 0 12px 12px; }
+.logic-list { margin: 8px 0 0 18px; color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
+.logic-list li { margin-bottom: 3px; }
 
 /* Evidence */
 .evidence-block { background: var(--border-secondary); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px; }

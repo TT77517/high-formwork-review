@@ -89,8 +89,8 @@ async function poll() {
 }
 
 function renderStatus(d) {
-  $('#taskFile').textContent = d.file_name||'—'; $('#taskTime').textContent = fmt(d.uploaded_at);
-  $('#taskId').textContent = d.job_id||'—'; $('#taskStage').textContent = `${d.stage} · ${STAGE_NAMES[d.stage]||d.stage}`;
+  setText('#taskFile', d.file_name||'—'); setText('#taskTime', fmt(d.uploaded_at));
+  setText('#taskId', d.job_id||'—'); setText('#taskStage', `${d.stage} · ${STAGE_NAMES[d.stage]||d.stage}`);
   $('#progressBar').style.width = `${d.progress||0}%`; $('#taskMessage').textContent = d.message||'';
   const b = $('#statusBadge'); b.textContent = STAGE_NAMES[d.status]||d.status;
   b.className = `badge-${d.status==='failed'?'failed':d.status==='completed'||d.status==='completed_with_warning'?'completed':'running'}`;
@@ -99,6 +99,7 @@ function renderStatus(d) {
   if (d.status === 'completed'||d.status==='completed_with_warning') { $('#uploadStage').textContent='审查完成'; $('#uploadStage').style.color='var(--success)'; }
   if (d.error_stage) $('#uploadError').textContent = `失败阶段：${d.error_stage}。${d.message}`;
 }
+function setText(selector, text) { const el = $(selector); if (el) el.textContent = text; }
 
 // Navigation
 $$('#sideNav .menu-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
@@ -727,7 +728,7 @@ function openRuleEngineDrawer(rid) {
       <p>${esc(rule.remedy_suggestion||'')}</p></div>
     <div class="detail-section"><h4>典型违规表现</h4>
       <p>${esc(rule.typical_violation||'')}</p></div>
-    <div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
+    ${foldDetailHtml('证据', evHtml, false)}`;
   $('#ruleEngineDetailPanel').classList.remove('hidden');
 }
 
@@ -831,9 +832,9 @@ function openReviewDrawer(rid) {
   let difySection = '';
   if (isDisagree && comp.dify_evidence && comp.dify_evidence.length > 0) {
     const difyEv = comp.dify_evidence.map(e => `<div class="evidence-block"><div class="meta"><span><b>页 ${e.physical_page||'—'}</b></span><span>${esc(e.block_type||'')}</span></div><blockquote>${esc(e.quote||e.description||'')}</blockquote></div>`).join('');
-    difySection = `<div class="detail-section"><h4>Dify 语义复核证据 <span class="status-chip status-MISSING">不一致</span></h4><p style="color:var(--text-secondary);margin-bottom:8px">${esc(comp.dify_reason||'')}</p>${difyEv}</div>`;
+    difySection = foldDetailHtml('Dify 语义复核证据（不一致）', `<p style="color:var(--text-secondary);margin-bottom:8px">${esc(comp.dify_reason||'')}</p>${difyEv}`, false);
   } else if (isDisagree) {
-    difySection = `<div class="detail-section"><h4>Dify 语义复核证据 <span class="status-chip status-MISSING">不一致</span></h4><p style="color:var(--text-secondary)">${esc(comp.dify_reason||'Dify 未返回证据')}</p></div>`;
+    difySection = foldDetailHtml('Dify 语义复核证据（不一致）', `<p style="color:var(--text-secondary)">${esc(comp.dify_reason||'Dify 未返回证据')}</p>`, false);
   }
   
   // 一致性说明
@@ -843,7 +844,7 @@ function openReviewDrawer(rid) {
   }
   
   $('#reviewDrawerTitle').textContent = `${rule.rule_id} — ${rule.name}`;
-  $('#reviewDrawerBody').innerHTML = `${consistencyNote}<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>本地预审结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div>${subitemsSection}<div class="detail-section"><h4>本地预审证据</h4>${localEv}</div>${difySection}`;
+  $('#reviewDrawerBody').innerHTML = `${consistencyNote}<div class="detail-section"><h4>检查要求</h4><p>${esc(rule.reason)}</p><p>本地预审结果：<span class="status-chip status-${rule.status}">${STATUS_CN[rule.status]||rule.status}</span></p></div>${subitemsSection}${foldDetailHtml('本地预审证据', localEv, false)}${difySection}`;
   $('#reviewDetailPanel').classList.remove('hidden');
 }
 
@@ -876,12 +877,12 @@ function renderAgentPlanCard() {
     return text.length > n ? `${text.slice(0, n)}...` : text;
   };
   const detailItems = [
-    ...focusAreas.map(f => `审查重点：${f.priority || 'MEDIUM'} ${f.area}（${f.reason||''}）`),
-    ...agentTargets.map(t => `Agent查证：${t.target}（${t.reason||''}）`),
-    ...humanItems.map(h => `人工确认：${h.fact || h.parameter || h.rule_name || h.rule_id || h.type}（${h.reason||''}）`),
+    ...focusAreas.map(f => `审查重点：${f.priority || 'MEDIUM'} ${humanPlanName(f.area, '重点审查项')}（${cleanInternalText(f.reason||'')}）`),
+    ...agentTargets.map(t => `Agent查证：${humanPlanName(t.target, '构造参数和关键措施')}（${cleanInternalText(t.reason||'')}）`),
+    ...humanItems.map(h => `人工确认：${humanPlanName(h.label || h.rule_name || h.fact || h.parameter || h.type, '关键参数')}（${cleanInternalText(h.reason||'')}）`),
   ];
-  const targetNames = agentTargets.slice(0, 2).map(t => short(t.target, 18)).join('、');
-  const humanNames = humanItems.slice(0, 2).map(h => short(h.fact || h.parameter || h.rule_name || h.rule_id || h.type, 18)).join('、');
+  const targetNames = uniqueDisplayNames(agentTargets.slice(0, 2).map(t => humanPlanName(t.target, '构造参数和关键措施'))).join('、');
+  const humanNames = uniqueDisplayNames(humanItems.slice(0, 2).map(h => humanPlanName(h.label || h.rule_name || h.fact || h.parameter || h.type, '关键参数'))).join('、');
   const advice = [
     {
       title: '先抓最高风险',
@@ -911,6 +912,15 @@ function renderAgentPlanCard() {
     <div class="plan-metrics"><span>审查重点 ${focusAreas.length} 项</span><span>Agent查证 ${agentTargets.length} 项</span><span>人工确认 ${humanItems.length} 项</span></div>
     ${detailHtml}`;
   el.classList.remove('hidden');
+}
+function humanPlanName(value, fallback) {
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+  if (/[a-zA-Z_]{3,}/.test(text)) return fallback;
+  return text.length > 18 ? `${text.slice(0, 18)}...` : text;
+}
+function uniqueDisplayNames(items) {
+  return [...new Set(items.filter(Boolean))];
 }
 function renderSemantic() {
   // Combine deterministic (ruleEngineData) and semantic (semanticData) results
@@ -993,19 +1003,27 @@ function uncertaintyDetailHtml(rule) {
     ${params ? `<p><b>关联参数：</b>${esc(params)}</p>` : ''}
   </div>`;
 }
+function foldDetailHtml(title, body, open=false) {
+  return `<details class="fold-detail"${open ? ' open' : ''}><summary>${esc(title)}</summary><div class="fold-body">${body}</div></details>`;
+}
+function logicListHtml(items) {
+  const rows = (items || []).filter(Boolean);
+  return rows.length ? `<ol class="logic-list">${rows.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : '';
+}
 function reviewExplanationHtml(title, explanation, fallbackReason='', evidence=[]) {
   const exp = explanation || {};
   const found = exp.found || (evidence.length ? [`找到 ${evidence.length} 条证据`] : []);
   const missing = exp.missing || [];
   const decision = exp.decision || fallbackReason || '暂无判定说明';
   const list = arr => arr.length ? `<ul class="explain-list">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p style="color:var(--text-tertiary)">无</p>';
-  return `<div class="detail-section"><h4>${esc(title)}</h4>
+  const body = `
     <div class="explain-grid">
       <div><b>找到什么</b>${list(found)}</div>
       <div><b>没找到什么</b>${list(missing)}</div>
       <div><b>因此怎么判</b><p>${esc(decision)}</p></div>
     </div>
-  </div>`;
+  `;
+  return foldDetailHtml(title, body, false);
 }
 function semanticExplanation(rule) {
   const item = uncertaintyForRule(rule);
@@ -1015,6 +1033,30 @@ function semanticExplanation(rule) {
   if (item?.category_label) missing.push(item.category_label);
   if (!ev.length) missing.push('缺少可直接支撑判定的证据');
   return { found, missing, decision: rule.reason || item?.category_reason || '' };
+}
+function traceActionLabel(action) {
+  const labels = {
+    search_document: '检索方案证据',
+    search_calculation_evidence: '检索计算书证据',
+    get_context: '读取证据上下文',
+    get_page: '查看所在页',
+    get_table: '查看表格内容',
+    evaluate_applicability_conditions: '判断适用条件',
+    finish: '形成审查意见'
+  };
+  return labels[action] || '补充查证';
+}
+function traceStepHtml(step) {
+  const ids = step.evidence_ids || [];
+  const evidence = ids.length ? `，关联 ${ids.length} 条证据` : '';
+  const summary = step.summary ? `：${cleanInternalText(step.summary)}` : '';
+  return `<li data-step="${esc(step.step || '')}"><b>${esc(traceActionLabel(step.action))}</b>${esc(evidence)}${summary ? `<small>${esc(summary)}</small>` : ''}</li>`;
+}
+function cleanInternalText(text) {
+  return String(text || '')
+    .replace(/\{[^{}]{0,220}\}/g, '相关条件')
+    .replace(/\b[a-zA-Z]+_[a-zA-Z0-9_]+\b/g, '关键参数')
+    .slice(0, 180);
 }
 function calcRecheckTagHtml(rule) {
   const rc = rule?.calculation_recheck;
@@ -1052,6 +1094,32 @@ function calcConditionHtml(rule) {
     <table class="data-table table-compact"><thead><tr><th>条件</th><th>要求</th><th>状态</th><th>依据</th></tr></thead><tbody>${rows}</tbody></table>
   </div>`;
 }
+function calcLogicHtml(rule) {
+  const rc = rule?.calculation_recheck || {};
+  const ce = rule?.condition_evaluation || {};
+  const conditionText = ce.overall_status === 'TRIGGERED'
+    ? '适用条件已确认，按本规则继续核查。'
+    : ce.overall_status === 'NOT_TRIGGERED'
+      ? '当前条件未触发，本规则仅作提示。'
+      : ce.overall_status
+        ? '适用条件仍需确认，先补齐工况或参数证据。'
+        : '先确认计算书中是否包含该验算项目。';
+  const recheckText = rc.status === 'PASS'
+    ? '已完成公式复算，计算结果满足限值。'
+    : rc.status === 'ISSUE'
+      ? '已完成公式复算，计算结果不满足限值，需要重点复核。'
+      : rc.formula_name
+        ? '已定位公式，但缺少可复算参数或结果，需要补证据。'
+        : '暂按计算书存在性和关键词证据预审。';
+  const evidenceCount = (rule.evidence || []).length;
+  return `<div class="detail-section"><h4>审查逻辑</h4>
+    ${logicListHtml([
+      conditionText,
+      recheckText,
+      evidenceCount ? `已定位 ${evidenceCount} 条候选证据，可展开证据核对原文。` : '暂未定位到可直接支撑判定的证据。',
+    ])}
+  </div>`;
+}
 function calcRecheckHtml(rule) {
   const rc = rule?.calculation_recheck;
   if (!rc) return '';
@@ -1069,16 +1137,16 @@ function calcAgentTraceHtml(rule) {
   const ag = rule?.calculation_agent;
   if (!ag) return '';
   const steps = (ag.steps||[]).length
-    ? `<ol class="trace-steps">${(ag.steps||[]).map(st => `<li data-step="${st.step}"><b>${esc(st.action)}</b>(${esc(JSON.stringify(st.args||{}))})${st.summary ? `<small> ${esc(st.summary)}</small>` : ''}${(st.evidence_ids||[]).length ? ` -> ${(st.evidence_ids||[]).map(e=>`<span class="tag-green">${esc(e)}</span>`).join(' ')}` : ''}</li>`).join('')}</ol>`
+    ? `<ol class="trace-steps">${(ag.steps||[]).map(traceStepHtml).join('')}</ol>`
     : '<p style="color:var(--text-tertiary)">暂无追证步骤</p>';
   const ev = (ag.evidence||[]).length
     ? `<div class="agent-evidence-list">${(ag.evidence||[]).map(e => `<div class="evidence-block"><div class="meta"><span><b>${esc(e.evidence_id||'EV')}</b></span><span>页 ${esc(e.page||'—')}</span><span>score ${esc(e.score ?? '—')}</span></div><blockquote>${esc(e.quote||'')}</blockquote></div>`).join('')}</div>`
     : '<p style="color:var(--text-tertiary)">未登记 Agent 证据</p>';
   const missing = (ag.missing||[]).length ? `<p class="manual-reason">缺少：${esc((ag.missing||[]).join('；'))}</p>` : '';
-  return `<div class="detail-section"><h4>计算 Agent 追证 ${calcRouteTagHtml(rule)}</h4>
-    <p>${esc(ag.reason||'')}</p>${steps}<div class="trace-meta">工具 ${ag.tool_calls||0} 次 · LLM ${ag.llm_calls||0} 次 · ${((ag.latency_ms||0)/1000).toFixed(1)}s</div>${missing}
-    <h4 style="margin-top:12px">Agent 证据</h4>${ev}
-  </div>`;
+  return foldDetailHtml(`计算 Agent 追证`, `
+    <p>${esc(ag.reason||'')}</p>${steps}<div class="trace-meta">查证 ${ag.tool_calls||0} 步 · 语义判断 ${ag.llm_calls||0} 次 · ${((ag.latency_ms||0)/1000).toFixed(1)}s</div>${missing}
+    ${foldDetailHtml('Agent 证据', ev, false)}
+  `, false);
 }
 function drawingQualityTagHtml(item) {
   const q = item?.evidence_quality;
@@ -1120,10 +1188,10 @@ function openSemanticDrawer(rid, rtype, allResults) {
   const sjHtml = rule.semantic_judgment ? `<div class="detail-section"><h4>语义判断指引</h4><p>${esc(rule.semantic_judgment)}</p></div>` : '';
   $('#semanticDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
   const ag = rule.agent;
-  const traceHtml = ag ? `<div class="detail-section"><h4>Agent 查证轨迹 ${ag.cache_hit ? '<span class="tag-default">缓存命中</span>' : ''}</h4><ol class="trace-steps">${(ag.steps||[]).map(st => `<li data-step="${st.step}"><b>${esc(st.action)}</b>(${esc(JSON.stringify(st.args||{}))})${(st.evidence_ids||[]).length ? ` -> ${(st.evidence_ids||[]).map(e=>`<span class="tag-green">${esc(e)}</span>`).join(' ')}` : ''}</li>`).join('')}</ol><div class="trace-meta">模型 ${esc(ag.model||'-')} · LLM ${ag.llm_calls||0} 次 · 工具 ${ag.tool_calls||0} 次 · ${((ag.latency_ms||0)/1000).toFixed(1)}s${ag.forced_finish ? ' · 预算用尽强制交卷' : ''}${ag.duplicate_calls ? ` · 重复调用拦截 ${ag.duplicate_calls} 次` : ''}</div></div>` : '';
+  const traceHtml = ag ? foldDetailHtml(`Agent 查证轨迹${ag.cache_hit ? '（缓存命中）' : ''}`, `<ol class="trace-steps">${(ag.steps||[]).map(traceStepHtml).join('')}</ol><div class="trace-meta">查证 ${ag.tool_calls||0} 步 · 语义判断 ${ag.llm_calls||0} 次 · ${((ag.latency_ms||0)/1000).toFixed(1)}s${ag.forced_finish ? ' · 已按预算形成意见' : ''}${ag.duplicate_calls ? ` · 合并重复查证 ${ag.duplicate_calls} 次` : ''}</div>`, false) : '';
   const uncertainHtml = uncertaintyDetailHtml(rule);
   const explainHtml = reviewExplanationHtml('Agent 判定理由', rule.review_explanation || semanticExplanation(rule), rule.reason || '', ev);
-  $('#semanticDrawerBody').innerHTML = `${traceHtml}<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span> ${uncertaintyTagHtml(rule)}</p><p>${esc(rule.reason||'')}</p></div>${explainHtml}${uncertainHtml}<div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'—'}</div><div><b>阈值要求</b><br>${th.value!==undefined?esc(`${th.operator||''} ${th.value}${th.unit||''}`):'—'}</div></div></div>${sjHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div><div class="detail-section"><h4>证据</h4>${evHtml}</div>`;
+  $('#semanticDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span> ${uncertaintyTagHtml(rule)}</p><p>${esc(rule.reason||'')}</p></div>${explainHtml}${traceHtml}${uncertainHtml}<div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>实际值</b><br>${rule.actual_value!==null?esc(`${rule.actual_value}${th.unit||''}`):'—'}</div><div><b>阈值要求</b><br>${th.value!==undefined?esc(`${th.operator||''} ${th.value}${th.unit||''}`):'—'}</div></div></div>${sjHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</p></div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</p></div>${foldDetailHtml('证据', evHtml, false)}`;
   $('#semanticDetailPanel').classList.remove('hidden');
 }
 
@@ -1177,7 +1245,7 @@ function openCalcDrawer(ruleId) {
   const formulaHtml = rule.formula ? `<p><code>${esc(rule.formula)}</code></p>` : '';
   $('#calcDrawerTitle').textContent = `${rule.rule_id} — ${rule.rule_name}`;
   const explainHtml = reviewExplanationHtml('复算判定理由', rule.review_explanation, rule.reason || '', rule.evidence || []);
-  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span> ${calcRouteTagHtml(rule)} ${calcRecheckTagHtml(rule)} ${calcConditionTagHtml(rule)}</p><p>${esc(rule.reason||'')}</p>${formulaHtml}</div>${calcConditionHtml(rule)}${calcAgentTraceHtml(rule)}${calcRecheckHtml(rule)}${explainHtml}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</div><div class="detail-section"><h4>证据</h4>${evs}</div>`;
+  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${rule.status}">${RE_STATUS_CN[rule.status]||rule.status}</span> ${calcRouteTagHtml(rule)} ${calcRecheckTagHtml(rule)} ${calcConditionTagHtml(rule)}</p><p>${esc(rule.reason||'')}</p>${formulaHtml}</div>${calcLogicHtml(rule)}${calcConditionHtml(rule)}${calcRecheckHtml(rule)}${explainHtml}${calcAgentTraceHtml(rule)}<div class="detail-section"><h4>规范依据</h4><p><b>${esc(rule.code_ref?.standard||'')}</b></p><p style="color:var(--text-secondary)">${esc(rule.code_ref?.original_text||'')}</p></div><div class="detail-section"><h4>整改建议</h4><p>${esc(rule.remedy_suggestion||'')}</div><div class="detail-section"><h4>典型违规表现</h4><p>${esc(rule.typical_violation||'')}</div>${foldDetailHtml('证据', evs, false)}`;
   $('#calcDetailPanel').classList.remove('hidden');
   const drawer = $('#calcDetailPanel');
   drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');
@@ -1197,7 +1265,7 @@ function openConsDrawer(id) {
     ? `<div class="detail-section"><h4>影响公式验算</h4><table class="data-table table-compact"><thead><tr><th>规则</th><th>关系</th><th>说明</th></tr></thead><tbody>${impacts.map(x => `<tr><td><b>${esc(x.rule_id||'')}</b> ${esc(x.rule_name||'')}</td><td>${esc(relCn[x.relationship]||x.relationship||'')}</td><td>${esc(x.reason||'')}</td></tr>`).join('')}</tbody></table></div>`
     : '<div class="detail-section"><h4>影响公式验算</h4><p style="color:var(--text-tertiary)">当前参数暂未配置计算公式影响关系。</p></div>';
   $('#calcDrawerTitle').textContent = `${item.review_item_id} — ${item.title}`;
-  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${item.status}">${stTxt(item.status)}</span></p><p>${esc(item.conclusion||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>正文/构造侧</b><br>${esc(dvStr)}</div><div><b>计算书侧</b><br>${esc(cvStr)}</div></div></div>${impactHtml}<div class="detail-section"><h4>正文/构造侧证据</h4>${dEv}</div><div class="detail-section"><h4>计算书侧证据</h4>${cEv}</div>${item.boundary?`<div class="detail-section"><h4>说明</h4><p style="color:var(--text-tertiary)">${esc(item.boundary)}</p></div>`:''}`;
+  $('#calcDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${item.status}">${stTxt(item.status)}</span></p><p>${esc(item.conclusion||'')}</p></div><div class="detail-section"><h4>参数比对</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><b>正文/构造侧</b><br>${esc(dvStr)}</div><div><b>计算书侧</b><br>${esc(cvStr)}</div></div></div>${impactHtml}${foldDetailHtml('正文/构造侧证据', dEv, false)}${foldDetailHtml('计算书侧证据', cEv, false)}${item.boundary?`<div class="detail-section"><h4>说明</h4><p style="color:var(--text-tertiary)">${esc(item.boundary)}</p></div>`:''}`;
   $('#calcDetailPanel').classList.remove('hidden');
   const drawer = $('#calcDetailPanel');
   drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');
@@ -1242,7 +1310,7 @@ function openDrawingDrawer(id) {
   const cmp = (item.body_value!=null || item.drawing_value!=null) ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><div><b>正文值</b><br>${esc(item.body_value??'—')}</div><div><b>图纸标注值</b><br>${esc(item.drawing_value??'—')}</div></div>` : '';
   $('#drawingDrawerTitle').textContent = `${item.review_item_id} — ${item.title}`;
   const explainHtml = reviewExplanationHtml('图文判定理由', item.review_explanation, item.conclusion || '', [...(item.text_evidence||[]), ...(item.drawing_evidence||[])]);
-  $('#drawingDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${item.status}">${stTxt(item.status)}</span> ${drawingQualityTagHtml(item)}</p><p>${esc(item.conclusion||'')}</p>${cmp}</div>${explainHtml}<div class="detail-section"><h4>正文原文证据</h4>${evT}</div><div class="detail-section"><h4>图纸证据</h4>${evD}</div>${item.boundary?`<div class="detail-section"><h4>说明</h4><p style="color:var(--text-tertiary)">${esc(item.boundary)}</p></div>`:''}`;
+  $('#drawingDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${item.status}">${stTxt(item.status)}</span> ${drawingQualityTagHtml(item)}</p><p>${esc(item.conclusion||'')}</p>${cmp}</div>${explainHtml}${foldDetailHtml('正文原文证据', evT, false)}${foldDetailHtml('图纸证据', evD, false)}${item.boundary?`<div class="detail-section"><h4>说明</h4><p style="color:var(--text-tertiary)">${esc(item.boundary)}</p></div>`:''}`;
   $('#drawingDetailPanel').classList.remove('hidden');
   $$('#drawingDrawerBody .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
   const drawer = $('#drawingDetailPanel');
