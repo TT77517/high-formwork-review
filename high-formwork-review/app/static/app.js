@@ -1666,25 +1666,142 @@ window.deleteRule = async function(rid) {
   } catch(e) { alert('删除失败: '+e.message); }
 };
 
+const RULE_MODULE_OPTIONS = [
+  ['01_procedure_compliance', '程序合规性审查'],
+  ['02_load_values', '荷载取值审查'],
+  ['03_structural_calculation', '结构计算审查'],
+  ['04_construction_requirements', '构造要求审查'],
+  ['05_material_requirements', '材料要求审查'],
+  ['06_safety_measures', '安全措施审查'],
+];
+const RULE_CATEGORY_BY_MODULE = {
+  '01_procedure_compliance': 'procedure',
+  '02_load_values': 'load',
+  '03_structural_calculation': 'calculation',
+  '04_construction_requirements': 'construction',
+  '05_material_requirements': 'material',
+  '06_safety_measures': 'safety',
+};
+const RULE_CHECK_TYPES = [
+  ['deterministic', '本地规则'],
+  ['semantic', '语义审查'],
+  ['calculation', '计算校核'],
+];
+const RULE_SEVERITIES = [
+  ['A-mandatory', 'A级强制'],
+  ['B-required', 'B级应执行'],
+  ['C-recommended', 'C级推荐'],
+];
+const RULE_RISK_LEVELS = [
+  ['high', '高风险'],
+  ['medium', '中风险'],
+  ['low', '低风险'],
+];
+const RULE_STATUS_OPTIONS = [
+  ['active', '启用'],
+  ['deprecated', '停用'],
+];
+const RULE_SUPPORT_TYPES = [
+  ['universal', '通用'],
+  ['koujian', '扣件式'],
+  ['pankou', '盘扣式'],
+  ['wankou', '碗扣式'],
+];
+
+function optionHtml(options, value) {
+  return options.map(([v, label]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(label)}</option>`).join('');
+}
+function checkboxGroupHtml(name, options, values) {
+  const selected = new Set(values && values.length ? values : ['universal']);
+  return `<div class="rule-check-group">${options.map(([v, label]) => `<label><input type="checkbox" name="${name}" value="${esc(v)}"${selected.has(v) ? ' checked' : ''}> ${esc(label)}</label>`).join('')}</div>`;
+}
+function splitRuleList(text) {
+  return String(text || '').split(/[\n,，、;；]+/).map(s => s.trim()).filter(Boolean);
+}
+function parseRuleConditions(text) {
+  return String(text || '').split(/\n+/).map(line => line.trim()).filter(Boolean).map(line => {
+    const parts = line.split(/[:：]/);
+    if (parts.length >= 2) return { condition: parts.shift().trim(), expected: parts.join(':').trim() };
+    return { condition: line, expected: '' };
+  });
+}
+function firstThreshold(rule) {
+  const th = rule.threshold;
+  if (Array.isArray(th)) return th[0] || {};
+  return th || {};
+}
+function ruleInput(key) {
+  return $(`#ef_${key}`);
+}
+
 function renderRuleEditForm(rule) {
-  const fields = [
-    ['rule_id', '规则编号', 'text'], ['rule_name', '规则名称', 'text'],
-    ['module', '所属模块', 'text'], ['category', '规则分类', 'text'],
-    ['check_type', '审查方式', 'text'], ['severity', '强制等级', 'text'],
-    ['risk_level', '风险等级', 'text'], ['check_content', '审查内容', 'textarea'],
-    ['remedy_suggestion', '整改建议', 'textarea'], ['typical_violation', '典型违规表现', 'textarea'],
-    ['notes', '备注', 'textarea'],
-  ];
-  return fields.map(([key, label, type]) => {
-    const val = rule[key] || '';
-    if (type === 'textarea') return `<div class="manual-body" style="margin-bottom:12px"><div class="field full-width"><label>${label}</label><textarea id="ef_${key}" class="manual-note" maxlength="2000">${esc(String(val))}</textarea></div></div>`;
-    return `<div class="manual-body" style="margin-bottom:12px"><div class="field"><label>${label}</label><input id="ef_${key}" type="text" class="manual-note" value="${esc(String(val))}"></div></div>`;
-  }).join('');
+  const isExisting = !!rule.rule_id;
+  const module = rule.module || '04_construction_requirements';
+  const category = rule.category || RULE_CATEGORY_BY_MODULE[module] || '';
+  const codeRef = rule.code_ref || {};
+  const logic = rule.check_logic || {};
+  const threshold = firstThreshold(rule);
+  const keywords = (logic.extraction_keywords || []).join('\n');
+  const conditions = (rule.applicability_conditions || [])
+    .map(c => `${c.condition || ''}${c.expected ? `：${c.expected}` : ''}`.trim())
+    .filter(Boolean)
+    .join('\n');
+  return `
+    <div class="detail-section">
+      <h4>基础信息</h4>
+      <div class="manual-body">
+        <div class="field"><label>规则编号</label><input id="ef_rule_id" class="manual-note" value="${esc(rule.rule_id || '')}" placeholder="如 4.37"></div>
+        <div class="field"><label>规则名称</label><input id="ef_rule_name" class="manual-note" value="${esc(rule.rule_name || '')}" placeholder="用中文描述审查点"></div>
+      </div>
+      <div class="manual-body">
+        <div class="field"><label>所属模块</label><select id="ef_module"${isExisting ? ' disabled' : ''}>${optionHtml(RULE_MODULE_OPTIONS, module)}</select></div>
+        <div class="field"><label>规则分类</label><input id="ef_category" class="manual-note" value="${esc(category)}" placeholder="procedure/load/calculation/..."></div>
+      </div>
+      <div class="manual-body">
+        <div class="field"><label>审查方式</label><select id="ef_check_type">${optionHtml(RULE_CHECK_TYPES, rule.check_type || 'deterministic')}</select></div>
+        <div class="field"><label>启用状态</label><select id="ef_status">${optionHtml(RULE_STATUS_OPTIONS, rule.status || 'active')}</select></div>
+      </div>
+      <div class="manual-body">
+        <div class="field"><label>强制等级</label><select id="ef_severity">${optionHtml(RULE_SEVERITIES, rule.severity || 'B-required')}</select></div>
+        <div class="field"><label>风险等级</label><select id="ef_risk_level">${optionHtml(RULE_RISK_LEVELS, rule.risk_level || 'medium')}</select></div>
+      </div>
+      <div class="manual-body"><div class="field full-width"><label>适用支架类型</label>${checkboxGroupHtml('ef_applicable_types', RULE_SUPPORT_TYPES, rule.applicable_types || ['universal'])}</div></div>
+      <label class="rule-inline-check"><input id="ef_manual_review" type="checkbox"${rule.manual_review ? ' checked' : ''}> 需要人工复核</label>
+    </div>
+    <div class="detail-section">
+      <h4>规范依据</h4>
+      <div class="manual-body">
+        <div class="field"><label>规范名称/条款来源</label><input id="ef_standard" class="manual-note" value="${esc(codeRef.standard || '')}" placeholder="如 GB 55023-2022 第4.4.3条"></div>
+        <div class="field"><label>条文号</label><input id="ef_clause" class="manual-note" value="${esc(codeRef.clause || '')}" placeholder="如 4.4.3"></div>
+      </div>
+      <div class="manual-body"><div class="field full-width"><label>规范原文摘录</label><textarea id="ef_original_text" class="manual-note" maxlength="2000" placeholder="粘贴条文原文，便于后续审查留痕">${esc(codeRef.original_text || '')}</textarea></div></div>
+    </div>
+    <div class="detail-section">
+      <h4>判定逻辑</h4>
+      <div class="manual-body"><div class="field full-width"><label>审查内容</label><textarea id="ef_check_content" class="manual-note" maxlength="2000" placeholder="说明这条规则检查什么">${esc(rule.check_content || '')}</textarea></div></div>
+      <div class="manual-body"><div class="field full-width"><label>提取关键词</label><textarea id="ef_extraction_keywords" class="manual-note" maxlength="1000" placeholder="每行一个关键词，支持参数、构造名称、章节词">${esc(keywords)}</textarea></div></div>
+      <div class="manual-body">
+        <div class="field"><label>参数名称</label><input id="ef_threshold_param" class="manual-note" value="${esc(threshold.param || logic.param || '')}" placeholder="如 立杆纵距"></div>
+        <div class="field"><label>比较方式</label><select id="ef_operator">${optionHtml([['', '不设置'], ['<=', '小于等于'], ['<', '小于'], ['>=', '大于等于'], ['>', '大于'], ['=', '等于'], ['contains', '包含'], ['exists', '应出现']], threshold.operator || logic.operator || '')}</select></div>
+      </div>
+      <div class="manual-body">
+        <div class="field"><label>限值/目标值</label><input id="ef_threshold_value" class="manual-note" value="${esc(threshold.value ?? logic.value ?? '')}" placeholder="如 1.5"></div>
+        <div class="field"><label>单位</label><input id="ef_threshold_unit" class="manual-note" value="${esc(threshold.unit || logic.unit || '')}" placeholder="m / mm / kN/m²"></div>
+      </div>
+      <div class="manual-body"><div class="field full-width"><label>适用条件</label><textarea id="ef_applicability_conditions" class="manual-note" maxlength="1000" placeholder="每行一条，如：支架类型：扣件式">${esc(conditions)}</textarea></div></div>
+      <div class="manual-body"><div class="field full-width"><label>公式/补充逻辑</label><textarea id="ef_logic_description" class="manual-note" maxlength="2000" placeholder="计算类可填公式；语义类可填判定口径">${esc(logic.description || logic.formula || '')}</textarea></div></div>
+    </div>
+    <div class="detail-section">
+      <h4>输出文案</h4>
+      <div class="manual-body"><div class="field full-width"><label>整改建议</label><textarea id="ef_remedy_suggestion" class="manual-note" maxlength="2000">${esc(rule.remedy_suggestion || '')}</textarea></div></div>
+      <div class="manual-body"><div class="field full-width"><label>典型违规表现</label><textarea id="ef_typical_violation" class="manual-note" maxlength="2000">${esc(rule.typical_violation || '')}</textarea></div></div>
+      <div class="manual-body"><div class="field full-width"><label>备注</label><textarea id="ef_notes" class="manual-note" maxlength="2000">${esc(rule.notes || '')}</textarea></div></div>
+    </div>`;
 }
 
 $('#addRuleBtn')?.addEventListener('click', () => {
   $('#ruleEditTitle').textContent = '新增规则';
-  $('#ruleEditBody').innerHTML = renderRuleEditForm({ rule_id:'', rule_name:'', module:'04_construction_requirements', category:'', check_type:'deterministic', severity:'B-required', risk_level:'medium', check_content:'', remedy_suggestion:'', typical_violation:'', notes:'' });
+  $('#ruleEditBody').innerHTML = renderRuleEditForm({ rule_id:'', rule_name:'', module:'04_construction_requirements', category:'construction', check_type:'deterministic', severity:'B-required', risk_level:'medium', applicable_types:['universal'], check_content:'', remedy_suggestion:'', typical_violation:'', notes:'', status:'active' });
   $('#ruleEditModal').classList.remove('hidden');
 });
 
@@ -1727,20 +1844,65 @@ $('#versionValidationBtn')?.addEventListener('click', async () => {
 $('#versionValidationClose')?.addEventListener('click', () => $('#versionValidationModal').classList.add('hidden'));
 $('#ruleEditCancel')?.addEventListener('click', () => $('#ruleEditModal').classList.add('hidden'));
 $('#ruleEditSave')?.addEventListener('click', async () => {
-  const data = {};
-  ['rule_id','rule_name','module','category','check_type','severity','risk_level','check_content','remedy_suggestion','typical_violation','notes'].forEach(k => {
-    const el = $(`#ef_${k}`);
-    if (el) data[k] = el.value.trim();
-  });
+  const module = ruleInput('module')?.value || '04_construction_requirements';
+  const operator = ruleInput('operator')?.value || '';
+  const thresholdParam = ruleInput('threshold_param')?.value.trim() || '';
+  const thresholdValueRaw = ruleInput('threshold_value')?.value.trim() || '';
+  const thresholdUnit = ruleInput('threshold_unit')?.value.trim() || '';
+  const keywords = splitRuleList(ruleInput('extraction_keywords')?.value || '');
+  const logicDescription = ruleInput('logic_description')?.value.trim() || '';
+  const applicableTypes = $$('input[name="ef_applicable_types"]:checked').map(el => el.value);
+  const thresholdValue = thresholdValueRaw !== '' && !Number.isNaN(Number(thresholdValueRaw))
+    ? Number(thresholdValueRaw)
+    : thresholdValueRaw;
+  const threshold = thresholdParam || operator || thresholdValueRaw || thresholdUnit
+    ? { param: thresholdParam, operator, value: thresholdValue, unit: thresholdUnit }
+    : null;
+  const checkContent = ruleInput('check_content')?.value.trim() || '';
+  const checkType = ruleInput('check_type')?.value || 'deterministic';
+  const checkLogic = {
+    description: logicDescription || checkContent,
+    extraction_keywords: keywords,
+  };
+  if (operator) checkLogic.operator = operator;
+  if (thresholdParam) checkLogic.param = thresholdParam;
+  if (thresholdValueRaw) checkLogic.value = thresholdValue;
+  if (thresholdUnit) checkLogic.unit = thresholdUnit;
+  if (checkType === 'calculation' && logicDescription) checkLogic.formula = logicDescription;
+  const data = {
+    rule_id: ruleInput('rule_id')?.value.trim() || '',
+    rule_name: ruleInput('rule_name')?.value.trim() || '',
+    module,
+    category: ruleInput('category')?.value.trim() || RULE_CATEGORY_BY_MODULE[module] || '',
+    check_type: checkType,
+    severity: ruleInput('severity')?.value || 'B-required',
+    risk_level: ruleInput('risk_level')?.value || 'medium',
+    applicable_types: applicableTypes.length ? applicableTypes : ['universal'],
+    applicability_conditions: parseRuleConditions(ruleInput('applicability_conditions')?.value || ''),
+    code_ref: {
+      standard: ruleInput('standard')?.value.trim() || '',
+      clause: ruleInput('clause')?.value.trim() || '',
+      original_text: ruleInput('original_text')?.value.trim() || '',
+    },
+    check_content: checkContent,
+    check_logic: checkLogic,
+    threshold,
+    remedy_suggestion: ruleInput('remedy_suggestion')?.value.trim() || '',
+    typical_violation: ruleInput('typical_violation')?.value.trim() || '',
+    manual_review: !!ruleInput('manual_review')?.checked,
+    notes: ruleInput('notes')?.value.trim() || '',
+    status: ruleInput('status')?.value || 'active',
+  };
   const rid = data.rule_id;
   if (!rid) { alert('规则编号不能为空'); return; }
+  if (!data.rule_name) { alert('规则名称不能为空'); return; }
   try {
     // Try create first, if exists will get 409
     const r = await fetch('/api/rules', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) });
     if (r.status === 409) {
       // Exists, update via patch for each field
       for (const [k,v] of Object.entries(data)) {
-        if (k === 'rule_id') continue;
+        if (k === 'rule_id' || k === 'module') continue;
         await fetch(`/api/rules/${encodeURIComponent(rid)}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({field:k, value:v}) });
       }
     } else if (!r.ok) {

@@ -500,6 +500,7 @@ class RuleCreateInput(BaseModel):
     severity: str = Field(default="B-required", max_length=32)
     risk_level: str = Field(default="medium", max_length=32)
     applicable_types: list[str] = Field(default_factory=lambda: ["universal"])
+    applicability_conditions: list[dict[str, Any]] = Field(default_factory=list)
     code_ref: dict[str, Any] = Field(default_factory=dict)
     check_content: str = Field(default="", max_length=2000)
     check_logic: dict[str, Any] = Field(default_factory=dict)
@@ -508,6 +509,7 @@ class RuleCreateInput(BaseModel):
     typical_violation: str = Field(default="", max_length=2000)
     manual_review: bool = Field(default=False)
     notes: str = Field(default="", max_length=2000)
+    status: str = Field(default="active", max_length=32)
 
 
 _MODULE_FILE_MAP = {
@@ -543,6 +545,7 @@ def create_rule(payload: RuleCreateInput) -> dict[str, Any]:
         "severity": payload.severity,
         "risk_level": payload.risk_level,
         "applicable_types": payload.applicable_types,
+        "applicability_conditions": payload.applicability_conditions,
         "code_ref": payload.code_ref,
         "legacy_code_ref": None,
         "check_content": payload.check_content,
@@ -552,7 +555,7 @@ def create_rule(payload: RuleCreateInput) -> dict[str, Any]:
         "typical_violation": payload.typical_violation,
         "manual_review": payload.manual_review,
         "notes": payload.notes,
-        "status": "active",
+        "status": payload.status,
     }
     rules.append(rule)
     path.write_text(json.dumps(rules, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -586,8 +589,10 @@ def update_rule(rule_id: str, payload: RuleUpdateInput) -> dict[str, Any]:
     修改直接写回 config/rule_library_v4/ 对应模块 JSON。
     """
     editable_fields = {
-        "threshold", "remedy_suggestion", "typical_violation",
-        "manual_review", "notes", "check_content", "status",
+        "rule_name", "module", "category", "check_type", "severity", "risk_level",
+        "applicable_types", "applicability_conditions", "code_ref", "check_logic",
+        "threshold", "remedy_suggestion", "typical_violation", "manual_review",
+        "notes", "check_content", "status",
     }
     if payload.field not in editable_fields:
         raise HTTPException(

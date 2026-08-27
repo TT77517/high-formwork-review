@@ -285,7 +285,11 @@ body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei",
 .manual-body .field { flex: 1; }
 .manual-body .field.full-width { flex: 100%; }
 .manual-body label { display: block; font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
-.manual-body select, .manual-body textarea { width: 100%; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; }
+.manual-body input, .manual-body select, .manual-body textarea { width: 100%; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; }
+.rule-check-group { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 0; }
+.rule-check-group label, .rule-inline-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.rule-check-group input, .rule-inline-check input { width: auto; }
+.rule-inline-check { margin-top: 4px; }
 .action-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 
 /* Timeline */
