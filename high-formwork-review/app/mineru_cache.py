@@ -139,17 +139,8 @@ def parse_pdf_with_cache(
                     before_document_parse()
                 target_document.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(cache_dir / "mineru_document.json", target_document)
-                # 还原缓存中的图片等原始资源（缺失时前端自动降级为纯文本证据）
-                cached_raw = cache_dir / "raw"
-                if cached_raw.is_dir():
-                    try:
-                        shutil.copytree(
-                            cached_raw,
-                            Path(raw_output_dir) / "raw",
-                            dirs_exist_ok=True,
-                        )
-                    except OSError:
-                        pass
+                # Task 8B.3: persist raw assets at job_dir/mineru_api/raw/ for resolver
+                _ensure_job_local_raw_assets(Path(raw_output_dir), cache_dir)
                 return cached_document, ParseCacheInfo(
                     source_sha256=source_sha256,
                     cache_key=cache_key,
@@ -211,6 +202,8 @@ def parse_pdf_with_cache(
             parser_config_version=parser_config_version,
             raw_source_dir=Path(raw_output_dir) / "raw",
         )
+        # Task 8B.3: persist raw assets at job_dir/mineru_api/raw/ for resolver
+        _ensure_job_local_raw_assets(Path(raw_output_dir), cache_dir)
         return document, ParseCacheInfo(
             source_sha256=source_sha256,
             cache_key=cache_key,
@@ -220,6 +213,72 @@ def parse_pdf_with_cache(
             parser_config_version=parser_config_version,
             warning=warning,
         )
+
+
+def _ensure_job_local_raw_assets(
+    raw_output_dir: Path,
+    cache_dir: Path | None,
+) -> int:
+    """Persist MinerU raw image assets at ``raw_output_dir/raw`` so the existing
+    asset resolver in ``drawing_review._resolve_image_path_direct`` finds them.
+
+    Background (Task 8B.2.2 audit):
+        ``parse_pdf_with_cache`` historically persisted raw assets to
+        ``data/cache/mineru/<key>/raw`` (the cross-job cache) and
+        ``raw_output_dir/<part>/raw`` (MinerU's natural output), but did not
+        materialize them at ``raw_output_dir/raw`` — the exact path the resolver
+        looks at first. Historical jobs (e.g., 146dc…) thus lost access to all
+        image assets despite the parsed JSON referencing them.
+
+    This helper reconciles the layout after the cache write, regardless of
+    whether the parse path went through cache (copy from cache) or through a
+    fresh MinerU run (copy from ``<part>/raw``). Returns count of images
+    successfully written; returns 0 silently if no source is available so
+    historical gaps can be diagnosed elsewhere instead of raising here.
+    """
+    target = raw_output_dir / "raw"
+    # Short-circuit if already populated
+    if target.is_dir():
+        existing = list(target.rglob("*.jpg")) + list(target.rglob("*.jpeg")) + \
+                   list(target.rglob("*.png")) + list(target.rglob("*.webp"))
+        if existing:
+            return len(existing)
+
+    # Try cross-job cache first (populated by _write_cache in non-cache path)
+    if cache_dir is not None and (cache_dir / "raw").is_dir():
+        cached_images = (
+            list((cache_dir / "raw").rglob("*.jpg"))
+            + list((cache_dir / "raw").rglob("*.jpeg"))
+            + list((cache_dir / "raw").rglob("*.png"))
+            + list((cache_dir / "raw").rglob("*.webp"))
+        )
+        if cached_images:
+            try:
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(cache_dir / "raw", target, dirs_exist_ok=True)
+                return len(list(target.rglob("*.jpg"))) + len(list(target.rglob("*.png"))) + \
+                       len(list(target.rglob("*.jpeg"))) + len(list(target.rglob("*.webp")))
+            except OSError:
+                pass
+
+    # Fallback: MinerU's natural output ``raw_output_dir/<part>/raw/images/...``
+    # Re-arrange into ``raw_output_dir/raw/<part>/raw/images/...`` so the resolver matches.
+    # (i.e. copy the whole part directory, not just its ``raw/`` subdir, so the
+    # resulting tree still has the part/raw/images structure under raw/<part>/.)
+    if raw_output_dir.is_dir():
+        try:
+            for part_dir in sorted(raw_output_dir.iterdir()):
+                if not part_dir.is_dir():
+                    continue
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(part_dir, target / part_dir.name, dirs_exist_ok=True)
+            if target.is_dir():
+                return len(list(target.rglob("*.jpg"))) + len(list(target.rglob("*.png"))) + \
+                       len(list(target.rglob("*.jpeg"))) + len(list(target.rglob("*.webp")))
+        except OSError:
+            pass
+
+    return 0
 
 
 def _pdf_page_count(pdf_path: Path) -> int:

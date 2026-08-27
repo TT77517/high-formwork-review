@@ -358,3 +358,87 @@ def test_web_reuses_cache_but_repeats_local_review(tmp_path: Path, monkeypatch) 
     assert second_status["parse_cache_source"] == "cache"
     assert second_status["document_parse_message"] == "文档解析：复用缓存"
     assert (jobs_root / f"{2:032x}" / "mineru_document.json").is_file()
+
+
+# ---------------------------------------------------------------------------
+# Task 8B.3: _ensure_job_local_raw_assets persistence test
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_job_local_raw_assets_copies_from_cache(tmp_path: Path) -> None:
+    """Cache 已有 raw → 应被 co-save 到 job_dir/mineru_api/raw/。"""
+    from app.mineru_cache import _ensure_job_local_raw_assets
+
+    raw_output_dir = tmp_path / "mineru_api"
+    cache_dir = tmp_path / "cache"
+    cache_raw = cache_dir / "raw"
+    cache_raw.mkdir(parents=True)
+    (cache_raw / "part-001" / "raw" / "images").mkdir(parents=True)
+    (cache_raw / "part-001" / "raw" / "images" / "test1.jpg").write_bytes(b"jpg-data-1")
+    (cache_raw / "part-001" / "raw" / "images" / "test2.jpg").write_bytes(b"jpg-data-2")
+
+    count = _ensure_job_local_raw_assets(raw_output_dir, cache_dir)
+
+    target = raw_output_dir / "raw"
+    assert (target / "part-001" / "raw" / "images" / "test1.jpg").is_file()
+    assert (target / "part-001" / "raw" / "images" / "test2.jpg").is_file()
+    assert count == 2
+
+
+def test_ensure_job_local_raw_assets_noop_when_already_present(tmp_path: Path) -> None:
+    """job_dir/mineru_api/raw/ 已有内容 → 不重写，直接返回 count。"""
+    from app.mineru_cache import _ensure_job_local_raw_assets
+
+    raw_output_dir = tmp_path / "mineru_api"
+    target = raw_output_dir / "raw" / "images"
+    target.mkdir(parents=True)
+    (target / "existing.jpg").write_bytes(b"existing")
+
+    # 放一个 cache 目录看是否被覆盖
+    cache_dir = tmp_path / "cache"
+    (cache_dir / "raw" / "images").mkdir(parents=True)
+    (cache_dir / "raw" / "images" / "from_cache.jpg").write_bytes(b"cache-data")
+
+    count = _ensure_job_local_raw_assets(raw_output_dir, cache_dir)
+
+    # existing.jpg 不应被覆盖；from_cache.jpg 不应被拷贝进来
+    assert (target / "existing.jpg").is_file()
+    assert (target / "from_cache.jpg").exists() is False
+    assert count == 1
+
+
+def test_ensure_job_local_raw_assets_falls_back_to_mineru_output(tmp_path: Path) -> None:
+    """Cache 空、MinerU 输出在 raw_output_dir/<part>/raw/ → 应重组成 raw_output_dir/raw/<part>/raw/。"""
+    from app.mineru_cache import _ensure_job_local_raw_assets
+
+    raw_output_dir = tmp_path / "mineru_api"
+    # 模拟 MinerU 自然输出：raw_output_dir/part-001/raw/images/...
+    part_raw = raw_output_dir / "part-001" / "raw" / "images"
+    part_raw.mkdir(parents=True)
+    (part_raw / "test1.jpg").write_bytes(b"jpg1")
+
+    # cache 目录空
+    cache_dir = tmp_path / "cache"
+    (cache_dir / "raw").mkdir(parents=True)  # empty
+
+    count = _ensure_job_local_raw_assets(raw_output_dir, cache_dir)
+
+    # 重组到 raw_output_dir/raw/part-001/raw/images/test1.jpg
+    assert (raw_output_dir / "raw" / "part-001" / "raw" / "images" / "test1.jpg").is_file()
+    assert count == 1
+
+
+def test_ensure_job_local_raw_assets_returns_zero_when_nothing_available(tmp_path: Path) -> None:
+    """Cache 空、MinerU 输出空 → 返回 0（不抛、不创建 target）。"""
+    from app.mineru_cache import _ensure_job_local_raw_assets
+
+    raw_output_dir = tmp_path / "mineru_api"
+    raw_output_dir.mkdir(parents=True)
+    cache_dir = tmp_path / "cache"
+    (cache_dir / "raw").mkdir(parents=True)
+
+    count = _ensure_job_local_raw_assets(raw_output_dir, cache_dir)
+
+    # 不抛、不创建 target（MinerU 输出和 cache 都空时）
+    assert count == 0
+    assert (raw_output_dir / "raw").exists() is False
