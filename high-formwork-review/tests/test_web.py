@@ -1059,3 +1059,68 @@ def test_orchestrator_endpoint_reads_result(client: TestClient) -> None:
     response = client.get(f"/api/jobs/{job_id}/orchestrator")
     assert response.status_code == 200
     assert response.json()["agent"] == "orchestrator_agent"
+
+
+def test_orchestrator_writer_consumes_agent_drawing_review_without_rerun(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = _completed_job(web.JOBS_ROOT)
+    job_dir = web.JOBS_ROOT / job_id
+    monkeypatch.setattr(
+        web,
+        "build_drawing_review",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not rerun drawing review")),
+    )
+    for name, payload in {
+        "project_facts.json": {"facts": {}},
+        "project_qualification.json": {"support_system_label": "承插型盘扣式"},
+        "rule_engine_results.json": {"total_rules": 0, "results": []},
+        "semantic_results.json": {"total_rules": 0, "results": []},
+        "calculation_results.json": {"total_rules": 0, "results": []},
+        "substantive_review.json": [],
+        "consistency_review.json": [],
+        "drawing_review.json": [{"status": "ISSUE", "requires_human_review": True}],
+        "agent_drawing_review.json": {
+            "total_tasks": 2,
+            "reviewed_tasks": 2,
+            "status_counts": {"CONFLICT": 1, "UNCERTAIN": 1},
+            "items": [
+                {
+                    "fact_id": "horizontal_spacing",
+                    "display_name": "立杆横距",
+                    "status": "CONFLICT",
+                    "reason": "values_differ",
+                    "scope_alignment": "compatible",
+                    "text_value": 900,
+                    "drawing_value": 1200,
+                    "text_unit": "mm",
+                    "drawing_unit": "mm",
+                    "text_evidence_count": 1,
+                    "drawing_evidence_count": 1,
+                    "comparable_pair_count": 1,
+                },
+                {
+                    "fact_id": "support_height",
+                    "display_name": "搭设高度",
+                    "status": "UNCERTAIN",
+                    "reason": "scope_unknown",
+                    "scope_alignment": "unknown",
+                    "drawing_value": None,
+                    "text_evidence_count": 1,
+                    "drawing_evidence_count": 1,
+                },
+            ],
+        },
+    }.items():
+        _write_json(job_dir / name, payload)
+
+    web._write_orchestrator_state_if_ready(job_dir)
+
+    state = json.loads((job_dir / "orchestrator_agent.json").read_text(encoding="utf-8"))
+    domain = state["agent_drawing_review"]
+    assert domain["status_counts"]["CONFLICT"] == 1
+    assert domain["status_counts"]["UNCERTAIN"] == 1
+    assert domain["items"][0]["status"] == "CONFLICT"
+    assert domain["items"][1]["drawing_value"] is None
+    assert state["tool_observations"][3]["output"]["issue"] == 1

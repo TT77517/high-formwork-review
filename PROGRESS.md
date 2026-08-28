@@ -795,3 +795,16 @@
   - READY_FOR_ORCHESTRATOR_INTEGRATION=YES：contract stable, deterministic comparator retained, unsafe/constraint/attribution/no-image cases safely degrade with status/reason/class for orchestrator consumption。
   - Artifacts（tmp ignored）：`tmp/drawing_agent_final_regression_8b9/{final_agent_result.json,final_task_matrix.json,final_tool_stats.json,final_signoff.json}`；tests before/after：409 passed / 1 skipped / 0 failed。
   - NO_NEW_8B_FEATURE_TASKS=YES；NEXT：Task 8C — Orchestrator Integration。
+
+- [2026-08-28 10:26] codex 签到 — 开始处理：Task 8C: Drawing Consistency Agent to Orchestrator Integration
+
+- [2026-08-28 10:42] codex 签退 — 完成了：Task 8C Drawing Consistency Agent → Orchestrator Integration（消费层集成；未改 Drawing Agent/vision/compare/scope/registry/alias/recall/web UI）：
+  - Orchestrator 新增可选 `agent_drawing_review` 域对象，稳定消费 Task 8B `build_agent_drawing_review(...)` 结果；legacy `drawing_review.json` PASS/ISSUE/REVIEW 摘要保持兼容。
+  - 六态原样保留：CONSISTENT / CONFLICT / TEXT_ONLY / DRAWING_ONLY / UNCERTAIN / NOT_FOUND；summary count deterministic，empty result 安全返回 0 计数。
+  - Domain policy 固定为 `domain_status_authoritative_no_orchestrator_rejudge`；总控不重新判定图文一致性，也不把图文一致性当规则合规结论。
+  - Constraint safety：`support_height` 的 `H≤8m` 仍不 scalarize 成 `H=8m`；Orchestrator 只传递已有 `drawing_value`。
+  - Web pipeline 仅在 `agent_drawing_review.json` 已存在时读取并传入；不会触发 Drawing Agent/OCR/Vision 重跑。
+  - Focused tests：`tests/test_drawing_integration.py tests/test_orchestrator_agent.py tests/test_web.py` = 53 passed。
+  - 8B.9 artifact smoke：JOB `146dc530dd964a30a2d4f29410738e4d` received=17，status_counts=0/0/3/0/2/12，extra Vision/OCR=0。
+  - Full suite：413 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
+  - NEXT_TASK：Task 8D — Drawing Review Frontend / Report Integration。

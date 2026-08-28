@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+from app.drawing_integration import AgentDrawingReviewItem, AgentDrawingReviewResult
 from app.models import MinerUDocument
 from app.orchestrator_agent import build_orchestrator_state
 
@@ -13,6 +16,28 @@ def _document() -> MinerUDocument:
         source_sha256="sha",
         physical_page_count=8,
     )
+
+
+def _minimal_state_kwargs(**overrides):
+    kwargs = {
+        "project_facts": {"facts": {}},
+        "project_qualification": {"support_system_label": "承插型盘扣式"},
+        "completeness_summary": {
+            "total_rules": 1,
+            "pass_count": 1,
+            "missing_count": 0,
+            "uncertain_count": 0,
+        },
+        "completeness_results": [],
+        "rule_engine": {"total_rules": 0, "results": []},
+        "semantic": {"total_rules": 0, "results": []},
+        "calculation": {"total_rules": 0, "results": []},
+        "substantive_review": [],
+        "consistency_review": [],
+        "drawing_review": [],
+    }
+    kwargs.update(overrides)
+    return kwargs
 
 
 def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
@@ -200,3 +225,93 @@ def test_orchestrator_wraps_four_review_tools_and_dispatch_plan():
         ref["source"] == "calculation_engine" and ref["rule_id"] == "3.9"
         for ref in state["parameter_to_rules"]["standard_step_height"]
     )
+
+
+def test_orchestrator_preserves_agent_drawing_review_domain_statuses():
+    payload = AgentDrawingReviewResult(
+        total_tasks=6,
+        reviewed_tasks=6,
+        status_counts={
+            "CONSISTENT": 1,
+            "CONFLICT": 1,
+            "TEXT_ONLY": 1,
+            "DRAWING_ONLY": 1,
+            "UNCERTAIN": 1,
+            "NOT_FOUND": 1,
+        },
+        items=[
+            AgentDrawingReviewItem("a", "A", "CONSISTENT", "values_equal", "compatible", 900, 900, "mm", "mm", 1, 1, 1),
+            AgentDrawingReviewItem("b", "B", "CONFLICT", "values_differ", "compatible", 900, 1200, "mm", "mm", 1, 1, 1),
+            AgentDrawingReviewItem("c", "C", "TEXT_ONLY", "text_evidence_only", "unknown", 150, None, "mm", None, 1, 0, 0),
+            AgentDrawingReviewItem("d", "D", "DRAWING_ONLY", "drawing_evidence_only", "unknown", None, 150, None, "mm", 0, 1, 0),
+            AgentDrawingReviewItem("e", "E", "UNCERTAIN", "scope_unknown", "unknown", None, None, None, None, 1, 1, 0),
+            AgentDrawingReviewItem("f", "F", "NOT_FOUND", "no_evidence", "unknown"),
+        ],
+    )
+
+    state = build_orchestrator_state(
+        _document(),
+        **_minimal_state_kwargs(agent_drawing_review=payload),
+    )
+
+    domain = state["agent_drawing_review"]
+    assert domain["status_counts"] == payload.status_counts
+    assert [item["status"] for item in domain["items"]] == [
+        "CONSISTENT",
+        "CONFLICT",
+        "TEXT_ONLY",
+        "DRAWING_ONLY",
+        "UNCERTAIN",
+        "NOT_FOUND",
+    ]
+    assert domain["items"][1]["status"] == "CONFLICT"
+    assert domain["items"][4]["status"] == "UNCERTAIN"
+    assert state["tool_observations"][3]["agent_domain"]["status_counts"]["CONFLICT"] == 1
+    assert state["human_confirmation"]["items"] == []
+    json.dumps(state, ensure_ascii=False)
+
+
+def test_orchestrator_agent_drawing_review_does_not_scalarize_constraints():
+    payload = {
+        "total_tasks": 1,
+        "reviewed_tasks": 1,
+        "status_counts": {"UNCERTAIN": 1},
+        "items": [
+            {
+                "fact_id": "support_height",
+                "display_name": "搭设高度",
+                "status": "UNCERTAIN",
+                "reason": "scope_unknown",
+                "scope_alignment": "unknown",
+                "text_value": None,
+                "drawing_value": None,
+                "text_evidence_count": 1,
+                "drawing_evidence_count": 1,
+            }
+        ],
+    }
+
+    state = build_orchestrator_state(
+        _document(),
+        **_minimal_state_kwargs(agent_drawing_review=payload),
+    )
+
+    item = state["agent_drawing_review"]["items"][0]
+    assert item["status"] == "UNCERTAIN"
+    assert item["drawing_value"] is None
+    assert state["agent_drawing_review"]["status_counts"]["UNCERTAIN"] == 1
+
+
+def test_orchestrator_agent_drawing_review_empty_result_is_safe():
+    state = build_orchestrator_state(_document(), **_minimal_state_kwargs())
+
+    assert state["agent_drawing_review"]["total_tasks"] == 0
+    assert state["agent_drawing_review"]["items"] == []
+    assert state["agent_drawing_review"]["status_counts"] == {
+        "CONSISTENT": 0,
+        "CONFLICT": 0,
+        "TEXT_ONLY": 0,
+        "DRAWING_ONLY": 0,
+        "UNCERTAIN": 0,
+        "NOT_FOUND": 0,
+    }

@@ -1745,6 +1745,11 @@ def _write_orchestrator_state_if_ready(job_dir: Path) -> None:
         substantive_review=_read_json(job_dir / "substantive_review.json", ""),
         consistency_review=_read_json(job_dir / "consistency_review.json", ""),
         drawing_review=_read_json(job_dir / "drawing_review.json", ""),
+        agent_drawing_review=(
+            _read_json(job_dir / "agent_drawing_review.json", "")
+            if (job_dir / "agent_drawing_review.json").is_file()
+            else None
+        ),
         review_plan=_read_json(review_plan_path, "") if review_plan_path.is_file() else None,
         decisions=_read_json(decisions_path, "") if decisions_path.is_file() else [],
         human_overrides=_read_json(overrides_path, "") if overrides_path.is_file() else {},

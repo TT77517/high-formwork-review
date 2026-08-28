@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from dataclasses import asdict, is_dataclass
+from typing import Any, Mapping
 
 from .calculation_dependencies import parameters_for_calculation_rule, parameters_for_formula_id
 from .models import MinerUDocument
@@ -38,6 +39,15 @@ RERUN_PARAMETER_KEYS = {
     "steel_plate_thickness",
 }
 
+AGENT_DRAWING_STATUSES = (
+    "CONSISTENT",
+    "CONFLICT",
+    "TEXT_ONLY",
+    "DRAWING_ONLY",
+    "UNCERTAIN",
+    "NOT_FOUND",
+)
+
 
 def build_orchestrator_state(
     document: MinerUDocument,
@@ -52,6 +62,7 @@ def build_orchestrator_state(
     substantive_review: list[dict[str, Any]],
     consistency_review: list[dict[str, Any]],
     drawing_review: list[dict[str, Any]],
+    agent_drawing_review: Any | None = None,
     review_plan: dict[str, Any] | None = None,
     decisions: list[dict[str, Any]] | None = None,
     human_overrides: dict[str, Any] | None = None,
@@ -69,6 +80,7 @@ def build_orchestrator_state(
         calculation=calculation,
     )
     drawing_quality = _drawing_evidence_quality_summary(drawing_review)
+    agent_drawing_domain = _agent_drawing_review_domain(agent_drawing_review)
     uncertainty_analysis = build_uncertainty_analysis(
         project_facts=project_facts,
         completeness_results=completeness_results,
@@ -95,7 +107,7 @@ def build_orchestrator_state(
         ),
         _semantic_observation(rule_engine, semantic),
         _calculation_observation(calculation, consistency_review, formula_rechecks),
-        _drawing_observation(drawing_review, semantic, drawing_quality),
+        _drawing_observation(drawing_review, semantic, drawing_quality, agent_drawing_domain),
     ]
 
     return {
@@ -137,6 +149,7 @@ def build_orchestrator_state(
         },
         "formula_recalculations": formula_rechecks,
         "drawing_evidence_quality": drawing_quality,
+        "agent_drawing_review": agent_drawing_domain,
         "notice": "总控 Agent 只做审查调度与证据组织，不输出最终合格/不合格结论。",
     }
 
@@ -344,6 +357,7 @@ def _drawing_observation(
     drawing_review: list[dict[str, Any]],
     semantic: dict[str, Any],
     drawing_quality: dict[str, Any],
+    agent_drawing_domain: dict[str, Any],
 ) -> dict[str, Any]:
     trace_count = sum(1 for item in semantic.get("results", []) if item.get("route") == "AGENT_REQUIRED")
     return {
@@ -356,11 +370,79 @@ def _drawing_observation(
             "issue": sum(1 for item in drawing_review if item.get("status") == "ISSUE"),
             "review": sum(1 for item in drawing_review if item.get("requires_human_review")),
         },
+        "agent_domain": agent_drawing_domain,
         "evidence_chase": {
             "semantic_agent_trace_available": trace_count > 0,
             "linked_agent_trace_count": trace_count,
             "evidence_quality": drawing_quality,
         },
+    }
+
+
+def _agent_drawing_review_domain(payload: Any | None) -> dict[str, Any]:
+    """Normalize stable Drawing Agent results without rejudging domain statuses."""
+    data = _mapping_payload(payload)
+    if data is None:
+        return _empty_agent_drawing_domain()
+    items = [_agent_drawing_item(item) for item in data.get("items", []) or []]
+    source_counts = data.get("status_counts") or {}
+    counts = {
+        status: int(source_counts.get(status, 0) or 0)
+        for status in AGENT_DRAWING_STATUSES
+    }
+    if not any(counts.values()) and items:
+        for item in items:
+            status = item.get("status")
+            if status in counts:
+                counts[status] += 1
+    return {
+        "source": "drawing_consistency_agent",
+        "total_tasks": int(data.get("total_tasks") or len(items)),
+        "reviewed_tasks": int(data.get("reviewed_tasks") or len(items)),
+        "status_counts": counts,
+        "items": items,
+        "authoritative": True,
+        "policy": "domain_status_authoritative_no_orchestrator_rejudge",
+    }
+
+
+def _empty_agent_drawing_domain() -> dict[str, Any]:
+    return {
+        "source": "drawing_consistency_agent",
+        "total_tasks": 0,
+        "reviewed_tasks": 0,
+        "status_counts": {status: 0 for status in AGENT_DRAWING_STATUSES},
+        "items": [],
+        "authoritative": True,
+        "policy": "domain_status_authoritative_no_orchestrator_rejudge",
+    }
+
+
+def _mapping_payload(payload: Any) -> Mapping[str, Any] | None:
+    if payload is None:
+        return None
+    if is_dataclass(payload):
+        payload = asdict(payload)
+    return payload if isinstance(payload, Mapping) else None
+
+
+def _agent_drawing_item(item: Any) -> dict[str, Any]:
+    data = _mapping_payload(item) or {}
+    return {
+        "fact_id": data.get("fact_id"),
+        "display_name": data.get("display_name"),
+        "status": data.get("status"),
+        "reason": data.get("reason"),
+        "scope_alignment": data.get("scope_alignment"),
+        "text_value": data.get("text_value"),
+        "drawing_value": data.get("drawing_value"),
+        "text_unit": data.get("text_unit"),
+        "drawing_unit": data.get("drawing_unit"),
+        "text_evidence_count": int(data.get("text_evidence_count") or 0),
+        "drawing_evidence_count": int(data.get("drawing_evidence_count") or 0),
+        "comparable_pair_count": int(data.get("comparable_pair_count") or 0),
+        "finish_reason": data.get("finish_reason"),
+        "iterations": int(data.get("iterations") or 0),
     }
 
 
