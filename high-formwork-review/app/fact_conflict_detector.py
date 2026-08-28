@@ -6,7 +6,7 @@ from typing import Any
 
 
 def resolve_fact(parameter_definition: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    parameter = str(parameter_definition["parameter"])
+    parameter = str(parameter_definition.get("parameter") or "unknown_parameter")
     canonical_unit = parameter_definition.get("canonical_unit")
     if parameter_definition.get("aggregation_mode") == "set_union":
         return _resolve_set_union_fact(parameter, canonical_unit, candidates)

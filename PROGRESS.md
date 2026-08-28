@@ -763,3 +763,9 @@
   - Root cause：PRIMARY=`VALUE_SCHEMA_CANNOT_REPRESENT_CONSTRAINT`，SECONDARY=`VLM_DID_NOT_READ_VALUE`；不建议做普通 Vision extraction prompt fix。
   - Artifacts（tmp ignored）：`tmp/drawing_value_extraction_audit_8b7b/{support_height_trace.json,value_contract_audit.json,audit_summary.md}`。
   - Tests before/after：408 passed / 1 skipped / 0 failed（1 LibreSSL warning）。下一步建议：No Vision-value implementation；回到真实 evidence acquisition / attribution blocker。
+
+- [2026-08-28 00:16] workbuddy 签到 — 开始处理：Task 8B.8 — Drawing Evidence Acquisition Finalization（17-task 全量 Evidence Classification，observe-only 优先）
+
+- [2026-08-28 10:02] codex 签到 — 开始处理：读取最近更改并续接 workbudy 中断修复
+
+- [2026-08-28 10:03] codex 签退 — 完成了：读取最近更改：workbuddy 仅有 Task 8B.8 签到、无未提交代码；修复 fact_conflict_detector 空定义/空候选 KeyError 边界并补回归测试；下一步建议：继续 Task 8B.8 的 17-task 全量 Evidence Classification observe-only 审计

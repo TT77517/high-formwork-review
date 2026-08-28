@@ -244,6 +244,14 @@ def test_upper_limit_parameters_resolve_to_max_plausible_value() -> None:
     assert result["has_conflict"] is False
 
 
+def test_resolve_fact_handles_empty_definition_and_candidates() -> None:
+    result = resolve_fact({}, [])
+
+    assert result["status"] == "missing"
+    assert result["value"] is None
+    assert result["requires_human_review"] is False
+
+
 def test_review_summary_collects_human_review_queue() -> None:
     qualification = {
         "requires_human_review": True,
