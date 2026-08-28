@@ -834,3 +834,12 @@
   - Frontend：结果页可打开，legacy 图文模块显示 6 项；无 raw None/null/undefined、无 internal action trace、无 provider internals，但不是 17-task domain UI。
   - Historical 146dc endpoint smoke：当前 `.env DATA_ROOT=/Users/admin/high-formwork-data`，146dc 仅在仓库 data 下，当前 Web endpoint 返回 404；磁盘历史 job 仍存在。
   - 未改生产代码；下一步必须先做 Release Blocker Fix：Web production path 写出/消费 `agent_drawing_review.json`，再重跑 8E。
+
+- [2026-08-28 11:01] codex 签到 — 开始处理：Task 8E-R1: Web Production Path Agent Drawing Wiring Fix
+
+- [2026-08-28 15:22] codex 签退 — 完成了：Task 8E-R1 Web Production Path Agent Drawing Wiring Fix：
+  - Root cause：new-upload Web production path 仍执行 legacy drawing review，未生成 Agent Drawing domain。
+  - Fix：new jobs 只执行 Agent Drawing 一次，写 `agent_drawing_review.json`；同一权威 domain 传给 orchestrator；`drawing_review.json` 仅为空兼容壳。
+  - Validation：17 tasks persisted；legacy reviewer not executed；orchestrator/frontend API receives 17；report drawing total=17；constraint scalarization=NO。
+  - Original release blockers：BLOCKER_1=RESOLVED，BLOCKER_2=RESOLVED；full suite：418 passed / 1 skipped / 0 failed。
+  - 下一步建议：Task 8E-R2 real browser end-to-end regression。

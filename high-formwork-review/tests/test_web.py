@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 import app.web as web
+from app.drawing_integration import AgentDrawingReviewItem, AgentDrawingReviewResult
 from app.report_generator import build_review_report
 from app.models import (
     CompletenessResult,
@@ -364,6 +365,77 @@ def _mock_web_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
         web,
         "build_evidence_check_markdown",
         lambda document, summary, details: "# evidence\n",
+    )
+
+
+def _patch_fast_review_stages(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(web, "build_project_qualification", lambda *_: {})
+    monkeypatch.setattr(web, "_build_agent_review_plan", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        web,
+        "run_rule_engine_safe",
+        lambda *_: {"total_rules": 0, "results": []},
+    )
+    monkeypatch.setattr(
+        web,
+        "_run_semantic_stage",
+        lambda *_: {"total_rules": 0, "results": []},
+    )
+    monkeypatch.setattr(
+        web,
+        "run_calculation_engine_safe",
+        lambda *_: {"total_rules": 0, "results": []},
+    )
+    monkeypatch.setattr(web, "build_substantive_review", lambda *_: [])
+    monkeypatch.setattr(web, "build_consistency_review", lambda *_: [])
+    monkeypatch.setattr(web, "_get_ocr_engine", lambda: None)
+
+
+def _agent_review_result() -> AgentDrawingReviewResult:
+    statuses = ["CONSISTENT", "CONFLICT", "TEXT_ONLY", "DRAWING_ONLY", "UNCERTAIN", "NOT_FOUND"]
+    items = [
+        AgentDrawingReviewItem(
+            fact_id=f"case_{idx}",
+            display_name=status,
+            status=status,
+            reason="constraint_not_actual_value" if status == "UNCERTAIN" else "no_evidence",
+            scope_alignment="unknown",
+            text_value=900 if status == "CONFLICT" else None,
+            drawing_value=None if status == "UNCERTAIN" else 1200,
+            text_unit="mm" if status == "CONFLICT" else None,
+            drawing_unit="mm" if status == "CONFLICT" else None,
+            text_evidence_count=1,
+            drawing_evidence_count=1,
+            comparable_pair_count=1 if status == "CONFLICT" else 0,
+            finish_reason="completed",
+            iterations=2,
+        )
+        for idx, status in enumerate(statuses)
+    ]
+    items += [
+        AgentDrawingReviewItem(
+            fact_id=f"missing_{idx}",
+            display_name=f"未找到{idx}",
+            status="NOT_FOUND",
+            reason="no_candidate_pages",
+            scope_alignment="unknown",
+            finish_reason="no_usable_image",
+            iterations=1,
+        )
+        for idx in range(11)
+    ]
+    return AgentDrawingReviewResult(
+        items=items,
+        total_tasks=17,
+        status_counts={
+            "CONSISTENT": 1,
+            "CONFLICT": 1,
+            "TEXT_ONLY": 1,
+            "DRAWING_ONLY": 1,
+            "UNCERTAIN": 1,
+            "NOT_FOUND": 12,
+        },
+        reviewed_tasks=17,
     )
 
 
@@ -989,6 +1061,111 @@ def test_review_stage_status_updates_before_long_running_step(
         web._run_review_stages(job_dir, document, facts)
 
 
+def test_web_review_stage_runs_agent_drawing_once_and_persists_domain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = _completed_job(tmp_path / "jobs")
+    job_dir = tmp_path / "jobs" / job_id
+    document = web.document_from_dict(
+        json.loads((job_dir / "mineru_document.json").read_text(encoding="utf-8"))
+    )
+    facts = {"facts": {"horizontal_spacing": {"value": 900, "unit": "mm"}}}
+    calls: list[dict] = []
+
+    _patch_fast_review_stages(monkeypatch)
+
+    def fake_agent_review(document_arg, facts_arg, registry, **kwargs):
+        calls.append(
+            {
+                "document": document_arg,
+                "facts": facts_arg,
+                "registry": list(registry),
+                "kwargs": kwargs,
+            }
+        )
+        return _agent_review_result()
+
+    monkeypatch.setattr(web, "build_agent_drawing_review", fake_agent_review)
+
+    web._run_review_stages(job_dir, document, facts)
+    web._write_orchestrator_state_if_ready(job_dir)
+    build_review_report_from_job_dir = web.build_review_report_from_job_dir
+    build_review_report_from_job_dir(job_dir)
+
+    agent_payload = json.loads(
+        (job_dir / "agent_drawing_review.json").read_text(encoding="utf-8")
+    )
+    legacy_payload = json.loads((job_dir / "drawing_review.json").read_text(encoding="utf-8"))
+    orchestrator = json.loads((job_dir / "orchestrator_agent.json").read_text(encoding="utf-8"))
+
+    assert len(calls) == 1
+    assert calls[0]["document"] is document
+    assert calls[0]["facts"] is facts
+    assert len(calls[0]["registry"]) == 17
+    assert calls[0]["kwargs"]["recall_tool"] is web.recall_drawing_pages
+    assert calls[0]["kwargs"]["check_tool"] is web.cross_check_param
+    assert calls[0]["kwargs"]["ocr_tool"] is web.ocr_drawing_page
+    assert calls[0]["kwargs"]["search_text_tool"] is web.search_text_evidence
+    assert calls[0]["kwargs"]["vision_tool"] is web.inspect_drawing_page
+    assert calls[0]["kwargs"]["ocr_engine"] is None
+    assert calls[0]["kwargs"]["job_dir"] == job_dir
+
+    assert agent_payload["total_tasks"] == 17
+    assert agent_payload["reviewed_tasks"] == 17
+    assert agent_payload["status_counts"] == {
+        "CONSISTENT": 1,
+        "CONFLICT": 1,
+        "TEXT_ONLY": 1,
+        "DRAWING_ONLY": 1,
+        "UNCERTAIN": 1,
+        "NOT_FOUND": 12,
+    }
+    assert {item["status"] for item in agent_payload["items"]} == {
+        "CONSISTENT",
+        "CONFLICT",
+        "TEXT_ONLY",
+        "DRAWING_ONLY",
+        "UNCERTAIN",
+        "NOT_FOUND",
+    }
+    assert next(
+        item for item in agent_payload["items"] if item["status"] == "UNCERTAIN"
+    )["drawing_value"] is None
+    assert legacy_payload == []
+    assert orchestrator["agent_drawing_review"]["total_tasks"] == 17
+    assert orchestrator["agent_drawing_review"]["status_counts"]["NOT_FOUND"] == 12
+    assert len(calls) == 1
+
+
+def test_web_review_stage_agent_failure_does_not_fallback_to_legacy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_id = _completed_job(tmp_path / "jobs")
+    job_dir = tmp_path / "jobs" / job_id
+    document = web.document_from_dict(
+        json.loads((job_dir / "mineru_document.json").read_text(encoding="utf-8"))
+    )
+    _patch_fast_review_stages(monkeypatch)
+    calls = 0
+
+    def fail_agent_review(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("agent drawing failed")
+
+    monkeypatch.setattr(web, "build_agent_drawing_review", fail_agent_review)
+
+    with pytest.raises(RuntimeError, match="agent drawing failed"):
+        web._run_review_stages(job_dir, document, {"facts": {}})
+
+    assert calls == 1
+    assert not (job_dir / "agent_drawing_review.json").exists()
+    assert not (job_dir / "drawing_review.json").exists()
+    assert not (job_dir / "orchestrator_agent.json").exists()
+
+
 def test_rerun_applies_human_override(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1127,7 +1304,7 @@ def test_orchestrator_writer_consumes_agent_drawing_review_without_rerun(
     job_dir = web.JOBS_ROOT / job_id
     monkeypatch.setattr(
         web,
-        "build_drawing_review",
+        "build_agent_drawing_review",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not rerun drawing review")),
     )
     for name, payload in {
