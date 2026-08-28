@@ -822,3 +822,15 @@
   - Tool cost：additional Drawing Agent/Vision/OCR = 0/0/0。
   - Focused tests：56 passed；Full suite：416 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
   - NEXT_TASK：Task 8E — End-to-End Product Regression & Release Sign-Off。
+
+- [2026-08-28 11:03] codex 签到 — 开始处理：Task 8E: End-to-End Product Regression & Release Sign-Off
+
+- [2026-08-28 11:08] codex 签退 — 完成了：Task 8E End-to-End Product Regression & Release Sign-Off（observe-only；RELEASE_READY=NO）：
+  - Source gate PASS：使用 146dc 原始 `source.pdf`，SHA256 prefix `0f1f8b566db2`；REAL_UPLOAD_RUNS=1。
+  - Browser E2E：Codex in-app browser + uvicorn `127.0.0.1:8000`；新 Job `803651f374ba46e898b1373e4157c127` 创建并完成。
+  - Pipeline PASS：upload/parse cache/project_facts/completeness/rule/semantic/calculation/legacy drawing/orchestrator/report 均生成；full suite before/after 均 416 passed / 1 skipped / 0 failed。
+  - RELEASE_BLOCKER：生产 Web 路径未生成 `agent_drawing_review.json`，orchestrator 中 `agent_drawing_review.total_tasks=0`；Task 8B 17-task Drawing Agent domain 未进入新上传产品链路。
+  - Report regression：新 Job `drawing_review.json` legacy 有 6 项（PASS=5/REVIEW=1），但报告显示 `| 图文一致性审查 | 0 | 0 | 0 | 0 |`。
+  - Frontend：结果页可打开，legacy 图文模块显示 6 项；无 raw None/null/undefined、无 internal action trace、无 provider internals，但不是 17-task domain UI。
+  - Historical 146dc endpoint smoke：当前 `.env DATA_ROOT=/Users/admin/high-formwork-data`，146dc 仅在仓库 data 下，当前 Web endpoint 返回 404；磁盘历史 job 仍存在。
+  - 未改生产代码；下一步必须先做 Release Blocker Fix：Web production path 写出/消费 `agent_drawing_review.json`，再重跑 8E。
