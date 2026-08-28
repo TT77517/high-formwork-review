@@ -843,3 +843,10 @@
   - Validation：17 tasks persisted；legacy reviewer not executed；orchestrator/frontend API receives 17；report drawing total=17；constraint scalarization=NO。
   - Original release blockers：BLOCKER_1=RESOLVED，BLOCKER_2=RESOLVED；full suite：418 passed / 1 skipped / 0 failed。
   - 下一步建议：Task 8E-R2 real browser end-to-end regression。
+
+- [2026-08-28 15:50] codex 签退 — 完成了：Task 8E-RB2 Report None Rendering Release Blocker Fix：
+  - Root cause：report presentation 直接拼接 `value`/`unit` 与原始 reason/remedy，导致 `None` 和 `13.62None` 用户可见。
+  - Fix：仅在 `report_generator.py` 展示层安全格式化 value/unit/reason/remedy；不猜单位、不改底层 JSON/domain。
+  - Validation：8E-R2 Job `923233d5...` 报告全文 `None/null/undefined=0`，图文 total 仍为 17，constraint scalarization=NO。
+  - Tests：`tests/test_web.py` 46 passed；full suite：419 passed / 1 skipped / 0 failed。
+  - 下一步建议：Task 8E-R3 — Real Browser End-to-End Product Regression Re-Sign-Off。

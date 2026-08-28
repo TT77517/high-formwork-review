@@ -1392,6 +1392,77 @@ def test_report_surfaces_agent_drawing_review_without_rejudging() -> None:
     assert "不合格" not in report
 
 
+def test_report_formats_rule_values_without_none_suffixes() -> None:
+    report = build_review_report(
+        job_id="job",
+        file_name="demo.pdf",
+        project_qualification={},
+        completeness_summary={
+            "total_rules": 0,
+            "pass_count": 0,
+            "missing_count": 0,
+            "uncertain_count": 0,
+        },
+        rule_engine_results={
+            "total_rules": 4,
+            "compliant": 0,
+            "violated": 4,
+            "uncertain": 0,
+            "results": [
+                {
+                    "rule_id": "R-0",
+                    "rule_name": "零值",
+                    "status": "VIOLATED",
+                    "risk_level": "high",
+                    "actual_value": 0,
+                    "threshold": {"operator": "<=", "value": 300, "unit": "mm"},
+                    "reason": "外伸长度=0mm，不满足<=300mm要求",
+                },
+                {
+                    "rule_id": "R-1",
+                    "rule_name": "有单位",
+                    "status": "VIOLATED",
+                    "risk_level": "high",
+                    "actual_value": 1200,
+                    "threshold": {"operator": "<=", "value": 900, "unit": "mm"},
+                    "reason": "间距=1200mm，不满足<=900mm要求",
+                },
+                {
+                    "rule_id": "R-2",
+                    "rule_name": "缺单位",
+                    "status": "VIOLATED",
+                    "risk_level": "high",
+                    "actual_value": 13.62,
+                    "threshold": {"operator": "<=", "value": 3.0, "unit": None},
+                    "reason": "高宽比=13.62None，不满足<=3.0None要求",
+                    "remedy_suggestion": "调整设计参数使高宽比<=3.0None",
+                },
+                {
+                    "rule_id": "R-3",
+                    "rule_name": "缺实际值",
+                    "status": "VIOLATED",
+                    "risk_level": "high",
+                    "actual_value": None,
+                    "threshold": {"operator": "", "value": None, "unit": None},
+                    "reason": None,
+                },
+            ],
+        },
+    )
+
+    assert "实际值：—" in report
+    assert "实际值：13.62" in report
+    assert "阈值要求：<= 3.0" in report
+    assert "判定依据：高宽比=13.62，不满足<=3.0要求" in report
+    assert "整改建议：调整设计参数使高宽比<=3.0" in report
+    assert "实际值：1200mm" in report
+    assert "阈值要求：<= 900mm" in report
+    assert "实际值：0mm" in report
+    assert "None" not in report
+    assert "13.62None" not in report
+    assert "<= 3.0None" not in report
+
+
 def test_report_keeps_constraint_evidence_and_null_value_safe() -> None:
     report = build_review_report(
         job_id="job",

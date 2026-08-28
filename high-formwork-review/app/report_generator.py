@@ -166,16 +166,20 @@ def build_review_report(
         violated = [r for r in re.get("results", []) if r.get("status") == "VIOLATED"]
         for r in violated:
             th = r.get("threshold", {})
+            unit = th.get("unit")
+            actual_value = _value_unit(r.get("actual_value"), unit, missing_label="—")
+            threshold_value = _value_unit(th.get("value"), unit, missing_label="—")
+            threshold = f"{th.get('operator', '')} {threshold_value}".strip()
             lines.append(f"**{r.get('rule_id')} {r.get('rule_name')}**")
             lines.append(f"- 风险等级：{r.get('risk_level', '—')}")
-            lines.append(f"- 实际值：{r.get('actual_value', '—')}{th.get('unit', '')}")
-            lines.append(f"- 阈值要求：{th.get('operator', '')} {th.get('value', '')}{th.get('unit', '')}")
-            lines.append(f"- 判定依据：{r.get('reason', '—')}")
+            lines.append(f"- 实际值：{actual_value}")
+            lines.append(f"- 阈值要求：{threshold or '—'}")
+            lines.append(f"- 判定依据：{_format_rule_reason(r.get('reason'))}")
             code = r.get("code_ref", {})
             if code.get("standard"):
                 lines.append(f"- 规范依据：{code['standard']}")
             if r.get("remedy_suggestion"):
-                lines.append(f"- 整改建议：{r['remedy_suggestion']}")
+                lines.append(f"- 整改建议：{_format_rule_reason(r['remedy_suggestion'])}")
             lines.append("")
 
     # 4.2 规范符合性问题
@@ -319,14 +323,25 @@ def _side_str(side: dict[str, Any]) -> str:
     return str(value)
 
 
-def _value_unit(value: Any, unit: str | None) -> str:
+def _value_unit(
+    value: Any,
+    unit: str | None,
+    *,
+    missing_label: str = "未提取到可比较的实际值",
+) -> str:
     if value is None:
-        return "未提取到可比较的实际值"
+        return missing_label
     if isinstance(value, list):
         text = "/".join(str(item) for item in value)
     else:
         text = str(value)
     return f"{text}{unit or ''}"
+
+
+def _format_rule_reason(reason: Any) -> str:
+    if reason is None:
+        return "—"
+    return str(reason).replace("None", "")
 
 
 def _agent_drawing_status_label(status: str | None) -> str:
