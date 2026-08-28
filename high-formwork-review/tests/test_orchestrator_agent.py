@@ -305,6 +305,9 @@ def test_orchestrator_agent_drawing_review_does_not_scalarize_constraints():
 def test_orchestrator_agent_drawing_review_empty_result_is_safe():
     state = build_orchestrator_state(_document(), **_minimal_state_kwargs())
 
+    assert state["agent_drawing_review"]["source"] is None
+    assert state["agent_drawing_review"]["authoritative"] is False
+    assert state["agent_drawing_review"]["policy"] == "legacy_drawing_review_authoritative"
     assert state["agent_drawing_review"]["total_tasks"] == 0
     assert state["agent_drawing_review"]["items"] == []
     assert state["agent_drawing_review"]["status_counts"] == {

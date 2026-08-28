@@ -388,7 +388,6 @@ def _patch_fast_review_stages(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(web, "build_substantive_review", lambda *_: [])
     monkeypatch.setattr(web, "build_consistency_review", lambda *_: [])
-    monkeypatch.setattr(web, "_get_ocr_engine", lambda: None)
 
 
 def _agent_review_result() -> AgentDrawingReviewResult:
@@ -437,6 +436,21 @@ def _agent_review_result() -> AgentDrawingReviewResult:
         },
         reviewed_tasks=17,
     )
+
+
+def _legacy_drawing_result() -> list[dict]:
+    return [
+        {
+            "review_item_id": f"DR-{idx:02d}",
+            "title": f"图文规则{idx}",
+            "status": status,
+            "body_value": idx,
+            "drawing_value": idx,
+            "conclusion": f"legacy {status}",
+            "requires_human_review": status != "PASS",
+        }
+        for idx, status in enumerate(["PASS", "PASS", "PASS", "PASS", "PASS", "REVIEW"], 1)
+    ]
 
 
 def test_home_page_is_accessible(client: TestClient) -> None:
@@ -1061,7 +1075,7 @@ def test_review_stage_status_updates_before_long_running_step(
         web._run_review_stages(job_dir, document, facts)
 
 
-def test_web_review_stage_runs_agent_drawing_once_and_persists_domain(
+def test_web_review_stage_runs_legacy_drawing_once_without_agent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1071,74 +1085,52 @@ def test_web_review_stage_runs_agent_drawing_once_and_persists_domain(
         json.loads((job_dir / "mineru_document.json").read_text(encoding="utf-8"))
     )
     facts = {"facts": {"horizontal_spacing": {"value": 900, "unit": "mm"}}}
-    calls: list[dict] = []
+    legacy_calls: list[dict] = []
+    agent_calls = 0
 
     _patch_fast_review_stages(monkeypatch)
 
-    def fake_agent_review(document_arg, facts_arg, registry, **kwargs):
-        calls.append(
+    def fake_legacy_review(document_arg, facts_arg, **kwargs):
+        legacy_calls.append(
             {
                 "document": document_arg,
                 "facts": facts_arg,
-                "registry": list(registry),
                 "kwargs": kwargs,
             }
         )
+        return _legacy_drawing_result()
+
+    def fake_agent_review(*_args, **_kwargs):
+        nonlocal agent_calls
+        agent_calls += 1
         return _agent_review_result()
 
-    monkeypatch.setattr(web, "build_agent_drawing_review", fake_agent_review)
+    monkeypatch.setattr(web, "build_drawing_review", fake_legacy_review)
+    monkeypatch.setattr(web, "build_agent_drawing_review", fake_agent_review, raising=False)
 
     web._run_review_stages(job_dir, document, facts)
     web._write_orchestrator_state_if_ready(job_dir)
-    build_review_report_from_job_dir = web.build_review_report_from_job_dir
-    build_review_report_from_job_dir(job_dir)
 
-    agent_payload = json.loads(
-        (job_dir / "agent_drawing_review.json").read_text(encoding="utf-8")
-    )
     legacy_payload = json.loads((job_dir / "drawing_review.json").read_text(encoding="utf-8"))
     orchestrator = json.loads((job_dir / "orchestrator_agent.json").read_text(encoding="utf-8"))
 
-    assert len(calls) == 1
-    assert calls[0]["document"] is document
-    assert calls[0]["facts"] is facts
-    assert len(calls[0]["registry"]) == 17
-    assert calls[0]["kwargs"]["recall_tool"] is web.recall_drawing_pages
-    assert calls[0]["kwargs"]["check_tool"] is web.cross_check_param
-    assert calls[0]["kwargs"]["ocr_tool"] is web.ocr_drawing_page
-    assert calls[0]["kwargs"]["search_text_tool"] is web.search_text_evidence
-    assert calls[0]["kwargs"]["vision_tool"] is web.inspect_drawing_page
-    assert calls[0]["kwargs"]["ocr_engine"] is None
-    assert calls[0]["kwargs"]["job_dir"] == job_dir
-
-    assert agent_payload["total_tasks"] == 17
-    assert agent_payload["reviewed_tasks"] == 17
-    assert agent_payload["status_counts"] == {
-        "CONSISTENT": 1,
-        "CONFLICT": 1,
-        "TEXT_ONLY": 1,
-        "DRAWING_ONLY": 1,
-        "UNCERTAIN": 1,
-        "NOT_FOUND": 12,
+    assert len(legacy_calls) == 1
+    assert legacy_calls[0]["document"] is document
+    assert legacy_calls[0]["facts"] is facts
+    assert legacy_calls[0]["kwargs"]["job_dir"] == job_dir
+    assert agent_calls == 0
+    assert not (job_dir / "agent_drawing_review.json").exists()
+    assert legacy_payload == _legacy_drawing_result()
+    assert orchestrator["agent_drawing_review"]["authoritative"] is False
+    assert orchestrator["tool_observations"][3]["input"]["comparison_items"] == 6
+    assert orchestrator["tool_observations"][3]["output"] == {
+        "pass": 5,
+        "issue": 0,
+        "review": 1,
     }
-    assert {item["status"] for item in agent_payload["items"]} == {
-        "CONSISTENT",
-        "CONFLICT",
-        "TEXT_ONLY",
-        "DRAWING_ONLY",
-        "UNCERTAIN",
-        "NOT_FOUND",
-    }
-    assert next(
-        item for item in agent_payload["items"] if item["status"] == "UNCERTAIN"
-    )["drawing_value"] is None
-    assert legacy_payload == []
-    assert orchestrator["agent_drawing_review"]["total_tasks"] == 17
-    assert orchestrator["agent_drawing_review"]["status_counts"]["NOT_FOUND"] == 12
-    assert len(calls) == 1
 
 
-def test_web_review_stage_agent_failure_does_not_fallback_to_legacy(
+def test_web_review_stage_legacy_failure_does_not_run_agent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1148,19 +1140,27 @@ def test_web_review_stage_agent_failure_does_not_fallback_to_legacy(
         json.loads((job_dir / "mineru_document.json").read_text(encoding="utf-8"))
     )
     _patch_fast_review_stages(monkeypatch)
-    calls = 0
+    legacy_calls = 0
+    agent_calls = 0
 
-    def fail_agent_review(*_args, **_kwargs):
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("agent drawing failed")
+    def fail_legacy_review(*_args, **_kwargs):
+        nonlocal legacy_calls
+        legacy_calls += 1
+        raise RuntimeError("legacy drawing failed")
 
-    monkeypatch.setattr(web, "build_agent_drawing_review", fail_agent_review)
+    def fake_agent_review(*_args, **_kwargs):
+        nonlocal agent_calls
+        agent_calls += 1
+        return _agent_review_result()
 
-    with pytest.raises(RuntimeError, match="agent drawing failed"):
+    monkeypatch.setattr(web, "build_drawing_review", fail_legacy_review)
+    monkeypatch.setattr(web, "build_agent_drawing_review", fake_agent_review, raising=False)
+
+    with pytest.raises(RuntimeError, match="legacy drawing failed"):
         web._run_review_stages(job_dir, document, {"facts": {}})
 
-    assert calls == 1
+    assert legacy_calls == 1
+    assert agent_calls == 0
     assert not (job_dir / "agent_drawing_review.json").exists()
     assert not (job_dir / "drawing_review.json").exists()
     assert not (job_dir / "orchestrator_agent.json").exists()
@@ -1306,6 +1306,7 @@ def test_orchestrator_writer_consumes_agent_drawing_review_without_rerun(
         web,
         "build_agent_drawing_review",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not rerun drawing review")),
+        raising=False,
     )
     for name, payload in {
         "project_facts.json": {"facts": {}},
@@ -1373,6 +1374,15 @@ def test_frontend_static_supports_agent_drawing_six_status_presentation() -> Non
     assert "不合格" not in script[script.index("DRAWING_AGENT_STATUS_CN"):script.index("const DRAWING_SCOPE_CN")]
 
 
+def test_frontend_static_ignores_non_authoritative_empty_agent_domain() -> None:
+    script = (web.PROJECT_ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert "domain.authoritative === false" in script
+    assert "需人工复核" in script
+    assert "一致" in script
+    assert "不一致" in script
+
+
 def test_report_surfaces_agent_drawing_review_without_rejudging() -> None:
     report = build_review_report(
         job_id="job",
@@ -1390,6 +1400,31 @@ def test_report_surfaces_agent_drawing_review_without_rejudging() -> None:
     assert "图文冲突" in report
     assert "未找到足够证据" in report
     assert "不合格" not in report
+
+
+def test_report_uses_legacy_drawing_review_when_agent_domain_empty() -> None:
+    report = build_review_report(
+        job_id="job",
+        file_name="demo.pdf",
+        project_qualification={},
+        completeness_summary={"total_rules": 0, "pass_count": 0, "missing_count": 0, "uncertain_count": 0},
+        drawing_review=_legacy_drawing_result(),
+        agent_drawing_review={
+            "source": None,
+            "total_tasks": 0,
+            "reviewed_tasks": 0,
+            "status_counts": {},
+            "items": [],
+            "authoritative": False,
+            "policy": "legacy_drawing_review_authoritative",
+        },
+    )
+
+    assert "| 图文一致性审查 | 6 | 5 | 0 | 1 |" in report
+    assert "检查项：6；一致：5；不一致：0；需人工复核：1" in report
+    assert "图文规则6" in report
+    assert "legacy REVIEW" in report
+    assert "检查项：17" not in report
 
 
 def test_report_formats_rule_values_without_none_suffixes() -> None:

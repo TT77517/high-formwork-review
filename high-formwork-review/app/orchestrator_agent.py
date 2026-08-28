@@ -408,13 +408,13 @@ def _agent_drawing_review_domain(payload: Any | None) -> dict[str, Any]:
 
 def _empty_agent_drawing_domain() -> dict[str, Any]:
     return {
-        "source": "drawing_consistency_agent",
+        "source": None,
         "total_tasks": 0,
         "reviewed_tasks": 0,
         "status_counts": {status: 0 for status in AGENT_DRAWING_STATUSES},
         "items": [],
-        "authoritative": True,
-        "policy": "domain_status_authoritative_no_orchestrator_rejudge",
+        "authoritative": False,
+        "policy": "legacy_drawing_review_authoritative",
     }
 
 

@@ -139,11 +139,11 @@ def build_review_report(
     lines.append(f"| 参数一致性检查 | {cos_total} | {cos_pass} | {cos_issue} | {cos_review} |")
 
     dr = drawing_review or []
-    adr = agent_drawing_review or {}
+    adr = agent_drawing_review if _has_agent_drawing_result(agent_drawing_review) else {}
     adr_counts = adr.get("status_counts") or {}
     dr_total = adr.get("total_tasks", len(dr))
-    dr_ok = adr_counts.get("CONSISTENT", "—")
-    dr_issue = adr_counts.get("CONFLICT", "—")
+    dr_ok = adr_counts.get("CONSISTENT", sum(1 for i in dr if i.get("status") == "PASS"))
+    dr_issue = adr_counts.get("CONFLICT", sum(1 for i in dr if i.get("status") == "ISSUE"))
     dr_review = (
         adr_counts.get("UNCERTAIN", 0)
         + adr_counts.get("TEXT_ONLY", 0)
@@ -247,6 +247,21 @@ def build_review_report(
             for evidence in (item.get("drawing_evidence") or [])[:2]:
                 lines.append(f"  - 图纸证据：第{evidence.get('physical_page') or evidence.get('page') or '—'}页，{evidence.get('quote') or evidence.get('evidence_text') or evidence.get('text') or '—'}")
         lines.append("")
+    elif dr:
+        lines.append("### 4.5 图文一致性审查")
+        lines.append("")
+        lines.append(
+            f"- 检查项：{dr_total}；一致：{dr_ok}；不一致：{dr_issue}；需人工复核：{dr_review}"
+        )
+        lines.append("")
+        for item in dr:
+            if item.get("status") == "PASS":
+                continue
+            lines.append(
+                f"- **{item.get('title') or item.get('review_item_id')}**："
+                f"{item.get('status', '—')}；{item.get('conclusion', '—')}"
+            )
+        lines.append("")
 
     # ===== 五、人工复核记录 =====
     if decisions:
@@ -321,6 +336,10 @@ def _side_str(side: dict[str, Any]) -> str:
     if value is None:
         return "未识别"
     return str(value)
+
+
+def _has_agent_drawing_result(payload: Any) -> bool:
+    return isinstance(payload, dict) and bool(payload.get("items"))
 
 
 def _value_unit(

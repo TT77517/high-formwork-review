@@ -850,3 +850,13 @@
   - Validation：8E-R2 Job `923233d5...` 报告全文 `None/null/undefined=0`，图文 total 仍为 17，constraint scalarization=NO。
   - Tests：`tests/test_web.py` 46 passed；full suite：419 passed / 1 skipped / 0 failed。
   - 下一步建议：Task 8E-R3 — Real Browser End-to-End Product Regression Re-Sign-Off。
+
+- [2026-08-28 16:16] codex 签退 — 完成了：Task 8F Freeze Drawing Agent Branch & Restore Legacy Drawing Production Path：
+  - Frozen branch：`feature/drawing-agent` 已从当前 Agent-enabled HEAD `a698878` 创建并 push（包含 8E-R1 + RB2）。
+  - Main path：new Web jobs 只执行 legacy `build_drawing_review(...)` 一次；不执行/导入 `build_agent_drawing_review(...)`；不生成新 `agent_drawing_review.json`。
+  - Orchestrator/report/frontend：空 Agent domain 标记 `authoritative=false`，main UI/report 使用 legacy `drawing_review.json`；历史非空 Agent artifact 仍可读取展示。
+  - Agent code retained：`drawing_agent.py` / `drawing_compare.py` / `drawing_scope.py` / `drawing_vision.py` / `drawing_integration.py` 均保留。
+  - Validation：focused 90 passed；full suite 421 passed / 1 skipped / 0 failed。
+  - Production smoke：真实上传 Job `3cf57ee0...` completed；legacy drawing 6 项（PASS=5/ISSUE=0/REVIEW=1）；agent artifact absent；report no Agent 17 summary。
+  - Browser note：in-app browser 对 `127.0.0.1` 读取被工具 URL policy 阻止；已用真实 HTTP upload path 补充产品 smoke。
+  - 下一步建议：Task 9A — Competition Effect Evaluation。

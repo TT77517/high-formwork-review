@@ -25,16 +25,7 @@ from .completeness_review import (
 )
 from .consistency_review import build_consistency_review
 from .dify_config import resolve_dify_completeness_mode
-from .drawing_integration import build_agent_drawing_review
-from .drawing_review import (
-    DRAWING_PARAM_REGISTRY,
-    _get_ocr_engine,
-    cross_check_param,
-    ocr_drawing_page,
-    recall_drawing_pages,
-    search_text_evidence,
-)
-from .drawing_vision import inspect_drawing_page
+from .drawing_review import build_drawing_review
 from .mineru_cache import (
     CACHE_ROOT,
     ParseCacheInfo,
@@ -1370,13 +1361,11 @@ def _run_review_stages(
         "计算参数一致性工具（正文 vs 计算书）",
         lambda: build_consistency_review(project_facts, document),
     )
-    agent_drawing_review = _timed(
+    drawing_review = _timed(
         "drawing_review",
-        "图文一致性 Agent（正文 vs 图纸）",
-        lambda: _build_agent_drawing_review_payload(document, project_facts, job_dir),
+        "图文一致性工具（正文 vs 图纸 OCR）",
+        lambda: build_drawing_review(document, project_facts, job_dir=job_dir),
     )
-    # 新任务以 Agent domain 为权威；legacy drawing_review.json 仅保留为空兼容壳。
-    drawing_review: list[dict[str, Any]] = []
     # 合并前段计时（MinerU/完整性），整体重写 stage_timings.json
     timings_path = job_dir / "stage_timings.json"
     merged = dict(timings)
@@ -1401,7 +1390,6 @@ def _run_review_stages(
     _atomic_write_json(job_dir / "calculation_results.json", calculation_result)
     _atomic_write_json(job_dir / "substantive_review.json", substantive_review)
     _atomic_write_json(job_dir / "consistency_review.json", consistency_review)
-    _atomic_write_json(job_dir / "agent_drawing_review.json", agent_drawing_review)
     _atomic_write_json(job_dir / "drawing_review.json", drawing_review)
     _atomic_write_json(
         job_dir / "review_results.json",
@@ -1423,30 +1411,7 @@ def _run_review_stages(
             ],
         ),
     )
-    _write_orchestrator_state_if_ready(
-        job_dir,
-        agent_drawing_review=agent_drawing_review,
-    )
-
-
-def _build_agent_drawing_review_payload(
-    document: MinerUDocument,
-    project_facts: dict[str, Any],
-    job_dir: Path,
-) -> dict[str, Any]:
-    result = build_agent_drawing_review(
-        document,
-        project_facts,
-        DRAWING_PARAM_REGISTRY,
-        recall_tool=recall_drawing_pages,
-        check_tool=cross_check_param,
-        ocr_tool=ocr_drawing_page,
-        search_text_tool=search_text_evidence,
-        vision_tool=inspect_drawing_page,
-        ocr_engine=_get_ocr_engine(),
-        job_dir=job_dir,
-    )
-    return asdict(result)
+    _write_orchestrator_state_if_ready(job_dir)
 
 
 class RerunInput(BaseModel):

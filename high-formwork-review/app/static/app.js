@@ -209,6 +209,7 @@ function _toolReviewDone(summary) {
 function _agentDrawingDomain() {
   const domain = orchestratorData?.agent_drawing_review || orchestratorData?.tool_observations?.find(o => o.tool_id === 'drawing_review')?.agent_domain || null;
   if (!domain) return null;
+  if (domain.authoritative === false) return null;
   const counts = domain.status_counts || {};
   const hasCount = Object.values(counts).some(v => Number(v) > 0);
   return (Number(domain.total_tasks || 0) > 0 || (domain.items || []).length || hasCount) ? domain : null;
