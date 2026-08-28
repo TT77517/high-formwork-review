@@ -769,3 +769,15 @@
 - [2026-08-28 10:02] codex 签到 — 开始处理：读取最近更改并续接 workbudy 中断修复
 
 - [2026-08-28 10:03] codex 签退 — 完成了：读取最近更改：workbuddy 仅有 Task 8B.8 签到、无未提交代码；修复 fact_conflict_detector 空定义/空候选 KeyError 边界并补回归测试；下一步建议：继续 Task 8B.8 的 17-task 全量 Evidence Classification observe-only 审计
+
+- [2026-08-28 10:06] codex 签到 — 开始处理：Task 8B.8: Drawing Evidence Acquisition Finalization
+
+- [2026-08-28 10:20] codex 签退 — 完成了：Task 8B.8 Drawing Evidence Acquisition Finalization（17-task production evidence classification，observe-only；0 production/test/registry/prompt change）：
+  - Pure production `build_agent_drawing_review(...)` 真实跑完 JOB `146dc530dd964a30a2d4f29410738e4d`，TASKS=17；asset gate：890/890 file image paths resolvable，32 directory placeholders ignored。
+  - Status distribution：CONSISTENT=0 / CONFLICT=0 / TEXT_ONLY=3 / DRAWING_ONLY=0 / UNCERTAIN=2 / NOT_FOUND=12。
+  - Evidence class distribution：ACTUAL_DRAWING_VALUE=0 / DRAWING_CONSTRAINT=1 / TEXT_TABLE_ONLY=3 / NO_CANDIDATE=3 / NO_USABLE_IMAGE=2 / VALUE_NOT_VISIBLE=2 / ATTRIBUTION_UNCLEAR=3 / COMPARISON_BLOCKED=1 / NO_RELEVANT_EVIDENCE=2（sum=17）。
+  - Raw DrawingEvidence coverage=2/17（`horizontal_spacing`, `support_height`）；Actual Drawing Value coverage=1/17（`horizontal_spacing`）；Comparator eligible=0/17。
+  - Critical corrections：`support_height` = DRAWING_CONSTRAINT（`H≤8m` 不当作 `H=8m`）；page21 head-jack = ATTRIBUTION_UNCLEAR；`horizontal_spacing` actual value blocked by scope_unknown；`main_beam_spacing`/`panel_stringer_spacing` = NO_USABLE_IMAGE；`monitoring_point_spacing` = VALUE_NOT_VISIBLE。
+  - FINAL_FIX_REQUIRED=NO：没有满足小范围高收益低风险的 production bug；Prompt/Recall/Scope/Comparator/constraint semantics 均进 backlog，不在 8B.8 实施。
+  - Artifacts（tmp ignored）：`tmp/drawing_evidence_finalization_8b8/{task_evidence_matrix.json,evidence_classification.json,coverage_summary.json,audit_summary.md}`。
+  - Tests before/after：409 passed / 1 skipped / 0 failed（1 LibreSSL warning）。NEXT_TASK：Task 8B.9 — Final 17-Task Production Regression；8B.9 后结束 8B。
