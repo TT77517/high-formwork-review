@@ -11,6 +11,9 @@ const SEVERITY_CN = { 'A-mandatory':'A级强制','B-required':'B级应执行','C
 const MODULE_CN = { '01_procedure_compliance':'程序合规','02_load_values':'荷载取值','03_structural_calculation':'结构计算','04_construction_requirements':'构造要求','05_material_requirements':'材料要求','06_safety_measures':'安全措施' };
 const UNCERTAINTY_CN = { missing_content:'真缺内容', missing_parameter:'缺参数', insufficient_evidence:'证据不足', broad_rule:'规则过宽' };
 const SEMANTIC_MODE_CN = { agent:'规范Agent已启用', dify:'Dify批式审查', local:'本地规则审查', agent_llm_semantic:'Agent混合审查', dify_semantic:'Dify批式审查', local_semantic:'本地规则审查' };
+const DRAWING_AGENT_STATUS_CN = { CONSISTENT:'图文一致', CONFLICT:'图文冲突', TEXT_ONLY:'仅文本有证据', DRAWING_ONLY:'仅图纸有证据', UNCERTAIN:'暂无法确定', NOT_FOUND:'未找到足够证据' };
+const DRAWING_AGENT_REASON_CN = { values_equal:'文本与图纸同一作用范围下参数值一致', values_differ:'文本与图纸同一作用范围下参数值不一致', text_evidence_only:'仅找到文本侧证据', drawing_evidence_only:'仅找到图纸侧证据', scope_unknown:'文本与图纸的作用部位无法可靠对应', scope_incompatible:'文本与图纸作用范围不一致', no_evidence:'未找到足够文本或图纸证据', no_candidate_pages:'未召回到可靠的图纸候选页', no_usable_image:'找到相关页面，但没有可用于视觉核验的图像', value_not_visible:'图中存在相关构造，但目标数值无法可靠读取', constraint_not_actual_value:'图中信息为约束条件，不是实际参数取值' };
+const DRAWING_SCOPE_CN = { compatible:'作用范围一致', incompatible:'作用范围不一致', unknown:'作用范围无法确定' };
 const ORCH_FLOW = [
   ['mineru_parsing', '解析取证'],
   ['review_plan', '识别与计划'],
@@ -203,6 +206,13 @@ function _toolReviewDone(summary) {
     && (!!calcData || !!summary?.consistency_total)
     && Number.isFinite(Number(summary?.drawing_total));
 }
+function _agentDrawingDomain() {
+  const domain = orchestratorData?.agent_drawing_review || orchestratorData?.tool_observations?.find(o => o.tool_id === 'drawing_review')?.agent_domain || null;
+  if (!domain) return null;
+  const counts = domain.status_counts || {};
+  const hasCount = Object.values(counts).some(v => Number(v) > 0);
+  return (Number(domain.total_tasks || 0) > 0 || (domain.items || []).length || hasCount) ? domain : null;
+}
 function _flowState(stage) {
   if (!curJob) return 'pending';
   if (stage === 'manual') return (preData?.human_review_queue||[]).length ? 'warn' : 'done';
@@ -274,7 +284,7 @@ function renderOrchestratorPanel() {
         <button class="tool-card" onclick="switchTab('review')"><b>完整性审查工具</b>${_toolStatusLabel(!!revData, (comp.missing_count||0)+(comp.uncertain_count||0)>0)}<small>${comp.pass_count||0}/${comp.total_rules||10} 已识别</small><small class="tool-meta">观测：${obsById.completeness_review ? '已落盘' : '汇总生成'}</small></button>
         <button class="tool-card" onclick="switchTab('semantic')"><b>规范审查 Agent</b>${_toolStatusLabel(!!semanticData || !!ruleEngineData, semanticSummary.violated>0)}<small>合规 ${semanticSummary.compliant}/${semanticSummary.total} · 违规 ${semanticSummary.violated} · 无法判定 ${semanticSummary.uncertain}</small><small class="tool-meta">路由：本地 ${localCount} · LLM ${llmCount} · Agent ${agentCount} · 人工 ${humanRouteCount}</small></button>
         <button class="tool-card" onclick="switchTab('calculation')"><b>计算校核工具</b>${_toolStatusLabel(calculationSummary.total>0, calcWarn)}<small>通过 ${calculationSummary.compliant}/${calculationSummary.total} · 问题 ${calculationSummary.violated}</small><small class="tool-meta">公式 ${calcData?.total_rules||0} · 参数 ${calculationSummary.consistencyTotal} · 复算 ${formulaRecalcCount}</small></button>
-        <button class="tool-card" onclick="switchTab('drawing')"><b>图文一致性工具</b>${_toolStatusLabel((summary.drawing_total||0)>0, (summary.drawing_review||0)>0)}<small>${summary.drawing_total||0} 项对比 · 需复核 ${summary.drawing_review||0}</small><small class="tool-meta">Agent追证：${obsById.drawing_review?.evidence_chase?.semantic_agent_trace_available ? '已接入' : '按证据链联动'}</small></button>
+        <button class="tool-card" onclick="switchTab('drawing')"><b>图文一致性工具</b>${_toolStatusLabel((_agentDrawingDomain()?.total_tasks||summary.drawing_total||0)>0, (_agentDrawingDomain()?.status_counts?.CONFLICT||0)+(_agentDrawingDomain()?.status_counts?.UNCERTAIN||0)>0 || (summary.drawing_review||0)>0)}<small>${_agentDrawingDomain()?.total_tasks||summary.drawing_total||0} 项对比 · 冲突 ${_agentDrawingDomain()?.status_counts?.CONFLICT||0} · 暂无法确定 ${_agentDrawingDomain()?.status_counts?.UNCERTAIN||0}</small><small class="tool-meta">Agent追证：${_agentDrawingDomain() ? '域结果已接入' : '按证据链联动'}</small></button>
       </div>
       ${manualCount ? `<div class="agent-alert">人工复核队列 ${manualCount} 项，Agent 汇总后等待确认或重跑。</div>` : ''}
     </div>`;
@@ -1283,6 +1293,8 @@ function openConsDrawer(id) {
 let drawState = { page: 1, size: 10 };
 let drawFilter = 'all';
 function renderDrawing() {
+  const domain = _agentDrawingDomain();
+  if (domain) return renderAgentDrawing(domain);
   const items = preData?.drawing_review||[]; const s = preData?.summary||{};
   $('#drawingStats').innerHTML = statCardsHtml([
     ['all','检查项',s.drawing_total??items.length],
@@ -1301,6 +1313,54 @@ function renderDrawing() {
   $('#drawingPager').innerHTML = pagerHtml(drawState, filtered.length);
   bindPager('#drawingPager', drawState, renderDrawing);
   $$('#drawingRows .btn-detail').forEach(b => b.addEventListener('click', () => openDrawingDrawer(b.dataset.id)));
+}
+function renderAgentDrawing(domain) {
+  const items = domain.items || [];
+  const c = domain.status_counts || {};
+  $('#drawingStats').innerHTML = statCardsHtml([
+    ['all','检查项',domain.total_tasks ?? items.length],
+    ['CONSISTENT','图文一致',c.CONSISTENT ?? 0],
+    ['CONFLICT','图文冲突',c.CONFLICT ?? 0],
+    ['UNCERTAIN','暂无法确定',c.UNCERTAIN ?? 0],
+    ['TEXT_ONLY','仅文本',c.TEXT_ONLY ?? 0],
+    ['DRAWING_ONLY','仅图纸',c.DRAWING_ONLY ?? 0],
+    ['NOT_FOUND','未找到证据',c.NOT_FOUND ?? 0]
+  ], drawFilter);
+  $$('#drawingStats .stat-card').forEach(card => card.addEventListener('click', () => { drawFilter = card.dataset.f; drawState.page = 1; renderDrawing(); }));
+  const filtered = items.filter(i => drawFilter === 'all' || i.status === drawFilter);
+  const shown = slicePage(filtered, drawState);
+  $('#drawingRows').innerHTML = shown.length ? shown.map((i, idx) => {
+    return `<tr><td><b>${esc(i.fact_id||`DR-${idx+1}`)}</b></td><td>${esc(i.display_name||i.fact_id||'图文参数')}</td><td>${drawingValueHtml(i.text_value, i.text_unit)}</td><td>${drawingValueHtml(i.drawing_value, i.drawing_unit)}</td><td><span class="status-chip status-${esc(i.status)}">${esc(DRAWING_AGENT_STATUS_CN[i.status]||i.status||'未知')}</span><br><small>${esc(DRAWING_AGENT_REASON_CN[i.reason]||i.reason||'')}</small></td><td><button class="btn-small btn-detail" data-id="${esc(i.fact_id||idx)}">详情</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-tertiary)">暂无图文一致性审查结果</td></tr>';
+  $('#drawingPager').innerHTML = pagerHtml(drawState, filtered.length);
+  bindPager('#drawingPager', drawState, renderDrawing);
+  $$('#drawingRows .btn-detail').forEach((button, idx) => button.addEventListener('click', () => openAgentDrawingDrawer(button.dataset.id, idx)));
+}
+function drawingValueHtml(value, unit) {
+  if (value === null || value === undefined) return '<span style="color:var(--text-tertiary)">未提取到可比较的实际值</span>';
+  const text = Array.isArray(value) ? value.join('/') : `${value}`;
+  return `<b>${esc(text)}</b>${unit ? esc(unit) : ''}`;
+}
+function drawingEvidenceHtml(list, emptyText) {
+  return (list||[]).map(e => {
+    const pg = e.physical_page ?? e.page;
+    const quote = e.quote || e.evidence_text || e.text || '';
+    return `<div class="evidence-block"><div class="meta"><span><b>${pg ? `第 ${pg} 页` : '页码未提供'}</b></span></div>${evThumb(e, pg)}<blockquote>${esc(quote)}</blockquote></div>`;
+  }).join('') || `<p style="color:var(--text-tertiary)">${emptyText}</p>`;
+}
+function openAgentDrawingDrawer(id, fallbackIndex) {
+  const items = _agentDrawingDomain()?.items || [];
+  const item = items.find(i => String(i.fact_id) === String(id)) || items[fallbackIndex]; if (!item) return;
+  $('#drawingDrawerTitle').textContent = `${item.fact_id || 'drawing'} — ${item.display_name || '图文一致性'}`;
+  const textEvidence = drawingEvidenceHtml(item.text_evidence || item.text_evidences, '未提供文本证据明细');
+  const drawingEvidence = drawingEvidenceHtml(item.drawing_evidence || item.drawing_evidences, '未提供图纸证据明细');
+  const compareHint = item.comparable_pair_count ? '已有可比较证据对' : '当前证据不足以进行确定性比较';
+  $('#drawingDrawerBody').innerHTML = `<div class="detail-section"><h4>审查结果</h4><p><span class="status-chip status-${esc(item.status)}">${esc(DRAWING_AGENT_STATUS_CN[item.status]||item.status||'未知')}</span></p><p>${esc(DRAWING_AGENT_REASON_CN[item.reason]||item.reason||'')}</p><p><small>machine status: ${esc(item.status||'')} · reason: ${esc(item.reason||'')}</small></p></div><div class="detail-section"><h4>参数值</h4><div class="cmp-grid"><div class="cmp-side"><h5>文本侧实际值</h5><div class="cmp-val">${drawingValueHtml(item.text_value, item.text_unit)}</div></div><div class="cmp-side"><h5>图纸侧实际值</h5><div class="cmp-val">${drawingValueHtml(item.drawing_value, item.drawing_unit)}</div></div></div><p style="color:var(--text-tertiary)">${esc(DRAWING_SCOPE_CN[item.scope_alignment]||item.scope_alignment||'作用范围未提供')}；${esc(compareHint)}</p></div>${foldDetailHtml('文本证据', textEvidence, false)}${foldDetailHtml('图纸证据', drawingEvidence, false)}`;
+  $('#drawingDetailPanel').classList.remove('hidden');
+  $$('#drawingDrawerBody .jq-page').forEach(b => b.addEventListener('click', () => openPageDrawer(+b.dataset.page)));
+  const drawer = $('#drawingDetailPanel');
+  drawer.querySelector('.drawer-close').onclick = () => drawer.classList.add('hidden');
+  drawer.onclick = e => { if (e.target === drawer) drawer.classList.add('hidden'); };
 }
 function openDrawingDrawer(id) {
   const items = preData?.drawing_review||[];

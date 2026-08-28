@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 import app.main as main_module
 import app.web as web
+from app.report_generator import build_review_report
 from app.models import (
     CompletenessResult,
     CompletenessSummary,
@@ -213,6 +214,63 @@ def _completed_job_with_all_rules(root: Path) -> str:
 
 def _write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+
+def _agent_drawing_payload() -> dict:
+    return {
+        "total_tasks": 17,
+        "reviewed_tasks": 17,
+        "status_counts": {
+            "CONSISTENT": 1,
+            "CONFLICT": 1,
+            "TEXT_ONLY": 3,
+            "DRAWING_ONLY": 1,
+            "UNCERTAIN": 2,
+            "NOT_FOUND": 12,
+        },
+        "items": [
+            {
+                "fact_id": "horizontal_spacing",
+                "display_name": "立杆横距",
+                "status": "UNCERTAIN",
+                "reason": "scope_unknown",
+                "scope_alignment": "unknown",
+                "text_value": 1.2,
+                "text_unit": "m",
+                "drawing_value": 1200,
+                "drawing_unit": "mm",
+                "text_evidence": [{"page": 109, "quote": "立杆横距1.2m"}],
+                "drawing_evidence": [{"physical_page": 109, "quote": "横向间距lb(mm) 1200"}],
+            },
+            {
+                "fact_id": "support_height",
+                "display_name": "搭设高度",
+                "status": "UNCERTAIN",
+                "reason": "constraint_not_actual_value",
+                "scope_alignment": "unknown",
+                "drawing_value": None,
+                "drawing_evidence": [{"physical_page": 22, "quote": "H≤8m"}],
+            },
+            {
+                "fact_id": "base_jack_insertion_length",
+                "display_name": "可调底座插入长度",
+                "status": "NOT_FOUND",
+                "reason": "no_candidate_pages",
+                "scope_alignment": "unknown",
+                "drawing_value": None,
+            },
+            *[
+                {
+                    "fact_id": status.lower(),
+                    "display_name": status,
+                    "status": status,
+                    "reason": "no_evidence",
+                    "scope_alignment": "unknown",
+                }
+                for status in ("CONSISTENT", "CONFLICT", "TEXT_ONLY", "DRAWING_ONLY")
+            ],
+        ],
+    }
 
 
 def _pending_job(root: Path) -> str:
@@ -1124,3 +1182,49 @@ def test_orchestrator_writer_consumes_agent_drawing_review_without_rerun(
     assert domain["items"][0]["status"] == "CONFLICT"
     assert domain["items"][1]["drawing_value"] is None
     assert state["tool_observations"][3]["output"]["issue"] == 1
+
+
+def test_frontend_static_supports_agent_drawing_six_status_presentation() -> None:
+    script = (web.PROJECT_ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
+
+    for label in ["图文一致", "图文冲突", "仅文本有证据", "仅图纸有证据", "暂无法确定", "未找到足够证据"]:
+        assert label in script
+    assert "machine status" in script
+    assert "未提取到可比较的实际值" in script
+    assert "DRAWING_AGENT_STATUS_CN" in script
+    assert "DRAWING_AGENT_REASON_CN" in script
+    assert "不合格" not in script[script.index("DRAWING_AGENT_STATUS_CN"):script.index("const DRAWING_SCOPE_CN")]
+
+
+def test_report_surfaces_agent_drawing_review_without_rejudging() -> None:
+    report = build_review_report(
+        job_id="job",
+        file_name="demo.pdf",
+        project_qualification={},
+        completeness_summary={"total_rules": 0, "pass_count": 0, "missing_count": 0, "uncertain_count": 0},
+        agent_drawing_review=_agent_drawing_payload(),
+    )
+
+    assert "图文一致性审查" in report
+    assert "检查项：17" in report
+    assert "暂无法确定：2" in report
+    assert "未找到足够证据：12" in report
+    assert "立杆横距**：暂无法确定；文本与图纸的作用部位无法可靠对应" in report
+    assert "图文冲突" in report
+    assert "未找到足够证据" in report
+    assert "不合格" not in report
+
+
+def test_report_keeps_constraint_evidence_and_null_value_safe() -> None:
+    report = build_review_report(
+        job_id="job",
+        file_name="demo.pdf",
+        project_qualification={},
+        completeness_summary={"total_rules": 0, "pass_count": 0, "missing_count": 0, "uncertain_count": 0},
+        agent_drawing_review=_agent_drawing_payload(),
+    )
+
+    assert "H≤8m" in report
+    assert "图纸侧实际值：未提取到可比较的实际值" in report
+    assert "图纸侧实际值：8m" not in report
+    assert "图纸侧实际值：0" not in report

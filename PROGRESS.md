@@ -808,3 +808,17 @@
   - 8B.9 artifact smoke：JOB `146dc530dd964a30a2d4f29410738e4d` received=17，status_counts=0/0/3/0/2/12，extra Vision/OCR=0。
   - Full suite：413 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
   - NEXT_TASK：Task 8D — Drawing Review Frontend / Report Integration。
+
+- [2026-08-28 10:36] codex 签到 — 开始处理：Task 8D: Drawing Review Frontend / Report Integration
+
+- [2026-08-28 10:50] codex 签退 — 完成了：Task 8D Drawing Review Frontend / Report Integration（presentation-only；未改 Drawing Agent/vision/compare/scope/registry/recall/OCR）：
+  - Frontend：图文一致性 tab 优先消费 `orchestrator_agent.json.agent_drawing_review`，支持六态 CONSISTENT/CONFLICT/TEXT_ONLY/DRAWING_ONLY/UNCERTAIN/NOT_FOUND。
+  - 展示语义：machine status/reason 保留，中文 label/reason 独立映射；UNCERTAIN 不显示为冲突，NOT_FOUND 不显示为不合格。
+  - Summary：直接消费 backend deterministic `total_tasks/status_counts`；旧 job 缺失或空 agent domain 时安全回落 legacy `drawing_review`。
+  - Detail：展示文本/图纸侧实际值、单位、scope alignment、reason、可用 evidence 与页码；null value 显示为“未提取到可比较的实际值”。
+  - Report：Markdown 报告接入 agent drawing summary 与非一致项列表；不重新判定、不 scalarize constraint。
+  - Constraint safety：`support_height` 的 `drawing_value=null` 不渲染为 8m；若 backend 提供 `H≤8m` evidence，可作为图纸证据原文展示。
+  - Real 146dc smoke：received=17，status_counts=0/0/3/0/2/12；`horizontal_spacing`=暂无法确定/scope_unknown；no-candidate 显示证据不足语义。
+  - Tool cost：additional Drawing Agent/Vision/OCR = 0/0/0。
+  - Focused tests：56 passed；Full suite：416 passed / 1 skipped / 0 failed（1 LibreSSL warning）。
+  - NEXT_TASK：Task 8E — End-to-End Product Regression & Release Sign-Off。

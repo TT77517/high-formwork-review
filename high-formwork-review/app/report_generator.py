@@ -22,6 +22,7 @@ def build_review_report(
     substantive_review: list[dict[str, Any]] | None = None,
     consistency_review: list[dict[str, Any]] | None = None,
     drawing_review: list[dict[str, Any]] | None = None,
+    agent_drawing_review: dict[str, Any] | None = None,
     decisions: list[dict[str, Any]] | None = None,
     document_meta: dict[str, Any] | None = None,
 ) -> str:
@@ -138,9 +139,20 @@ def build_review_report(
     lines.append(f"| 参数一致性检查 | {cos_total} | {cos_pass} | {cos_issue} | {cos_review} |")
 
     dr = drawing_review or []
-    dr_total = len(dr)
-    dr_review = sum(1 for i in dr if i.get("requires_human_review"))
-    lines.append(f"| 图文复核提示 | {dr_total} | — | — | {dr_review} |")
+    adr = agent_drawing_review or {}
+    adr_counts = adr.get("status_counts") or {}
+    dr_total = adr.get("total_tasks", len(dr))
+    dr_ok = adr_counts.get("CONSISTENT", "—")
+    dr_issue = adr_counts.get("CONFLICT", "—")
+    dr_review = (
+        adr_counts.get("UNCERTAIN", 0)
+        + adr_counts.get("TEXT_ONLY", 0)
+        + adr_counts.get("DRAWING_ONLY", 0)
+        + adr_counts.get("NOT_FOUND", 0)
+        if adr_counts
+        else sum(1 for i in dr if i.get("requires_human_review"))
+    )
+    lines.append(f"| 图文一致性审查 | {dr_total} | {dr_ok} | {dr_issue} | {dr_review} |")
 
     lines.append("")
 
@@ -203,6 +215,34 @@ def build_review_report(
                 lines.append(f"**{r.get('rule_id')} {r.get('name')}**")
                 lines.append(f"- {r.get('reason', '—')}")
                 lines.append("")
+
+    if adr:
+        lines.append("### 4.5 图文一致性审查")
+        lines.append("")
+        lines.append(
+            f"- 检查项：{dr_total}；图文一致：{adr_counts.get('CONSISTENT', 0)}；"
+            f"图文冲突：{adr_counts.get('CONFLICT', 0)}；暂无法确定：{adr_counts.get('UNCERTAIN', 0)}；"
+            f"仅文本证据：{adr_counts.get('TEXT_ONLY', 0)}；仅图纸证据：{adr_counts.get('DRAWING_ONLY', 0)}；"
+            f"未找到足够证据：{adr_counts.get('NOT_FOUND', 0)}"
+        )
+        lines.append("")
+        for item in adr.get("items", []):
+            if item.get("status") == "CONSISTENT":
+                continue
+            lines.append(
+                f"- **{item.get('display_name') or item.get('fact_id')}**："
+                f"{_agent_drawing_status_label(item.get('status'))}；"
+                f"{_agent_drawing_reason_label(item.get('reason'))}"
+            )
+            text_value = _value_unit(item.get("text_value"), item.get("text_unit"))
+            drawing_value = _value_unit(item.get("drawing_value"), item.get("drawing_unit"))
+            lines.append(f"  - 文本侧实际值：{text_value}")
+            lines.append(f"  - 图纸侧实际值：{drawing_value}")
+            for evidence in (item.get("text_evidence") or [])[:2]:
+                lines.append(f"  - 文本证据：第{evidence.get('physical_page') or evidence.get('page') or '—'}页，{evidence.get('quote') or evidence.get('text') or '—'}")
+            for evidence in (item.get("drawing_evidence") or [])[:2]:
+                lines.append(f"  - 图纸证据：第{evidence.get('physical_page') or evidence.get('page') or '—'}页，{evidence.get('quote') or evidence.get('evidence_text') or evidence.get('text') or '—'}")
+        lines.append("")
 
     # ===== 五、人工复核记录 =====
     if decisions:
@@ -279,6 +319,43 @@ def _side_str(side: dict[str, Any]) -> str:
     return str(value)
 
 
+def _value_unit(value: Any, unit: str | None) -> str:
+    if value is None:
+        return "未提取到可比较的实际值"
+    if isinstance(value, list):
+        text = "/".join(str(item) for item in value)
+    else:
+        text = str(value)
+    return f"{text}{unit or ''}"
+
+
+def _agent_drawing_status_label(status: str | None) -> str:
+    return {
+        "CONSISTENT": "图文一致",
+        "CONFLICT": "图文冲突",
+        "TEXT_ONLY": "仅文本有证据",
+        "DRAWING_ONLY": "仅图纸有证据",
+        "UNCERTAIN": "暂无法确定",
+        "NOT_FOUND": "未找到足够证据",
+    }.get(status or "", status or "—")
+
+
+def _agent_drawing_reason_label(reason: str | None) -> str:
+    return {
+        "values_equal": "文本与图纸同一作用范围下参数值一致",
+        "values_differ": "文本与图纸同一作用范围下参数值不一致",
+        "text_evidence_only": "仅找到文本侧证据",
+        "drawing_evidence_only": "仅找到图纸侧证据",
+        "scope_unknown": "文本与图纸的作用部位无法可靠对应",
+        "scope_incompatible": "文本与图纸作用范围不一致",
+        "no_evidence": "未找到足够文本或图纸证据",
+        "no_candidate_pages": "未召回到可靠的图纸候选页",
+        "no_usable_image": "找到相关页面，但没有可用于视觉核验的图像",
+        "value_not_visible": "图中存在相关构造，但目标数值无法可靠读取",
+        "constraint_not_actual_value": "图中信息为约束条件，不是实际参数取值",
+    }.get(reason or "", reason or "—")
+
+
 def build_review_report_from_job_dir(job_dir: Path) -> str:
     """从任务目录读取各 JSON 结果，生成审查报告。"""
     def _read(name: str) -> Any:
@@ -291,6 +368,7 @@ def build_review_report_from_job_dir(job_dir: Path) -> str:
             return None
 
     status = _read("status.json") or {}
+    orchestrator = _read("orchestrator_agent.json") or {}
     return build_review_report(
         job_id=status.get("job_id", ""),
         file_name=status.get("file_name", ""),
@@ -301,5 +379,6 @@ def build_review_report_from_job_dir(job_dir: Path) -> str:
         substantive_review=_read("substantive_review.json"),
         consistency_review=_read("consistency_review.json"),
         drawing_review=_read("drawing_review.json"),
+        agent_drawing_review=orchestrator.get("agent_drawing_review"),
         decisions=_read("decisions.json") or [],
     )
