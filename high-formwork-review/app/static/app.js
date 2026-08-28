@@ -36,7 +36,19 @@ const MODE_TABS = {
 };
 let curJob=null, revData=null, compData=null, preData=null, decisions=[], difyErr=null, docMeta=null, pollTimer=null, manIdx=0, selMode='smart', ruleEngineData=null, semanticData=null, calcData=null, standardsData=null, reviewPlanData=null, orchestratorData=null, jobDone=false;
 const STD_LABEL = {};
+const STD_META = {};
 const RISK_CN = { over_scale_dangerous:'超过一定规模危大', dangerous:'危大', unknown:'未识别' };
+
+function normStdText(value) {
+  return String(value || '').toUpperCase().replace(/[\s/．.、()（）《》]/g, '');
+}
+function ruleMatchesStandard(rule, standardId) {
+  if (!standardId || standardId === 'all') return true;
+  if ((rule.standard_refs || []).includes(standardId)) return true;
+  const meta = STD_META[standardId] || {};
+  const source = normStdText(rule.code_ref?.standard || rule.standard || '');
+  return source.includes(normStdText(standardId)) || source.includes(normStdText(meta.full_code));
+}
 
 initFromQuery();
 $$('#reviewModeGrid .mode-card').forEach(c => c.addEventListener('click', () => {
@@ -142,7 +154,7 @@ async function loadAll() {
       const sr = await fetch('/api/standards');
       if (sr.ok) {
         standardsData = await sr.json();
-        (standardsData.standards||[]).forEach(s => { STD_LABEL[s.standard_id] = s.full_code; });
+        (standardsData.standards||[]).forEach(s => { STD_LABEL[s.standard_id] = s.full_code; STD_META[s.standard_id] = s; });
       }
     } catch(_){}
     loadRuleLibrary('', '', '', '', '');  // Load rule library in background
@@ -256,9 +268,7 @@ function renderOrchestratorPanel() {
     ? `<div class="agent-logic"><div class="flow-label">Agent 审查逻辑</div><ol>${planExplanation.bullets.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>`
     : '';
   const flow = ORCH_FLOW.map(([stage, label]) => `<div class="agent-step agent-step-${_flowState(stage)}"><span>${esc(label)}</span></div>`).join('');
-  const planBadge = reviewPlanData
-    ? (reviewPlanData.generated_by === 'llm' ? '<span class="tag-agent">计划：LLM</span>' : '<span class="tag-default">计划：本地</span>')
-    : '<span class="tag-default">计划：待生成</span>';
+  const planBadge = reviewPlanData ? '<span class="tag-agent">计划：Agent审查</span>' : '<span class="tag-default">计划：待生成</span>';
   el.innerHTML = `
     <div class="orchestrator-card">
       <div class="orchestrator-head">
@@ -271,16 +281,6 @@ function renderOrchestratorPanel() {
       <div class="flow-label">执行链路</div>
       <div class="agent-flow">${flow}</div>
       ${planLogicHtml}
-      <div class="plan-strip">
-        <span class="mini-chip">dispatch_plan ${dispatchPlan.length || 0} 步</span>
-        <span class="mini-chip">tool_observations ${observations.length || 0} 类</span>
-        <span class="mini-chip">审查重点 ${planExplanation.focus_count || 0}</span>
-        <span class="mini-chip">人工关口 ${planExplanation.human_gate_count || 0}</span>
-        <span class="mini-chip">候选参数 ${candidateCount}</span>
-        <span class="${conflictCount ? 'tag-orange' : 'tag-green'}">参数冲突 ${conflictCount}</span>
-        <span class="mini-chip">公式复算 ${formulaRecalcCount}</span>
-        <span class="${docCorrectionCount ? 'tag-orange' : 'tag-default'}">解析修正 ${docCorrectionCount}</span>
-      </div>
       <div class="tool-grid">
         <button class="tool-card" onclick="switchTab('review')"><b>完整性审查工具</b>${_toolStatusLabel(!!revData, (comp.missing_count||0)+(comp.uncertain_count||0)>0)}<small>${comp.pass_count||0}/${comp.total_rules||10} 已识别</small><small class="tool-meta">观测：${obsById.completeness_review ? '已落盘' : '汇总生成'}</small></button>
         <button class="tool-card" onclick="switchTab('semantic')"><b>规范审查 Agent</b>${_toolStatusLabel(!!semanticData || !!ruleEngineData, semanticSummary.violated>0)}<small>合规 ${semanticSummary.compliant}/${semanticSummary.total} · 违规 ${semanticSummary.violated} · 无法判定 ${semanticSummary.uncertain}</small><small class="tool-meta">路由：本地 ${localCount} · LLM ${llmCount} · Agent ${agentCount} · 人工 ${humanRouteCount}</small></button>
@@ -884,7 +884,7 @@ function renderAgentPlanCard() {
   const planHumanItems = plan.human_confirmations || [];
   const orchestratorHumanItems = orchestratorData?.human_confirmation?.items || [];
   const humanItems = orchestratorHumanItems.length ? orchestratorHumanItems : planHumanItems;
-  const gen = plan.generated_by === 'llm' ? '<span class="tag-agent">LLM 生成</span>' : '<span class="tag-default">本地统计</span>';
+  const gen = '<span class="tag-agent">Agent审查计划</span>';
   const topFocus = focusAreas.find(f => f.priority === 'HIGH') || focusAreas[0] || {};
   const focusText = topFocus.area ? `优先核查 ${topFocus.area}` : '先完成适用规范和关键参数核查';
   const agentText = agentTargets.length ? `安排 ${agentTargets.length} 项由 Agent 自主追证` : '未发现必须由 Agent 深挖的缺口';
@@ -971,19 +971,22 @@ function renderSemantic() {
   const mods = [...new Set(allResults.map(r => r.module))].filter(Boolean);
   const modSel = $('#semanticModuleFilter');
   if (modSel.options.length <= 1) { mods.forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=MODULE_CN[m]||m; modSel.appendChild(o); }); }
-  // Populate standard filter from results
+  // Populate standard filter from registry
   const stdSel = $('#semanticStandardFilter');
   if (stdSel.options.length <= 1 && standardsData) {
-    const stdIds = new Set();
-    allResults.forEach(r => { (r.standard_refs||[]).forEach(id => stdIds.add(id)); });
-    (standardsData.standards||[]).forEach(s => {
-      if (stdIds.has(s.standard_id)) {
+    [['core', '核心规范'], ['reference', '参考规范']].forEach(([tier, label]) => {
+      const list = (standardsData.standards||[]).filter(s => (s.tier||'core') === tier);
+      if (!list.length) return;
+      const og = document.createElement('optgroup');
+      og.label = label;
+      list.forEach(s => {
         const o = document.createElement('option');
         o.value = s.standard_id;
         o.textContent = s.full_code;
-        o.title = s.name;
-        stdSel.appendChild(o);
-      }
+        o.title = `${s.name}（${s.rule_count||0}条）`;
+        og.appendChild(o);
+      });
+      stdSel.appendChild(og);
     });
   }
   renderSemanticTable();
@@ -1183,7 +1186,7 @@ function renderSemanticTable() {
     if (modF!=='all' && r.module!==modF) return false;
     if (stF!=='all' && r.status!==stF) return false;
     if (sevF!=='all' && r.severity!==sevF) return false;
-    if (stdF!=='all' && !(r.standard_refs||[]).includes(stdF)) return false;
+    if (!ruleMatchesStandard(r, stdF)) return false;
     return true;
   });
   const shown = slicePage(results, semState);
