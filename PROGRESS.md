@@ -781,3 +781,17 @@
   - FINAL_FIX_REQUIRED=NO：没有满足小范围高收益低风险的 production bug；Prompt/Recall/Scope/Comparator/constraint semantics 均进 backlog，不在 8B.8 实施。
   - Artifacts（tmp ignored）：`tmp/drawing_evidence_finalization_8b8/{task_evidence_matrix.json,evidence_classification.json,coverage_summary.json,audit_summary.md}`。
   - Tests before/after：409 passed / 1 skipped / 0 failed（1 LibreSSL warning）。NEXT_TASK：Task 8B.9 — Final 17-Task Production Regression；8B.9 后结束 8B。
+
+- [2026-08-28 10:19] codex 签到 — 开始处理：Task 8B.9: Final 17-Task Production Regression & 8B Sign-Off
+
+- [2026-08-28 10:32] codex 签退 — 完成了：Task 8B.9 Final 17-Task Production Regression & 8B Sign-Off（observe-only；Task 8B CLOSED）：
+  - Pure production `build_agent_drawing_review(...)` 跑完 JOB `146dc530dd964a30a2d4f29410738e4d`，REGISTRY_COUNT=17，TOTAL_TASKS=17；无 workaround/retry/手工换图。
+  - Asset gate PASS：890/890 real file image paths resolvable；32 directory placeholders ignored；missing real images=0；budgets=5/2/1/1。
+  - Tool stats：SEARCH_DRAWING actions=17，primary recall=17，fallback recall=3，fallback recalled tasks=3；OCR actions/adapter/engine/nonempty=17/17/7/5，OCR evidence tasks=0；INSPECT_IMAGE actions=19，vision tool/provider=8/8，VLM true/false/invalid=1/7/0；SEARCH_TEXT actions/hits/misses=1/1/0；no-usable actions/tasks=11/2，no fake VLM false。
+  - Status distribution stable：CONSISTENT=0 / CONFLICT=0 / TEXT_ONLY=3 / DRAWING_ONLY=0 / UNCERTAIN=2 / NOT_FOUND=12（sum=17）。
+  - Evidence classes stable：ACTUAL_DRAWING_VALUE=0 / DRAWING_CONSTRAINT=1 / TEXT_TABLE_ONLY=3 / NO_CANDIDATE=3 / NO_USABLE_IMAGE=2 / VALUE_NOT_VISIBLE=2 / ATTRIBUTION_UNCLEAR=3 / COMPARISON_BLOCKED=1 / NO_RELEVANT_EVIDENCE=2（sum=17）。
+  - Coverage：raw DrawingEvidence=2/17 (`horizontal_spacing`, `support_height`)；actual drawing value=1/17 (`horizontal_spacing`)；comparator eligible=0/17；decision coverage=0/17 diagnostic only。
+  - Critical sign-off：`support_height` keeps `H≤8m` as DRAWING_CONSTRAINT, not `H=8m`; page21 head-jack no proven grounding label; `horizontal_spacing` actual value safely blocked by scope_unknown; `main_beam_spacing` no usable image; `monitoring_point_spacing` value not visible。
+  - READY_FOR_ORCHESTRATOR_INTEGRATION=YES：contract stable, deterministic comparator retained, unsafe/constraint/attribution/no-image cases safely degrade with status/reason/class for orchestrator consumption。
+  - Artifacts（tmp ignored）：`tmp/drawing_agent_final_regression_8b9/{final_agent_result.json,final_task_matrix.json,final_tool_stats.json,final_signoff.json}`；tests before/after：409 passed / 1 skipped / 0 failed。
+  - NO_NEW_8B_FEATURE_TASKS=YES；NEXT：Task 8C — Orchestrator Integration。
